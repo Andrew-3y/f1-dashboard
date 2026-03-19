@@ -1,0 +1,23 @@
+# =============================================================
+# F1 On-Demand Intelligence Dashboard — Python Dependencies
+# =============================================================
+# All packages here are 100% FREE and open-source.
+#
+# WHAT EACH PACKAGE DOES:
+#   flask         — Lightweight web framework (serves our dashboard)
+#   gunicorn      — Production WSGI server (Render runs this, not Flask's dev server)
+#   fastf1        — Fetches F1 timing/telemetry data from the official API
+#   pandas        — Data manipulation (DataFrames, groupby, rolling averages)
+#   numpy         — Numerical operations (used in predictor.py)
+#
+# HOW TO INSTALL LOCALLY:
+#   pip install -r requirements.txt
+#
+# Render will automatically install these during deployment.
+# =============================================================
+
+flask==3.1.0
+gunicorn==23.0.0
+fastf1>=3.4.0
+pandas>=2.2.0
+numpy>=1.26.0

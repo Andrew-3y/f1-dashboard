@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 On-Demand Intelligence Dashboard</title>
+
+    <!-- Google Fonts — clean, modern typeface -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        /* =============================================================
+           CSS VARIABLES — Change these to retheme the whole dashboard
+           ============================================================= */
+        :root {
+            --bg-primary:    #0a0a0f;
+            --bg-secondary:  #12121a;
+            --bg-card:       #1a1a2e;
+            --bg-card-hover: #22223a;
+            --text-primary:  #e8e8f0;
+            --text-secondary:#8888a0;
+            --text-muted:    #555570;
+            --accent-red:    #e10600;    /* F1 red */
+            --accent-blue:   #3366ff;
+            --accent-green:  #00c853;
+            --accent-yellow: #ffd600;
+            --accent-orange: #ff6d00;
+            --border-color:  #2a2a40;
+            --shadow:        0 4px 24px rgba(0,0,0,0.4);
+            --radius:        12px;
+            --transition:    all 0.2s ease;
+        }
+
+        /* =============================================================
+           RESET & BASE
+           ============================================================= */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* =============================================================
+           HEADER
+           ============================================================= */
+        .header {
+            background: linear-gradient(135deg, var(--accent-red) 0%, #8b0000 100%);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header h1 {
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: #fff;
+        }
+
+        .header h1 span {
+            font-weight: 300;
+            opacity: 0.85;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .meta-badge {
+            background: rgba(255,255,255,0.15);
+            padding: 0.35rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #fff;
+            backdrop-filter: blur(4px);
+        }
+
+        .meta-badge.live {
+            background: var(--accent-green);
+            color: #000;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* =============================================================
+           SESSION SELECTOR (optional manual override)
+           ============================================================= */
+        .session-selector {
+            background: var(--bg-secondary);
+            padding: 1rem 2rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .session-selector label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .session-selector select,
+        .session-selector input,
+        .session-selector button {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 0.8rem;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+        }
+
+        .session-selector button {
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .session-selector button:hover {
+            background: #ff1a14;
+            transform: translateY(-1px);
+        }
+
+        /* =============================================================
+           MAIN LAYOUT
+           ============================================================= */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        /* Stats summary row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 1.2rem;
+            text-align: center;
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-card .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--accent-red);
+            line-height: 1.2;
+        }
+
+        .stat-card .stat-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.3rem;
+        }
+
+        /* Dashboard grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        .dashboard-grid .full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* =============================================================
+           CARDS (Leaderboard, Alerts, Predictions)
+           ============================================================= */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow);
+        }
+
+        .card-header {
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-header h2 {
+            font-size: 1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-header .badge {
+            background: var(--accent-red);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.2rem 0.55rem;
+            border-radius: 10px;
+        }
+
+        .card-body {
+            padding: 0;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .card-body::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .card-body::-webkit-scrollbar-track {
+            background: var(--bg-card);
+        }
+
+        .card-body::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        /* =============================================================
+           LEADERBOARD TABLE
+           ============================================================= */
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .leaderboard-table th {
+            background: var(--bg-secondary);
+            padding: 0.7rem 1rem;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .leaderboard-table td {
+            padding: 0.65rem 1rem;
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+
+        .leaderboard-table tr:hover td {
+            background: rgba(255,255,255,0.03);
+        }
+
+        .pos-cell {
+            font-weight: 800;
+            width: 40px;
+            text-align: center;
+        }
+
+        .pos-1 { color: #ffd700; }  /* Gold */
+        .pos-2 { color: #c0c0c0; }  /* Silver */
+        .pos-3 { color: #cd7f32; }  /* Bronze */
+
+        .driver-name {
+            font-weight: 600;
+        }
+
+        .team-name {
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+        }
+
+        .laptime {
+            font-family: 'Inter', monospace;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .gap {
+            font-variant-numeric: tabular-nums;
+            color: var(--text-secondary);
+        }
+
+        .gap-leader {
+            color: var(--accent-green);
+            font-weight: 700;
+        }
+
+        /* =============================================================
+           ALERT ITEMS
+           ============================================================= */
+        .alert-item {
+            padding: 0.8rem 1.2rem;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.8rem;
+            transition: var(--transition);
+        }
+
+        .alert-item:hover {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .alert-severity {
+            flex-shrink: 0;
+            width: 60px;
+            padding: 0.2rem 0;
+            text-align: center;
+            font-size: 0.65rem;
+            font-weight: 800;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .severity-CRITICAL {
+            background: rgba(225, 6, 0, 0.2);
+            color: var(--accent-red);
+            border: 1px solid rgba(225, 6, 0, 0.3);
+        }
+
+        .severity-HIGH {
+            background: rgba(255, 109, 0, 0.15);
+            color: var(--accent-orange);
+            border: 1px solid rgba(255, 109, 0, 0.3);
+        }
+
+        .severity-MEDIUM {
+            background: rgba(255, 214, 0, 0.12);
+            color: var(--accent-yellow);
+            border: 1px solid rgba(255, 214, 0, 0.25);
+        }
+
+        .severity-LOW {
+            background: rgba(51, 102, 255, 0.12);
+            color: var(--accent-blue);
+            border: 1px solid rgba(51, 102, 255, 0.25);
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-driver {
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        .alert-detail {
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            margin-top: 0.15rem;
+        }
+
+        .alert-delta {
+            font-weight: 700;
+            color: var(--accent-orange);
+        }
+
+        /* =============================================================
+           PREDICTION ITEMS
+           ============================================================= */
+        .prediction-item {
+            padding: 0.8rem 1.2rem;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            transition: var(--transition);
+        }
+
+        .prediction-item:hover {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .prediction-drivers {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .prediction-arrow {
+            color: var(--accent-red);
+            font-size: 1.1rem;
+        }
+
+        .prediction-stats {
+            display: flex;
+            gap: 1.2rem;
+            margin-top: 0.4rem;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+
+        .prediction-stats span {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .prediction-laps {
+            color: var(--accent-green);
+            font-weight: 700;
+        }
+
+        .confidence-HIGH   { color: var(--accent-green); }
+        .confidence-MEDIUM { color: var(--accent-yellow); }
+        .confidence-LOW    { color: var(--text-muted); }
+
+        /* =============================================================
+           ERROR STATE
+           ============================================================= */
+        .error-container {
+            text-align: center;
+            padding: 4rem 2rem;
+        }
+
+        .error-container h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent-red);
+        }
+
+        .error-container p {
+            color: var(--text-secondary);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .error-container .error-detail {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 1rem;
+            margin-top: 1.5rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: var(--accent-orange);
+            display: inline-block;
+            max-width: 600px;
+            text-align: left;
+        }
+
+        /* =============================================================
+           EMPTY STATE
+           ============================================================= */
+        .empty-state {
+            text-align: center;
+            padding: 2.5rem 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .empty-state .icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* =============================================================
+           FOOTER
+           ============================================================= */
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            border-top: 1px solid var(--border-color);
+            margin-top: 2rem;
+        }
+
+        .footer a {
+            color: var(--accent-red);
+            text-decoration: none;
+        }
+
+        /* =============================================================
+           LOADING OVERLAY
+           ============================================================= */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10,10,15,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border-color);
+            border-top-color: var(--accent-red);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* =============================================================
+           REFRESH INDICATOR
+           ============================================================= */
+        .refresh-bar {
+            height: 3px;
+            background: var(--bg-secondary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .refresh-bar .progress {
+            height: 100%;
+            background: var(--accent-red);
+            width: 0%;
+            transition: width 1s linear;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ============================================================= -->
+    <!-- LOADING OVERLAY (shown during AJAX refresh)                    -->
+    <!-- ============================================================= -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Fetching F1 data...</div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- HEADER                                                         -->
+    <!-- ============================================================= -->
+    <header class="header">
+        <h1>F1 <span>On-Demand Intelligence</span></h1>
+        <div class="header-meta">
+            {% if session_info %}
+                <span class="meta-badge">{{ session_info.year }} Season</span>
+                <span class="meta-badge">{{ session_info.event_name }}</span>
+                <span class="meta-badge">{{ session_info.session_type }}</span>
+            {% endif %}
+            <span class="meta-badge">Loaded in {{ load_time }}s</span>
+        </div>
+    </header>
+
+    <!-- Auto-refresh progress bar -->
+    <div class="refresh-bar">
+        <div class="progress" id="refreshProgress"></div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- SESSION SELECTOR                                               -->
+    <!-- ============================================================= -->
+    <div class="session-selector">
+        <label>Custom Session:</label>
+        <input type="number" id="yearInput" placeholder="Year" min="2018" max="2030"
+               value="{{ session_info.year if session_info else '' }}" style="width:80px">
+        <input type="number" id="roundInput" placeholder="Round" min="1" max="24"
+               value="{{ session_info.round_number if session_info else '' }}" style="width:75px">
+        <select id="sessionType">
+            <option value="Race" {% if session_info and session_info.session_type == 'Race' %}selected{% endif %}>Race</option>
+            <option value="Qualifying" {% if session_info and session_info.session_type == 'Qualifying' %}selected{% endif %}>Qualifying</option>
+            <option value="Sprint" {% if session_info and session_info.session_type == 'Sprint' %}selected{% endif %}>Sprint</option>
+        </select>
+        <button onclick="loadCustomSession()">Load Session</button>
+        <button onclick="window.location.href='/'" style="background:var(--bg-card);border-color:var(--border-color);color:var(--text-primary);">
+            Auto-Detect Latest
+        </button>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- ERROR STATE                                                    -->
+    <!-- ============================================================= -->
+    {% if error %}
+    <div class="container">
+        <div class="error-container">
+            <h2>Could Not Load Session Data</h2>
+            <p>This usually means the session hasn't started yet, the data
+               isn't available, or it's the off-season. Try selecting a
+               specific past session above.</p>
+            <div class="error-detail">{{ error }}</div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- ============================================================= -->
+    <!-- MAIN CONTENT                                                   -->
+    <!-- ============================================================= -->
+    <div class="container">
+
+        <!-- STATS ROW -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value">{{ leaderboard|length }}</div>
+                <div class="stat-label">Drivers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ alert_summary.total_alerts }}</div>
+                <div class="stat-label">Anomalies Detected</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ prediction_summary.imminent }}</div>
+                <div class="stat-label">Imminent Overtakes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="font-size:1rem;color:var(--accent-green);">
+                    {{ prediction_summary.fastest_closing or 'N/A' }}
+                </div>
+                <div class="stat-label">Fastest Closing Battle</div>
+            </div>
+        </div>
+
+        <!-- DASHBOARD GRID -->
+        <div class="dashboard-grid">
+
+            <!-- ==================== LEADERBOARD ==================== -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Leaderboard <span class="badge">{{ leaderboard|length }} drivers</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if leaderboard %}
+                    <table class="leaderboard-table">
+                        <thead>
+                            <tr>
+                                <th>Pos</th>
+                                <th>Driver</th>
+                                <th>Team</th>
+                                <th>Best Lap</th>
+                                <th>Gap</th>
+                                <th>Laps</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for d in leaderboard %}
+                            <tr>
+                                <td class="pos-cell pos-{{ d.position }}">{{ d.position }}</td>
+                                <td class="driver-name">{{ d.driver }}</td>
+                                <td class="team-name">{{ d.team }}</td>
+                                <td class="laptime">{{ d.best_lap_display }}</td>
+                                <td class="gap {% if d.gap_seconds == 0 %}gap-leader{% endif %}">
+                                    {{ d.gap_display }}
+                                </td>
+                                <td>{{ d.total_laps }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="icon">&#127937;</div>
+                        <p>No leaderboard data available</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- ==================== ANOMALY ALERTS ==================== -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Anomaly Alerts <span class="badge">{{ alerts|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if alerts %}
+                        {% for alert in alerts %}
+                        <div class="alert-item">
+                            <div class="alert-severity severity-{{ alert.severity }}">
+                                {{ alert.severity }}
+                            </div>
+                            <div class="alert-content">
+                                <div class="alert-driver">
+                                    {{ alert.driver }}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.78rem;">
+                                        Lap {{ alert.lap_number }}
+                                    </span>
+                                </div>
+                                <div class="alert-detail">
+                                    Lost <span class="alert-delta">{{ alert.delta }}s</span>
+                                    vs rolling avg ({{ alert.rolling_avg }}s &rarr; {{ alert.lap_time_s }}s)
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="icon">&#9989;</div>
+                        <p>No anomalies detected — all drivers running consistently</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- ==================== OVERTAKE PREDICTIONS ==================== -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Overtake Predictions <span class="badge">{{ predictions|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if predictions %}
+                        {% for pred in predictions %}
+                        <div class="prediction-item">
+                            <div class="prediction-drivers">
+                                <span>{{ pred.chaser }}</span>
+                                <span class="prediction-arrow">&raquo;</span>
+                                <span>{{ pred.target }}</span>
+                                {% if pred.laps_to_drs is not none %}
+                                    <span class="prediction-laps" style="margin-left:auto;">
+                                        ~{{ pred.laps_to_drs|round|int }} laps
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <div class="prediction-stats">
+                                <span>Gap: <strong>{{ pred.current_gap }}s</strong></span>
+                                <span>Rate: <strong>{{ pred.closing_rate }}s/lap</strong></span>
+                                <span class="confidence-{{ pred.confidence }}">
+                                    {{ pred.confidence }} confidence
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="icon">&#128640;</div>
+                        <p>No overtake predictions available</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div><!-- /dashboard-grid -->
+    </div><!-- /container -->
+    {% endif %}
+
+    <!-- ============================================================= -->
+    <!-- FOOTER                                                         -->
+    <!-- ============================================================= -->
+    <footer class="footer">
+        F1 On-Demand Intelligence Dashboard &middot;
+        Data powered by <a href="https://github.com/theOehrly/Fast-F1" target="_blank">FastF1</a> &middot;
+        Built with Flask &amp; Python
+    </footer>
+
+    <!-- ============================================================= -->
+    <!-- JAVASCRIPT — Auto-refresh & session loading                    -->
+    <!-- ============================================================= -->
+    <script>
+        /*
+         * AUTO-REFRESH
+         * Every 60 seconds, the page reloads to fetch fresh data.
+         * This keeps the dashboard up-to-date during a live session
+         * without requiring WebSockets.
+         *
+         * We use a full page reload (not AJAX) to keep things simple.
+         * The progress bar at the top shows how long until the next refresh.
+         */
+
+        const REFRESH_INTERVAL = 60;  // seconds
+        let countdown = REFRESH_INTERVAL;
+        const progressBar = document.getElementById('refreshProgress');
+
+        function updateProgress() {
+            countdown--;
+            const pct = ((REFRESH_INTERVAL - countdown) / REFRESH_INTERVAL) * 100;
+            if (progressBar) {
+                progressBar.style.width = pct + '%';
+            }
+            if (countdown <= 0) {
+                location.reload();
+            }
+        }
+
+        // Tick every second
+        setInterval(updateProgress, 1000);
+
+        /*
+         * CUSTOM SESSION LOADING
+         * When the user fills in Year / Round / Session Type and clicks
+         * "Load Session", we redirect to the same page with query params.
+         */
+        function loadCustomSession() {
+            const year = document.getElementById('yearInput').value;
+            const round = document.getElementById('roundInput').value;
+            const type = document.getElementById('sessionType').value;
+
+            if (!year || !round) {
+                alert('Please enter both Year and Round number.');
+                return;
+            }
+
+            // Build the URL with query parameters
+            const url = `/?year=${year}&round=${round}&session_type=${type}`;
+            window.location.href = url;
+        }
+
+        /*
+         * Allow pressing Enter in the input fields to trigger load
+         */
+        document.getElementById('yearInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') loadCustomSession();
+        });
+        document.getElementById('roundInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') loadCustomSession();
+        });
+    </script>
+
+</body>
+</html>

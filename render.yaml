@@ -1,0 +1,30 @@
+# =============================================================
+# render.yaml — Render Blueprint (Infrastructure-as-Code)
+# =============================================================
+# This file tells Render HOW to deploy your app.
+# You can either:
+#   A) Use the Render dashboard manually (see README), OR
+#   B) Push this file to GitHub and click "New Blueprint Instance"
+#      on Render — it auto-configures everything.
+#
+# WHAT EACH FIELD MEANS:
+#   type: web         → This is a web service (has a public URL)
+#   runtime: python   → Use Python
+#   plan: free        → Free tier (no credit card needed)
+#   buildCommand      → Run once during deployment to install packages
+#   startCommand      → Run every time the service starts
+#   envVars           → Environment variables
+# =============================================================
+
+services:
+  - type: web
+    name: f1-intelligence-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: FASTF1_CACHE
+        value: /tmp/fastf1_cache
