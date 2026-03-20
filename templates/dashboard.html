@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>F1 On-Demand Intelligence Dashboard</title>
 
-    <!-- Google Fonts — clean, modern typeface -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Google Fonts — loaded non-blocking so it never stalls the page -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 
     <style>
         /* =============================================================
@@ -624,6 +627,12 @@
         <button onclick="window.location.href='/'" style="background:var(--bg-card);border-color:var(--border-color);color:var(--text-primary);">
             Auto-Detect Latest
         </button>
+        <select id="refreshSelect" onchange="setRefreshInterval()" style="margin-left:auto;">
+            <option value="0">Auto-Refresh: OFF</option>
+            <option value="30">Live Race (30s)</option>
+            <option value="60">Active Session (60s)</option>
+            <option value="300">Casual (5 min)</option>
+        </select>
     </div>
 
     <!-- ============================================================= -->
@@ -812,16 +821,28 @@
          * The progress bar at the top shows how long until the next refresh.
          */
 
-        const REFRESH_INTERVAL = 60;  // seconds
-        let countdown = REFRESH_INTERVAL;
+        // Refresh interval in seconds. 0 = OFF.
+        let refreshInterval = 0;
+        let countdown = 0;
         const progressBar = document.getElementById('refreshProgress');
 
+        function setRefreshInterval() {
+            const select = document.getElementById('refreshSelect');
+            refreshInterval = parseInt(select.value);
+            countdown = refreshInterval;
+            // Reset the progress bar
+            if (progressBar) progressBar.style.width = '0%';
+        }
+
         function updateProgress() {
-            countdown--;
-            const pct = ((REFRESH_INTERVAL - countdown) / REFRESH_INTERVAL) * 100;
-            if (progressBar) {
-                progressBar.style.width = pct + '%';
+            if (refreshInterval === 0) {
+                // OFF — keep bar empty
+                if (progressBar) progressBar.style.width = '0%';
+                return;
             }
+            countdown--;
+            const pct = ((refreshInterval - countdown) / refreshInterval) * 100;
+            if (progressBar) progressBar.style.width = pct + '%';
             if (countdown <= 0) {
                 location.reload();
             }

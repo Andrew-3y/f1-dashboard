@@ -221,15 +221,26 @@ def load_session(year, round_number, session_type):
 # ---------------------------------------------------------------------------
 # Build a leaderboard from the laps DataFrame
 # ---------------------------------------------------------------------------
-def build_leaderboard(laps):
+def build_leaderboard(laps, session_type="Race"):
     """
-    Build a sorted leaderboard showing each driver's best lap time,
-    finishing position, and gap to the leader.
+    Build a sorted leaderboard.
+
+    For RACE sessions:
+        - Sorted by actual finishing position (from the Position column
+          on each driver's final lap).
+        - Gap shown as cumulative race-time difference to the leader
+          (using the 'Time' column = total elapsed race time per lap).
+
+    For QUALIFYING / PRACTICE sessions:
+        - Sorted by best single lap time (fastest lap = P1).
+        - Gap shown as delta to the fastest lap.
 
     Parameters
     ----------
     laps : pandas.DataFrame
         The laps DataFrame from a loaded FastF1 session.
+    session_type : str
+        'Race', 'Qualifying', 'Sprint', 'Practice', etc.
 
     Returns
     -------
@@ -241,7 +252,72 @@ def build_leaderboard(laps):
     if laps.empty:
         return []
 
-    # Get each driver's fastest lap
+    is_race = session_type.lower() in ("race", "sprint")
+
+    if is_race:
+        return _build_race_leaderboard(laps)
+    else:
+        return _build_quali_leaderboard(laps)
+
+
+def _build_race_leaderboard(laps):
+    """
+    Race leaderboard: use the official Position from each driver's
+    last recorded lap, and calculate gaps from cumulative race time.
+    """
+    # For each driver, grab their last lap entry
+    last_laps_idx = laps.groupby("Driver")["LapNumber"].idxmax()
+    last_laps = laps.loc[last_laps_idx].copy()
+
+    # Drop drivers with no position data
+    last_laps = last_laps.dropna(subset=["Position"])
+    last_laps["Position"] = last_laps["Position"].astype(int)
+    last_laps = last_laps.sort_values("Position").reset_index(drop=True)
+
+    if last_laps.empty:
+        return []
+
+    # Get cumulative race time for each driver (the 'Time' column in FastF1
+    # represents total elapsed time at the END of that lap)
+    # Use it to calculate gaps to the leader
+    leader_total_time = None
+    if "Time" in last_laps.columns:
+        leader_row = last_laps.iloc[0]
+        if pd.notna(leader_row["Time"]):
+            leader_total_time = leader_row["Time"].total_seconds()
+
+    leaderboard = []
+    for _, row in last_laps.iterrows():
+        # Best lap for display (fastest individual lap this driver set)
+        driver_laps = laps[laps["Driver"] == row["Driver"]]
+        best_lap = driver_laps["LapTime"].min()
+
+        # Gap calculation
+        if leader_total_time and "Time" in row and pd.notna(row["Time"]):
+            gap = row["Time"].total_seconds() - leader_total_time
+        else:
+            gap = 0 if row["Position"] == 1 else None
+
+        leaderboard.append(
+            {
+                "position": int(row["Position"]),
+                "driver": row["Driver"],
+                "team": row["Team"] if pd.notna(row["Team"]) else "Unknown",
+                "best_lap": best_lap,
+                "best_lap_display": format_laptime(best_lap),
+                "gap_seconds": round(gap, 3) if gap is not None else 0,
+                "gap_display": format_gap(gap),
+                "total_laps": int(row["LapNumber"]),
+            }
+        )
+
+    return leaderboard
+
+
+def _build_quali_leaderboard(laps):
+    """
+    Qualifying / Practice leaderboard: sort by fastest single lap time.
+    """
     quicklaps = (
         laps.groupby("Driver")
         .agg(
@@ -318,7 +394,7 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
         # Update event name from loaded session (more accurate)
         info["event_name"] = session.event["EventName"]
 
-        leaderboard = build_leaderboard(laps)
+        leaderboard = build_leaderboard(laps, session_type=info["session_type"])
 
         return {
             "session_info": info,
