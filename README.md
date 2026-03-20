@@ -1,19 +1,23 @@
-# F1 On-Demand Intelligence Dashboard
+# F1 Strategy Intelligence Dashboard
 
-A free, serverless Formula 1 analytics dashboard that fetches live timing data on-demand and presents a leaderboard, anomaly detection alerts, and overtake predictions — all powered by Python, FastF1, and Flask.
+A free, on-demand Formula 1 strategy analytics platform that fetches real timing data and delivers a full race intelligence suite — leaderboard, tire degradation modeling, pit strategy simulation, battle detection, overtake predictions, and anomaly alerts — all powered by Python, FastF1, and Flask.
 
-**Live demo architecture:** The app sleeps on Render's free tier and wakes up when someone visits the URL. No always-running server needed.
+**Live demo architecture:** The app sleeps on Render's free tier and wakes up when someone visits the URL. No always-running server, no paid services, no databases.
 
 ---
 
 ## Features
 
-- **Auto-detecting leaderboard** — Finds the latest completed F1 session and displays driver positions, best laps, and gaps
-- **Anomaly detection** — Flags sudden pace losses using rolling-average analysis (with severity levels: CRITICAL / HIGH / MEDIUM / LOW)
-- **Overtake predictions** — Calculates gap-closing rates between drivers and estimates laps until DRS range
+- **Auto-detecting leaderboard** — Finds the latest completed F1 session and displays driver positions, best laps, and gaps (race finishing order for Race sessions, fastest lap for Qualifying)
+- **Tire degradation modeling** — Calculates each driver's degradation rate (seconds lost per lap) using linear regression on clean stint laps. Classifies pace as IMPROVING / STABLE / MODERATE / HIGH / CRITICAL
+- **Pit window prediction** — Estimates when cumulative tire time loss approaches pit stop cost and flags windows as OPEN / APPROACHING / CLOSED
+- **Pit strategy simulator** — Simulates "what if this driver pits now?", predicts rejoin position, identifies traffic risk, and evaluates undercut potential vs. the car ahead. Outputs PIT NOW / CONSIDER PIT / STAY OUT / HOLD recommendations
+- **Battle detection** — Scans the grid for drivers within 2 seconds of each other, tracks whether the gap is shrinking, and classifies battles as INTENSE / CLOSE / WATCHING with DRS-active flags
+- **Overtake predictions** — Calculates gap-closing rates between consecutive drivers and estimates laps until DRS range
+- **Anomaly detection** — Flags sudden pace drops using rolling-average analysis with severity levels: CRITICAL / HIGH / MEDIUM / LOW
 - **Manual session selector** — Pick any year/round/session type to explore historical data
-- **Auto-refresh** — Page reloads every 60 seconds during live sessions
-- **Dark F1-themed UI** — Clean, responsive design that looks great on desktop and mobile
+- **Auto-refresh** — Configurable refresh: OFF / Live 30s / Session 60s / Casual 5min
+- **Dark F1-themed UI** — Organized into sections with color-coded compound badges, strategy tags, and intensity indicators
 
 ---
 
@@ -21,16 +25,18 @@ A free, serverless Formula 1 analytics dashboard that fetches live timing data o
 
 ```
 f1-dashboard/
-├── app.py              # Flask web server — routes and page rendering
+├── app.py              # Flask web server — routes, orchestrates all modules
 ├── data_handler.py     # FastF1 data fetching, caching, leaderboard building
-├── anomaly.py          # Lap-time anomaly detection algorithm
-├── predictor.py        # Overtake prediction system
+├── anomaly.py          # Lap-time anomaly detection (rolling average)
+├── predictor.py        # Overtake prediction (gap-closing rate analysis)
+├── degradation.py      # Tire degradation modeling + pit window prediction
+├── strategy.py         # Pit strategy simulator (undercut/overcut/traffic)
+├── battle_detector.py  # On-track battle detection system
 ├── requirements.txt    # Python dependencies
 ├── render.yaml         # Render deployment blueprint
 ├── .gitignore          # Files to exclude from Git
-├── README.md           # This file
 └── templates/
-    └── dashboard.html  # Full HTML/CSS/JS dashboard template
+    └── dashboard.html  # Full HTML/CSS/JS dashboard (single file)
 ```
 
 ---
@@ -38,69 +44,52 @@ f1-dashboard/
 ## File-by-File Explanation
 
 ### `app.py` — The Main Application
-This is the entry point. It creates a Flask web server with three routes:
-- `GET /` — Renders the dashboard (auto-detects or accepts query params for year/round/session)
-- `GET /api/data` — Returns JSON (for potential AJAX refresh)
-- `GET /health` — Health check endpoint for Render
-
-When a request comes in, it calls `data_handler` to fetch data, then runs it through `anomaly.py` and `predictor.py`, and finally injects everything into the HTML template.
+Creates a Flask web server with three routes: `/` (main dashboard), `/api/data` (JSON endpoint), and `/health` (Render health check). On each request it calls `data_handler` to fetch session data, then runs all five analysis modules through a shared `_run_full_analysis()` helper. Each module is wrapped in try/except so a failure in one never crashes the whole dashboard.
 
 ### `data_handler.py` — Data Fetching & Processing
-Handles all communication with FastF1:
-- `get_latest_session_info()` — Scans the F1 calendar to find the most recent completed session
-- `load_session()` — Downloads lap data via FastF1 (with in-memory caching so repeat visits are fast)
-- `build_leaderboard()` — Groups laps by driver, finds best lap times, calculates gaps to the leader
-- `format_laptime()` / `format_gap()` — Convert raw numbers to display strings like "1:23.456"
+All FastF1 communication lives here. `get_latest_session_info()` scans the F1 calendar to find the most recent completed session. `load_session()` downloads lap data with in-memory caching (fast on repeat visits). `build_leaderboard()` uses actual finishing positions for Race sessions and fastest lap for Qualifying.
 
 ### `anomaly.py` — Anomaly Detection
-Scans each driver's laps to find sudden pace drops:
-1. Computes a 5-lap rolling average for each driver
-2. Compares each lap time against the rolling average
-3. If a lap is >1 second slower, it's flagged as an anomaly
-4. Pit laps are filtered out (they're expected to be slow)
-5. Results are sorted by severity (biggest pace loss first)
-
-Severity levels: CRITICAL (>3s), HIGH (>2s), MEDIUM (>1.5s), LOW (>1s)
+Computes a 5-lap rolling average per driver, filters out pit laps, and flags any lap more than 1 second slower than average. Severity: CRITICAL (>3s), HIGH (>2s), MEDIUM (>1.5s), LOW (>1s).
 
 ### `predictor.py` — Overtake Predictions
-Analyzes gap trends between consecutive drivers:
-1. For each driver pair (P2 vs P1, P3 vs P2, etc.), get their recent lap times
-2. Calculate the "closing rate" — how much time the chaser gains per lap
-3. Estimate laps until the gap drops below 1 second (DRS threshold)
-4. Assign confidence: HIGH (strong closing + small gap + lots of data), MEDIUM, or LOW
+For each consecutive driver pair, calculates the average closing rate over recent laps (how much time the chaser gains per lap). Predicts laps until DRS range (< 1 second gap).
+
+### `degradation.py` — Tire Degradation + Pit Window
+Identifies each driver's current stint, filters outlier laps (safety car, traffic, mistakes) using median deviation, then fits a linear regression to find the degradation slope (seconds lost per additional lap on the tyre). Classifies the trend and estimates when the pit window opens based on cumulative time loss vs. pit stop cost (~23s).
+
+### `strategy.py` — Pit Strategy Simulator
+Builds a snapshot of the current race state (positions + cumulative times), then simulates each driver pitting by adding pit loss to their time and recalculating where they'd rejoin. Checks for undercut feasibility (fresh tyre pace advantage vs. current gap) and traffic risk (emerging within 2s of another car).
+
+### `battle_detector.py` — Battle Detection
+Scans consecutive driver pairs for gaps under 2 seconds, calculates closing rate from recent laps, and classifies intensity. INTENSE = within 1s or closing fast, CLOSE = within 1.5s, WATCHING = within 2s but stable.
 
 ### `templates/dashboard.html` — The UI
-A single-file HTML document with embedded CSS and JavaScript:
-- **CSS** — Dark theme with CSS variables for easy retheming
-- **Layout** — Header, stats row, two-column grid (alerts + predictions), full-width leaderboard
-- **JavaScript** — Auto-refresh timer, custom session loading, Enter-key support
+Single-file dashboard with embedded CSS and JavaScript. Organized into four sections: Stats Row → Leaderboard → Strategy Intelligence (Degradation + Pit Strategy) → Race Action (Battles + Overtake Predictions) → Anomaly Detection. Color-coded tyre compound badges (red/yellow/white for Soft/Medium/Hard), strategy recommendation tags, and pit window indicators.
 
 ---
 
-## Local Setup (Step by Step)
+## Local Setup
 
 ### Prerequisites
-- Python 3.9 or higher installed ([download](https://www.python.org/downloads/))
-- Git installed ([download](https://git-scm.com/downloads))
-- A terminal / command prompt
+- Python 3.9+ — [download](https://www.python.org/downloads/)
+- Git — [download](https://git-scm.com/downloads)
+- VS Code (recommended) — [download](https://code.visualstudio.com/)
 
-### Step 1: Clone or Download the Project
+### Step 1: Clone the Repository
 ```bash
-# If you have the files already, skip this.
-# Otherwise, after pushing to GitHub:
-git clone https://github.com/YOUR_USERNAME/f1-dashboard.git
+git clone https://github.com/Andrew-3y/f1-dashboard.git
 cd f1-dashboard
 ```
 
-### Step 2: Create a Virtual Environment (Recommended)
+### Step 2: Create a Virtual Environment
 ```bash
-# Create
 python -m venv venv
 
-# Activate (Windows)
+# Activate on Windows
 venv\Scripts\activate
 
-# Activate (Mac/Linux)
+# Activate on Mac/Linux
 source venv/bin/activate
 ```
 
@@ -113,91 +102,52 @@ pip install -r requirements.txt
 ```bash
 python app.py
 ```
-Open your browser to `http://localhost:5000`. The dashboard will auto-detect the latest F1 session and display results.
+Open `http://localhost:5000`. The dashboard auto-detects the latest F1 session.
 
 ### Step 5: Try a Specific Session
-Add query parameters to the URL:
 ```
 http://localhost:5000/?year=2024&round=1&session_type=Race
 ```
 
 ---
 
-## Deployment on Render (Step by Step)
+## Deployment on Render (Free Tier)
 
-### Step 1: Push Code to GitHub
-
+### Push Changes to GitHub
 ```bash
-# Initialize a Git repo (if you haven't already)
-cd f1-dashboard
-git init
 git add .
-git commit -m "Initial commit: F1 Intelligence Dashboard"
-
-# Create a repo on GitHub (https://github.com/new), then:
-git remote add origin https://github.com/YOUR_USERNAME/f1-dashboard.git
-git branch -M main
-git push -u origin main
+git commit -m "describe your change here"
+git push origin main
 ```
+Render auto-redeploys every time you push to GitHub — no manual steps needed.
 
-### Step 2: Create a Render Account
-1. Go to [https://render.com](https://render.com)
-2. Sign up for free (no credit card required)
-3. Connect your GitHub account
-
-### Step 3: Create a New Web Service
-1. Click **"New +"** in the top right
-2. Select **"Web Service"**
-3. Connect your GitHub repository (`f1-dashboard`)
-4. Configure:
+### First-Time Render Setup
+1. Go to [render.com](https://render.com) → sign up free → connect GitHub
+2. Click **New + → Web Service** → select `f1-dashboard`
+3. Configure:
 
 | Setting | Value |
 |---------|-------|
-| **Name** | `f1-intelligence-dashboard` |
-| **Region** | Choose closest to you |
-| **Branch** | `main` |
-| **Runtime** | `Python` |
-| **Build Command** | `pip install -r requirements.txt` |
-| **Start Command** | `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120` |
-| **Plan** | `Free` |
+| Runtime | `Python` |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120` |
+| Plan | `Free` |
 
-5. Add environment variables:
-
-| Key | Value |
-|-----|-------|
-| `PYTHON_VERSION` | `3.11.0` |
-| `FASTF1_CACHE` | `/tmp/fastf1_cache` |
-
-6. Click **"Create Web Service"**
-
-### Step 4: Wait for Deployment
-- Render will install dependencies and start your app
-- This takes 2-5 minutes on the first deploy
-- You'll get a public URL like: `https://f1-intelligence-dashboard.onrender.com`
-
-### Step 5: Visit Your Dashboard
-Open the URL. The first load may take 30-60 seconds (free tier cold start + data download). Subsequent loads within the same wake cycle will be much faster thanks to caching.
+4. Add environment variable: `FASTF1_CACHE` = `/tmp/fastf1_cache`
+5. Click **Create Web Service**
 
 ---
 
 ## Testing During a Live Race
 
-1. Open your dashboard URL during or shortly after a race session
-2. The app auto-detects the latest session — if a race just finished, it will load that data
+1. Open your dashboard during or shortly after a session
+2. Set Auto-Refresh to **Live (30s)** using the dropdown in the top bar
 3. Watch for:
-   - **Anomaly alerts** — drivers who had sudden pace drops
-   - **Overtake predictions** — which battles were closest
-4. The page auto-refreshes every 60 seconds
-5. Note: FastF1 data typically becomes available 1-2 hours after a session ends
-
----
-
-## Customization Ideas
-
-- Change the color scheme by editing CSS variables in `dashboard.html`
-- Adjust anomaly sensitivity by changing `PACE_LOSS_THRESHOLD` in `anomaly.py`
-- Add more stats (sector times, tyre strategies) by extending `data_handler.py`
-- Add charts using Chart.js or Plotly (include via CDN in the HTML)
+   - **Pit Windows** turning OPEN — drivers becoming vulnerable
+   - **Battle Watch** — who's fighting on track right now
+   - **Strategy recommendations** — PIT NOW signals for potential undercuts
+   - **Anomaly alerts** — sudden pace drops indicating issues
+4. FastF1 data typically becomes available 1-2 hours after a session ends
 
 ---
 
@@ -205,11 +155,12 @@ Open the URL. The first load may take 30-60 seconds (free tier cold start + data
 
 | Problem | Solution |
 |---------|----------|
-| "No completed F1 session found" | It's the off-season or pre-season. Use the manual selector to pick a past race (e.g., year=2024, round=24, Race) |
-| First load is very slow | Normal — FastF1 downloads ~10-30MB of data on first load. Cached after that. |
-| Render shows "Build failed" | Check that `requirements.txt` has no typos. Check Render build logs. |
-| Data looks wrong | FastF1 data depends on the F1 API. Some sessions may have incomplete data. |
-| App crashes with memory error | Render free tier has 512MB RAM. The app is optimized for this, but very large sessions may struggle. Try Qualifying instead of Race. |
+| "No completed session found" | Off-season. Use manual selector (e.g. year=2024, round=24, Race) |
+| First load is slow (30-60s) | Normal — FastF1 downloads session data on first load, cached after |
+| Degradation shows N/A | Stint too short (<4 clean laps). Happens early in a race |
+| Strategy shows no data | Requires cumulative race time — only available in Race sessions |
+| Render build failed | Check build logs. Usually a pip dependency issue |
+| Push rejected by GitHub | Run `git pull origin main --rebase` then `git push origin main` |
 
 ---
 
@@ -219,15 +170,14 @@ Open the URL. The first load may take 30-60 seconds (free tier cold start + data
 |-----------|---------|------|
 | Python 3.11 | Core language | Free |
 | Flask | Web framework | Free |
-| FastF1 | F1 data API | Free |
+| FastF1 | F1 timing data API | Free |
 | Pandas | Data processing | Free |
-| NumPy | Numerical computation | Free |
-| Gunicorn | Production server | Free |
+| NumPy | Numerical computation (linear regression) | Free |
+| Gunicorn | Production WSGI server | Free |
 | Render | Cloud hosting | Free tier |
 
 ---
 
-## License
+## Portfolio Description
 
-This project is open-source and free to use for any purpose.
-Data is provided by the FastF1 library, which sources it from the official F1 timing API.
+> **F1 Strategy Intelligence Dashboard** — An on-demand Formula 1 analytics platform built with Python and Flask. Features include real-time tire degradation modeling using linear regression, pit strategy simulation with undercut/overcut analysis, on-track battle detection, overtake prediction via gap-closing rate analysis, and lap-time anomaly detection. Deployed on Render's free tier using FastF1's public timing API. Designed for performance on constrained infrastructure with in-memory caching and vectorized Pandas operations.
