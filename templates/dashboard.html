@@ -12,9 +12,9 @@
     <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 
     <style>
-        /* =============================================================
-           CSS VARIABLES — Change these to retheme the whole dashboard
-           ============================================================= */
+        /* ============================================================= */
+        /* CSS VARIABLES                                                  */
+        /* ============================================================= */
         :root {
             --bg-primary:    #0a0a0f;
             --bg-secondary:  #12121a;
@@ -23,20 +23,19 @@
             --text-primary:  #e8e8f0;
             --text-secondary:#8888a0;
             --text-muted:    #555570;
-            --accent-red:    #e10600;    /* F1 red */
+            --accent-red:    #e10600;
             --accent-blue:   #3366ff;
             --accent-green:  #00c853;
             --accent-yellow: #ffd600;
             --accent-orange: #ff6d00;
+            --accent-purple: #9c27b0;
+            --accent-cyan:   #00bcd4;
             --border-color:  #2a2a40;
             --shadow:        0 4px 24px rgba(0,0,0,0.4);
             --radius:        12px;
             --transition:    all 0.2s ease;
         }
 
-        /* =============================================================
-           RESET & BASE
-           ============================================================= */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
@@ -47,9 +46,9 @@
             min-height: 100vh;
         }
 
-        /* =============================================================
-           HEADER
-           ============================================================= */
+        /* ============================================================= */
+        /* HEADER                                                         */
+        /* ============================================================= */
         .header {
             background: linear-gradient(135deg, var(--accent-red) 0%, #8b0000 100%);
             padding: 1.5rem 2rem;
@@ -59,592 +58,252 @@
             flex-wrap: wrap;
             gap: 1rem;
         }
-
-        .header h1 {
-            font-size: 1.6rem;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            color: #fff;
-        }
-
-        .header h1 span {
-            font-weight: 300;
-            opacity: 0.85;
-        }
-
-        .header-meta {
-            display: flex;
-            gap: 1.5rem;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
+        .header h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; color: #fff; }
+        .header h1 span { font-weight: 300; opacity: 0.85; }
+        .header-meta { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
         .meta-badge {
-            background: rgba(255,255,255,0.15);
-            padding: 0.35rem 0.9rem;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: #fff;
-            backdrop-filter: blur(4px);
+            background: rgba(255,255,255,0.15); padding: 0.35rem 0.9rem;
+            border-radius: 20px; font-size: 0.8rem; font-weight: 500; color: #fff;
         }
 
-        .meta-badge.live {
-            background: var(--accent-green);
-            color: #000;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-
-        /* =============================================================
-           SESSION SELECTOR (optional manual override)
-           ============================================================= */
+        /* ============================================================= */
+        /* SESSION SELECTOR                                               */
+        /* ============================================================= */
         .session-selector {
-            background: var(--bg-secondary);
-            padding: 1rem 2rem;
-            display: flex;
-            gap: 0.75rem;
-            align-items: center;
-            flex-wrap: wrap;
+            background: var(--bg-secondary); padding: 0.8rem 2rem;
+            display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
             border-bottom: 1px solid var(--border-color);
         }
-
         .session-selector label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
         }
-
-        .session-selector select,
-        .session-selector input,
+        .session-selector select, .session-selector input, .session-selector button {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 0.45rem 0.7rem; border-radius: 8px;
+            font-family: inherit; font-size: 0.82rem;
+        }
         .session-selector button {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            padding: 0.5rem 0.8rem;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 0.85rem;
+            background: var(--accent-red); border-color: var(--accent-red);
+            color: #fff; font-weight: 600; cursor: pointer; transition: var(--transition);
         }
+        .session-selector button:hover { background: #ff1a14; transform: translateY(-1px); }
 
-        .session-selector button {
-            background: var(--accent-red);
-            border-color: var(--accent-red);
-            color: #fff;
-            font-weight: 600;
-            cursor: pointer;
-            transition: var(--transition);
-        }
+        /* ============================================================= */
+        /* LAYOUT                                                         */
+        /* ============================================================= */
+        .container { max-width: 1440px; margin: 0 auto; padding: 1.5rem; }
 
-        .session-selector button:hover {
-            background: #ff1a14;
-            transform: translateY(-1px);
-        }
-
-        /* =============================================================
-           MAIN LAYOUT
-           ============================================================= */
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 1.5rem;
-        }
-
-        /* Stats summary row */
         .stats-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1.5rem;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.8rem; margin-bottom: 1.5rem;
         }
-
         .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            padding: 1.2rem;
-            text-align: center;
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: var(--radius); padding: 1rem; text-align: center;
             transition: var(--transition);
         }
-
-        .stat-card:hover {
-            background: var(--bg-card-hover);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow);
-        }
-
-        .stat-card .stat-value {
-            font-size: 2rem;
-            font-weight: 800;
-            color: var(--accent-red);
-            line-height: 1.2;
-        }
-
+        .stat-card:hover { background: var(--bg-card-hover); transform: translateY(-2px); box-shadow: var(--shadow); }
+        .stat-card .stat-value { font-size: 1.6rem; font-weight: 800; color: var(--accent-red); line-height: 1.2; }
         .stat-card .stat-label {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 0.3rem;
+            font-size: 0.7rem; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.2rem;
         }
 
-        /* Dashboard grid */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-        }
-
-        @media (max-width: 900px) {
-            .dashboard-grid { grid-template-columns: 1fr; }
-        }
-
-        .dashboard-grid .full-width {
-            grid-column: 1 / -1;
-        }
-
-        /* =============================================================
-           CARDS (Leaderboard, Alerts, Predictions)
-           ============================================================= */
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            overflow: hidden;
-            transition: var(--transition);
-        }
-
-        .card:hover {
-            box-shadow: var(--shadow);
-        }
-
-        .card-header {
-            padding: 1rem 1.2rem;
+        /* Section title bars */
+        .section-title {
+            font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 1px;
+            padding: 1.2rem 0 0.4rem 0; margin-top: 0.5rem;
             border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            margin-bottom: 1rem;
         }
 
-        .card-header h2 {
-            font-size: 1rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+        .dashboard-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem;
         }
+        @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
+        .dashboard-grid .full-width { grid-column: 1 / -1; }
 
+        /* ============================================================= */
+        /* CARDS                                                          */
+        /* ============================================================= */
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: var(--radius); overflow: hidden; transition: var(--transition);
+        }
+        .card:hover { box-shadow: var(--shadow); }
+        .card-header {
+            padding: 0.8rem 1.2rem; border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .card-header h2 { font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
         .card-header .badge {
-            background: var(--accent-red);
-            color: #fff;
-            font-size: 0.7rem;
-            font-weight: 700;
-            padding: 0.2rem 0.55rem;
-            border-radius: 10px;
+            background: var(--accent-red); color: #fff; font-size: 0.65rem;
+            font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 10px;
         }
+        .card-header .badge-green { background: var(--accent-green); color: #000; }
+        .card-header .badge-orange { background: var(--accent-orange); }
+        .card-header .badge-purple { background: var(--accent-purple); }
+        .card-header .badge-cyan { background: var(--accent-cyan); color: #000; }
 
-        .card-body {
-            padding: 0;
-            max-height: 500px;
-            overflow-y: auto;
-        }
+        .card-body { padding: 0; max-height: 420px; overflow-y: auto; }
+        .card-body::-webkit-scrollbar { width: 5px; }
+        .card-body::-webkit-scrollbar-track { background: var(--bg-card); }
+        .card-body::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
 
-        .card-body::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .card-body::-webkit-scrollbar-track {
-            background: var(--bg-card);
-        }
-
-        .card-body::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 3px;
-        }
-
-        /* =============================================================
-           LEADERBOARD TABLE
-           ============================================================= */
-        .leaderboard-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
+        /* ============================================================= */
+        /* LEADERBOARD TABLE                                              */
+        /* ============================================================= */
+        .leaderboard-table { width: 100%; border-collapse: collapse; }
         .leaderboard-table th {
-            background: var(--bg-secondary);
-            padding: 0.7rem 1rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-secondary);
-            text-align: left;
-            position: sticky;
-            top: 0;
-            z-index: 1;
+            background: var(--bg-secondary); padding: 0.6rem 0.8rem; font-size: 0.68rem;
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+            color: var(--text-secondary); text-align: left; position: sticky; top: 0; z-index: 1;
         }
-
         .leaderboard-table td {
-            padding: 0.65rem 1rem;
-            font-size: 0.85rem;
+            padding: 0.55rem 0.8rem; font-size: 0.82rem;
             border-bottom: 1px solid rgba(255,255,255,0.03);
         }
+        .leaderboard-table tr:hover td { background: rgba(255,255,255,0.03); }
+        .pos-cell { font-weight: 800; width: 36px; text-align: center; }
+        .pos-1 { color: #ffd700; } .pos-2 { color: #c0c0c0; } .pos-3 { color: #cd7f32; }
+        .driver-name { font-weight: 600; }
+        .team-name { color: var(--text-secondary); font-size: 0.75rem; }
+        .laptime { font-weight: 500; font-variant-numeric: tabular-nums; }
+        .gap { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+        .gap-leader { color: var(--accent-green); font-weight: 700; }
 
-        .leaderboard-table tr:hover td {
-            background: rgba(255,255,255,0.03);
+        /* ============================================================= */
+        /* GENERIC LIST ITEMS (alerts, predictions, degradation, etc.)    */
+        /* ============================================================= */
+        .list-item {
+            padding: 0.7rem 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.03);
+            display: flex; align-items: flex-start; gap: 0.7rem; transition: var(--transition);
+        }
+        .list-item:hover { background: rgba(255,255,255,0.02); }
+
+        .tag {
+            flex-shrink: 0; min-width: 58px; padding: 0.15rem 0; text-align: center;
+            font-size: 0.6rem; font-weight: 800; border-radius: 4px;
+            text-transform: uppercase; letter-spacing: 0.5px;
         }
 
-        .pos-cell {
-            font-weight: 800;
-            width: 40px;
-            text-align: center;
+        /* Severity / intensity tags */
+        .tag-CRITICAL, .tag-INTENSE { background: rgba(225,6,0,0.2); color: var(--accent-red); border: 1px solid rgba(225,6,0,0.3); }
+        .tag-HIGH, .tag-CLOSE      { background: rgba(255,109,0,0.15); color: var(--accent-orange); border: 1px solid rgba(255,109,0,0.3); }
+        .tag-MEDIUM, .tag-WATCHING  { background: rgba(255,214,0,0.12); color: var(--accent-yellow); border: 1px solid rgba(255,214,0,0.25); }
+        .tag-LOW                    { background: rgba(51,102,255,0.12); color: var(--accent-blue); border: 1px solid rgba(51,102,255,0.25); }
+
+        /* Degradation trend tags */
+        .tag-IMPROVING { background: rgba(0,200,83,0.15); color: var(--accent-green); border: 1px solid rgba(0,200,83,0.3); }
+        .tag-STABLE    { background: rgba(0,188,212,0.12); color: var(--accent-cyan); border: 1px solid rgba(0,188,212,0.25); }
+        .tag-MODERATE  { background: rgba(255,214,0,0.12); color: var(--accent-yellow); border: 1px solid rgba(255,214,0,0.25); }
+
+        /* Pit window tags */
+        .tag-OPEN        { background: rgba(225,6,0,0.2); color: var(--accent-red); border: 1px solid rgba(225,6,0,0.3); }
+        .tag-APPROACHING { background: rgba(255,109,0,0.15); color: var(--accent-orange); border: 1px solid rgba(255,109,0,0.3); }
+        .tag-CLOSED      { background: rgba(0,200,83,0.1); color: var(--accent-green); border: 1px solid rgba(0,200,83,0.2); }
+        .tag-NA          { background: rgba(85,85,112,0.15); color: var(--text-muted); border: 1px solid rgba(85,85,112,0.3); }
+
+        /* Strategy recommendation tags */
+        .rec-PIT-NOW      { background: rgba(225,6,0,0.2); color: var(--accent-red); border: 1px solid rgba(225,6,0,0.3); }
+        .rec-CONSIDER-PIT { background: rgba(255,109,0,0.15); color: var(--accent-orange); border: 1px solid rgba(255,109,0,0.3); }
+        .rec-STAY-OUT     { background: rgba(0,200,83,0.12); color: var(--accent-green); border: 1px solid rgba(0,200,83,0.25); }
+        .rec-HOLD         { background: rgba(51,102,255,0.12); color: var(--accent-blue); border: 1px solid rgba(51,102,255,0.25); }
+
+        .item-content { flex: 1; }
+        .item-title { font-weight: 700; font-size: 0.82rem; }
+        .item-detail { color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.1rem; }
+        .item-highlight { font-weight: 700; color: var(--accent-orange); }
+
+        /* ============================================================= */
+        /* COMPOUND BADGES (tyre colors)                                  */
+        /* ============================================================= */
+        .compound { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 800; }
+        .compound-SOFT { background: #e10600; color: #fff; }
+        .compound-MEDIUM { background: #ffd600; color: #000; }
+        .compound-HARD { background: #e8e8e8; color: #000; }
+        .compound-INTERMEDIATE { background: #00c853; color: #000; }
+        .compound-WET { background: #3366ff; color: #fff; }
+        .compound-UNKNOWN { background: var(--border-color); color: var(--text-secondary); }
+
+        /* ============================================================= */
+        /* MISC                                                           */
+        /* ============================================================= */
+        .empty-state { text-align: center; padding: 2rem 1.5rem; color: var(--text-muted); font-size: 0.82rem; }
+        .empty-state .icon { font-size: 1.8rem; margin-bottom: 0.4rem; }
+
+        .error-container { text-align: center; padding: 4rem 2rem; }
+        .error-container h2 { font-size: 1.5rem; margin-bottom: 1rem; color: var(--accent-red); }
+        .error-container p { color: var(--text-secondary); max-width: 500px; margin: 0 auto; }
+        .error-container .error-detail {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: var(--radius); padding: 1rem; margin-top: 1.5rem;
+            font-family: monospace; font-size: 0.85rem; color: var(--accent-orange);
+            display: inline-block; max-width: 600px; text-align: left;
         }
 
-        .pos-1 { color: #ffd700; }  /* Gold */
-        .pos-2 { color: #c0c0c0; }  /* Silver */
-        .pos-3 { color: #cd7f32; }  /* Bronze */
-
-        .driver-name {
-            font-weight: 600;
+        .footer {
+            text-align: center; padding: 2rem; color: var(--text-muted);
+            font-size: 0.72rem; border-top: 1px solid var(--border-color); margin-top: 2rem;
         }
+        .footer a { color: var(--accent-red); text-decoration: none; }
 
-        .team-name {
-            color: var(--text-secondary);
-            font-size: 0.78rem;
-        }
-
-        .laptime {
-            font-family: 'Inter', monospace;
-            font-weight: 500;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .gap {
-            font-variant-numeric: tabular-nums;
-            color: var(--text-secondary);
-        }
-
-        .gap-leader {
-            color: var(--accent-green);
-            font-weight: 700;
-        }
-
-        /* =============================================================
-           ALERT ITEMS
-           ============================================================= */
-        .alert-item {
-            padding: 0.8rem 1.2rem;
-            border-bottom: 1px solid rgba(255,255,255,0.03);
-            display: flex;
-            align-items: flex-start;
-            gap: 0.8rem;
-            transition: var(--transition);
-        }
-
-        .alert-item:hover {
-            background: rgba(255,255,255,0.02);
-        }
-
-        .alert-severity {
-            flex-shrink: 0;
-            width: 60px;
-            padding: 0.2rem 0;
-            text-align: center;
-            font-size: 0.65rem;
-            font-weight: 800;
-            border-radius: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .severity-CRITICAL {
-            background: rgba(225, 6, 0, 0.2);
-            color: var(--accent-red);
-            border: 1px solid rgba(225, 6, 0, 0.3);
-        }
-
-        .severity-HIGH {
-            background: rgba(255, 109, 0, 0.15);
-            color: var(--accent-orange);
-            border: 1px solid rgba(255, 109, 0, 0.3);
-        }
-
-        .severity-MEDIUM {
-            background: rgba(255, 214, 0, 0.12);
-            color: var(--accent-yellow);
-            border: 1px solid rgba(255, 214, 0, 0.25);
-        }
-
-        .severity-LOW {
-            background: rgba(51, 102, 255, 0.12);
-            color: var(--accent-blue);
-            border: 1px solid rgba(51, 102, 255, 0.25);
-        }
-
-        .alert-content {
-            flex: 1;
-        }
-
-        .alert-driver {
-            font-weight: 700;
-            font-size: 0.85rem;
-        }
-
-        .alert-detail {
-            color: var(--text-secondary);
-            font-size: 0.78rem;
-            margin-top: 0.15rem;
-        }
-
-        .alert-delta {
-            font-weight: 700;
-            color: var(--accent-orange);
-        }
-
-        /* =============================================================
-           PREDICTION ITEMS
-           ============================================================= */
-        .prediction-item {
-            padding: 0.8rem 1.2rem;
-            border-bottom: 1px solid rgba(255,255,255,0.03);
-            transition: var(--transition);
-        }
-
-        .prediction-item:hover {
-            background: rgba(255,255,255,0.02);
-        }
-
-        .prediction-drivers {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        .prediction-arrow {
-            color: var(--accent-red);
-            font-size: 1.1rem;
-        }
-
-        .prediction-stats {
-            display: flex;
-            gap: 1.2rem;
-            margin-top: 0.4rem;
-            font-size: 0.78rem;
-            color: var(--text-secondary);
-        }
-
-        .prediction-stats span {
-            display: flex;
-            align-items: center;
-            gap: 0.3rem;
-        }
-
-        .prediction-laps {
-            color: var(--accent-green);
-            font-weight: 700;
-        }
+        .refresh-bar { height: 3px; background: var(--bg-secondary); overflow: hidden; }
+        .refresh-bar .progress { height: 100%; background: var(--accent-red); width: 0%; transition: width 1s linear; }
 
         .confidence-HIGH   { color: var(--accent-green); }
         .confidence-MEDIUM { color: var(--accent-yellow); }
         .confidence-LOW    { color: var(--text-muted); }
-
-        /* =============================================================
-           ERROR STATE
-           ============================================================= */
-        .error-container {
-            text-align: center;
-            padding: 4rem 2rem;
-        }
-
-        .error-container h2 {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            color: var(--accent-red);
-        }
-
-        .error-container p {
-            color: var(--text-secondary);
-            max-width: 500px;
-            margin: 0 auto;
-        }
-
-        .error-container .error-detail {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            padding: 1rem;
-            margin-top: 1.5rem;
-            font-family: monospace;
-            font-size: 0.85rem;
-            color: var(--accent-orange);
-            display: inline-block;
-            max-width: 600px;
-            text-align: left;
-        }
-
-        /* =============================================================
-           EMPTY STATE
-           ============================================================= */
-        .empty-state {
-            text-align: center;
-            padding: 2.5rem 1.5rem;
-            color: var(--text-muted);
-            font-size: 0.85rem;
-        }
-
-        .empty-state .icon {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
-
-        /* =============================================================
-           FOOTER
-           ============================================================= */
-        .footer {
-            text-align: center;
-            padding: 2rem;
-            color: var(--text-muted);
-            font-size: 0.75rem;
-            border-top: 1px solid var(--border-color);
-            margin-top: 2rem;
-        }
-
-        .footer a {
-            color: var(--accent-red);
-            text-decoration: none;
-        }
-
-        /* =============================================================
-           LOADING OVERLAY
-           ============================================================= */
-        .loading-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(10,10,15,0.85);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .loading-overlay.active {
-            display: flex;
-        }
-
-        .spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid var(--border-color);
-            border-top-color: var(--accent-red);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .loading-text {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        /* =============================================================
-           REFRESH INDICATOR
-           ============================================================= */
-        .refresh-bar {
-            height: 3px;
-            background: var(--bg-secondary);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .refresh-bar .progress {
-            height: 100%;
-            background: var(--accent-red);
-            width: 0%;
-            transition: width 1s linear;
-        }
     </style>
 </head>
 
 <body>
 
-    <!-- ============================================================= -->
-    <!-- LOADING OVERLAY (shown during AJAX refresh)                    -->
-    <!-- ============================================================= -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="spinner"></div>
-        <div class="loading-text">Fetching F1 data...</div>
-    </div>
-
-    <!-- ============================================================= -->
-    <!-- HEADER                                                         -->
-    <!-- ============================================================= -->
+    <!-- HEADER -->
     <header class="header">
-        <h1>F1 <span>On-Demand Intelligence</span></h1>
+        <h1>F1 <span>Strategy Intelligence</span></h1>
         <div class="header-meta">
             {% if session_info %}
-                <span class="meta-badge">{{ session_info.year }} Season</span>
+                <span class="meta-badge">{{ session_info.year }}</span>
                 <span class="meta-badge">{{ session_info.event_name }}</span>
                 <span class="meta-badge">{{ session_info.session_type }}</span>
             {% endif %}
-            <span class="meta-badge">Loaded in {{ load_time }}s</span>
+            <span class="meta-badge">{{ load_time }}s</span>
         </div>
     </header>
 
-    <!-- Auto-refresh progress bar -->
-    <div class="refresh-bar">
-        <div class="progress" id="refreshProgress"></div>
-    </div>
+    <div class="refresh-bar"><div class="progress" id="refreshProgress"></div></div>
 
-    <!-- ============================================================= -->
-    <!-- SESSION SELECTOR                                               -->
-    <!-- ============================================================= -->
+    <!-- SESSION SELECTOR -->
     <div class="session-selector">
-        <label>Custom Session:</label>
+        <label>Session:</label>
         <input type="number" id="yearInput" placeholder="Year" min="2018" max="2030"
-               value="{{ session_info.year if session_info else '' }}" style="width:80px">
-        <input type="number" id="roundInput" placeholder="Round" min="1" max="24"
-               value="{{ session_info.round_number if session_info else '' }}" style="width:75px">
+               value="{{ session_info.year if session_info else '' }}" style="width:75px">
+        <input type="number" id="roundInput" placeholder="Rd" min="1" max="24"
+               value="{{ session_info.round_number if session_info else '' }}" style="width:60px">
         <select id="sessionType">
             <option value="Race" {% if session_info and session_info.session_type == 'Race' %}selected{% endif %}>Race</option>
             <option value="Qualifying" {% if session_info and session_info.session_type == 'Qualifying' %}selected{% endif %}>Qualifying</option>
             <option value="Sprint" {% if session_info and session_info.session_type == 'Sprint' %}selected{% endif %}>Sprint</option>
         </select>
-        <button onclick="loadCustomSession()">Load Session</button>
-        <button onclick="window.location.href='/'" style="background:var(--bg-card);border-color:var(--border-color);color:var(--text-primary);">
-            Auto-Detect Latest
-        </button>
+        <button onclick="loadCustomSession()">Load</button>
+        <button onclick="window.location.href='/'" style="background:var(--bg-card);border-color:var(--border-color);color:var(--text-primary);">Latest</button>
         <select id="refreshSelect" onchange="setRefreshInterval()" style="margin-left:auto;">
-            <option value="0">Auto-Refresh: OFF</option>
-            <option value="30">Live Race (30s)</option>
-            <option value="60">Active Session (60s)</option>
-            <option value="300">Casual (5 min)</option>
+            <option value="0">Refresh: OFF</option>
+            <option value="30">Live (30s)</option>
+            <option value="60">Session (60s)</option>
+            <option value="300">Casual (5m)</option>
         </select>
     </div>
 
-    <!-- ============================================================= -->
-    <!-- ERROR STATE                                                    -->
-    <!-- ============================================================= -->
+    <!-- ERROR STATE -->
     {% if error %}
     <div class="container">
         <div class="error-container">
             <h2>Could Not Load Session Data</h2>
-            <p>This usually means the session hasn't started yet, the data
-               isn't available, or it's the off-season. Try selecting a
-               specific past session above.</p>
+            <p>Try selecting a specific past session above (e.g. Year: 2024, Round: 24, Race).</p>
             <div class="error-detail">{{ error }}</div>
         </div>
     </div>
@@ -655,109 +314,187 @@
     <!-- ============================================================= -->
     <div class="container">
 
-        <!-- STATS ROW -->
+        <!-- ==================== STATS ROW ==================== -->
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-value">{{ leaderboard|length }}</div>
                 <div class="stat-label">Drivers</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">{{ alert_summary.total_alerts }}</div>
-                <div class="stat-label">Anomalies Detected</div>
+                <div class="stat-value" style="color:var(--accent-orange);">{{ degradation_summary.windows_open|default(0) }}</div>
+                <div class="stat-label">Pit Windows Open</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">{{ prediction_summary.imminent }}</div>
+                <div class="stat-value" style="color:var(--accent-cyan);">{{ battle_summary.intense_count|default(0) }}</div>
+                <div class="stat-label">Active Battles</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ alert_summary.total_alerts|default(0) }}</div>
+                <div class="stat-label">Anomalies</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-green);">{{ strategy_summary.undercuts_available|default(0) }}</div>
+                <div class="stat-label">Undercuts Available</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ prediction_summary.imminent|default(0) }}</div>
                 <div class="stat-label">Imminent Overtakes</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" style="font-size:1rem;color:var(--accent-green);">
-                    {{ prediction_summary.fastest_closing or 'N/A' }}
-                </div>
-                <div class="stat-label">Fastest Closing Battle</div>
             </div>
         </div>
 
-        <!-- DASHBOARD GRID -->
+        <!-- ==================== LEADERBOARD ==================== -->
+        <div class="card full-width" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>Leaderboard <span class="badge">{{ leaderboard|length }}</span></h2>
+            </div>
+            <div class="card-body" style="max-height:380px;">
+                {% if leaderboard %}
+                <table class="leaderboard-table">
+                    <thead><tr><th>P</th><th>Driver</th><th>Team</th><th>Best Lap</th><th>Gap</th><th>Laps</th></tr></thead>
+                    <tbody>
+                        {% for d in leaderboard %}
+                        <tr>
+                            <td class="pos-cell pos-{{ d.position }}">{{ d.position }}</td>
+                            <td class="driver-name">{{ d.driver }}</td>
+                            <td class="team-name">{{ d.team }}</td>
+                            <td class="laptime">{{ d.best_lap_display }}</td>
+                            <td class="gap {% if d.gap_seconds == 0 %}gap-leader{% endif %}">{{ d.gap_display }}</td>
+                            <td>{{ d.total_laps }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state"><div class="icon">&#127937;</div><p>No leaderboard data</p></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ==================== STRATEGY SECTION ==================== -->
+        <div class="section-title">Strategy Intelligence</div>
         <div class="dashboard-grid">
 
-            <!-- ==================== LEADERBOARD ==================== -->
-            <div class="card full-width">
-                <div class="card-header">
-                    <h2>Leaderboard <span class="badge">{{ leaderboard|length }} drivers</span></h2>
-                </div>
-                <div class="card-body">
-                    {% if leaderboard %}
-                    <table class="leaderboard-table">
-                        <thead>
-                            <tr>
-                                <th>Pos</th>
-                                <th>Driver</th>
-                                <th>Team</th>
-                                <th>Best Lap</th>
-                                <th>Gap</th>
-                                <th>Laps</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for d in leaderboard %}
-                            <tr>
-                                <td class="pos-cell pos-{{ d.position }}">{{ d.position }}</td>
-                                <td class="driver-name">{{ d.driver }}</td>
-                                <td class="team-name">{{ d.team }}</td>
-                                <td class="laptime">{{ d.best_lap_display }}</td>
-                                <td class="gap {% if d.gap_seconds == 0 %}gap-leader{% endif %}">
-                                    {{ d.gap_display }}
-                                </td>
-                                <td>{{ d.total_laps }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% else %}
-                    <div class="empty-state">
-                        <div class="icon">&#127937;</div>
-                        <p>No leaderboard data available</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- ==================== ANOMALY ALERTS ==================== -->
+            <!-- TIRE DEGRADATION -->
             <div class="card">
                 <div class="card-header">
-                    <h2>Anomaly Alerts <span class="badge">{{ alerts|length }}</span></h2>
+                    <h2>Tire Degradation <span class="badge badge-orange">{{ degradation|length }}</span></h2>
                 </div>
                 <div class="card-body">
-                    {% if alerts %}
-                        {% for alert in alerts %}
-                        <div class="alert-item">
-                            <div class="alert-severity severity-{{ alert.severity }}">
-                                {{ alert.severity }}
-                            </div>
-                            <div class="alert-content">
-                                <div class="alert-driver">
-                                    {{ alert.driver }}
-                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.78rem;">
-                                        Lap {{ alert.lap_number }}
+                    {% if degradation %}
+                        {% for d in degradation %}
+                        <div class="list-item">
+                            <div class="tag tag-{{ d.deg_trend }}">{{ d.deg_trend }}</div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ d.driver }}
+                                    <span class="compound compound-{{ d.compound }}">{{ d.compound }}</span>
+                                    {% if d.pit_window != 'N/A' %}
+                                    <span class="tag tag-{{ d.pit_window }}" style="font-size:0.55rem;margin-left:0.3rem;">
+                                        PIT {{ d.pit_window }}
                                     </span>
+                                    {% endif %}
                                 </div>
-                                <div class="alert-detail">
-                                    Lost <span class="alert-delta">{{ alert.delta }}s</span>
-                                    vs rolling avg ({{ alert.rolling_avg }}s &rarr; {{ alert.lap_time_s }}s)
+                                <div class="item-detail">
+                                    {% if d.deg_per_lap > 0 %}
+                                        +{{ d.deg_per_lap }}s/lap &middot;
+                                    {% endif %}
+                                    Stint {{ d.stint_number }}, lap {{ d.stint_laps }}
+                                    {% if d.laps_to_window and d.laps_to_window > 0 %}
+                                         &middot; window in ~{{ d.laps_to_window }} laps
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
                         {% endfor %}
                     {% else %}
-                    <div class="empty-state">
-                        <div class="icon">&#9989;</div>
-                        <p>No anomalies detected — all drivers running consistently</p>
-                    </div>
+                    <div class="empty-state"><div class="icon">&#128722;</div><p>No degradation data available</p></div>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- ==================== OVERTAKE PREDICTIONS ==================== -->
+            <!-- PIT STRATEGY -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Pit Strategy <span class="badge badge-green">{{ strategies|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if strategies %}
+                        {% for s in strategies %}
+                        <div class="list-item">
+                            <div class="tag rec-{{ s.recommendation|replace(' ', '-') }}">{{ s.recommendation }}</div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ s.driver }}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">
+                                        P{{ s.current_position }} &rarr; P{{ s.rejoin_position }}
+                                    </span>
+                                </div>
+                                <div class="item-detail">
+                                    {% if s.positions_lost > 0 %}
+                                        Loses {{ s.positions_lost }} pos{{ 's' if s.positions_lost > 1 else '' }}
+                                    {% elif s.positions_lost == 0 %}
+                                        No positions lost
+                                    {% endif %}
+                                    {% if s.in_traffic %}
+                                        &middot; <span class="item-highlight">traffic behind {{ s.closest_after_pit }}</span>
+                                    {% endif %}
+                                    {% if s.undercut_possible %}
+                                        &middot; <span style="color:var(--accent-green);">undercut on {{ s.undercut_target }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#9881;</div><p>No strategy data available</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== RACE ACTION SECTION ==================== -->
+        <div class="section-title">Race Action</div>
+        <div class="dashboard-grid">
+
+            <!-- BATTLE WATCH -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Battle Watch <span class="badge badge-cyan">{{ battles|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if battles %}
+                        {% for b in battles %}
+                        <div class="list-item">
+                            <div class="tag tag-{{ b.intensity }}">{{ b.intensity }}</div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ b.driver_behind }}
+                                    <span style="color:var(--accent-red);font-size:0.9rem;">&raquo;</span>
+                                    {{ b.driver_ahead }}
+                                    <span style="margin-left:auto;color:var(--accent-cyan);font-weight:700;font-size:0.85rem;">
+                                        {{ b.gap }}s
+                                    </span>
+                                </div>
+                                <div class="item-detail">
+                                    {% if b.drs_active %}<span style="color:var(--accent-green);font-weight:600;">DRS active</span> &middot; {% endif %}
+                                    {% if b.closing_rate > 0.02 %}
+                                        Closing at {{ b.closing_rate }}s/lap
+                                    {% elif b.closing_rate < -0.02 %}
+                                        Gap growing at {{ (-1 * b.closing_rate)|round(3) }}s/lap
+                                    {% else %}
+                                        Gap stable
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#9876;</div><p>No active battles detected</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- OVERTAKE PREDICTIONS -->
             <div class="card">
                 <div class="card-header">
                     <h2>Overtake Predictions <span class="badge">{{ predictions|length }}</span></h2>
@@ -765,122 +502,100 @@
                 <div class="card-body">
                     {% if predictions %}
                         {% for pred in predictions %}
-                        <div class="prediction-item">
-                            <div class="prediction-drivers">
-                                <span>{{ pred.chaser }}</span>
-                                <span class="prediction-arrow">&raquo;</span>
-                                <span>{{ pred.target }}</span>
+                        <div class="list-item">
+                            <div style="flex-shrink:0;">
                                 {% if pred.laps_to_drs is not none %}
-                                    <span class="prediction-laps" style="margin-left:auto;">
-                                        ~{{ pred.laps_to_drs|round|int }} laps
-                                    </span>
+                                    <span style="color:var(--accent-green);font-weight:800;font-size:0.85rem;">~{{ pred.laps_to_drs|round|int }}L</span>
+                                {% else %}
+                                    <span style="color:var(--text-muted);font-size:0.75rem;">—</span>
                                 {% endif %}
                             </div>
-                            <div class="prediction-stats">
-                                <span>Gap: <strong>{{ pred.current_gap }}s</strong></span>
-                                <span>Rate: <strong>{{ pred.closing_rate }}s/lap</strong></span>
-                                <span class="confidence-{{ pred.confidence }}">
-                                    {{ pred.confidence }} confidence
-                                </span>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ pred.chaser }}
+                                    <span style="color:var(--accent-red);">&raquo;</span>
+                                    {{ pred.target }}
+                                </div>
+                                <div class="item-detail">
+                                    Gap: {{ pred.current_gap }}s &middot;
+                                    Rate: {{ pred.closing_rate }}s/lap &middot;
+                                    <span class="confidence-{{ pred.confidence }}">{{ pred.confidence }}</span>
+                                </div>
                             </div>
                         </div>
                         {% endfor %}
                     {% else %}
-                    <div class="empty-state">
-                        <div class="icon">&#128640;</div>
-                        <p>No overtake predictions available</p>
-                    </div>
+                    <div class="empty-state"><div class="icon">&#128640;</div><p>No overtake predictions</p></div>
                     {% endif %}
                 </div>
             </div>
+        </div>
 
-        </div><!-- /dashboard-grid -->
+        <!-- ==================== ANOMALY SECTION ==================== -->
+        <div class="section-title">Anomaly Detection</div>
+        <div class="dashboard-grid">
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Pace Anomalies <span class="badge">{{ alerts|length }}</span></h2>
+                </div>
+                <div class="card-body" style="max-height:320px;">
+                    {% if alerts %}
+                        {% for alert in alerts %}
+                        <div class="list-item">
+                            <div class="tag tag-{{ alert.severity }}">{{ alert.severity }}</div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ alert.driver }}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">Lap {{ alert.lap_number }}</span>
+                                </div>
+                                <div class="item-detail">
+                                    Lost <span class="item-highlight">{{ alert.delta }}s</span>
+                                    vs avg ({{ alert.rolling_avg }}s &rarr; {{ alert.lap_time_s }}s)
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#9989;</div><p>No anomalies — all drivers running consistently</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
     </div><!-- /container -->
     {% endif %}
 
-    <!-- ============================================================= -->
-    <!-- FOOTER                                                         -->
-    <!-- ============================================================= -->
+    <!-- FOOTER -->
     <footer class="footer">
-        F1 On-Demand Intelligence Dashboard &middot;
-        Data powered by <a href="https://github.com/theOehrly/Fast-F1" target="_blank">FastF1</a> &middot;
+        F1 Strategy Intelligence Dashboard &middot;
+        Data: <a href="https://github.com/theOehrly/Fast-F1" target="_blank">FastF1</a> &middot;
         Built with Flask &amp; Python
     </footer>
 
-    <!-- ============================================================= -->
-    <!-- JAVASCRIPT — Auto-refresh & session loading                    -->
-    <!-- ============================================================= -->
+    <!-- JAVASCRIPT -->
     <script>
-        /*
-         * AUTO-REFRESH
-         * Every 60 seconds, the page reloads to fetch fresh data.
-         * This keeps the dashboard up-to-date during a live session
-         * without requiring WebSockets.
-         *
-         * We use a full page reload (not AJAX) to keep things simple.
-         * The progress bar at the top shows how long until the next refresh.
-         */
-
-        // Refresh interval in seconds. 0 = OFF.
-        let refreshInterval = 0;
-        let countdown = 0;
+        let refreshInterval = 0, countdown = 0;
         const progressBar = document.getElementById('refreshProgress');
-
         function setRefreshInterval() {
-            const select = document.getElementById('refreshSelect');
-            refreshInterval = parseInt(select.value);
+            refreshInterval = parseInt(document.getElementById('refreshSelect').value);
             countdown = refreshInterval;
-            // Reset the progress bar
             if (progressBar) progressBar.style.width = '0%';
         }
-
         function updateProgress() {
-            if (refreshInterval === 0) {
-                // OFF — keep bar empty
-                if (progressBar) progressBar.style.width = '0%';
-                return;
-            }
+            if (refreshInterval === 0) { if (progressBar) progressBar.style.width='0%'; return; }
             countdown--;
-            const pct = ((refreshInterval - countdown) / refreshInterval) * 100;
-            if (progressBar) progressBar.style.width = pct + '%';
-            if (countdown <= 0) {
-                location.reload();
-            }
+            if (progressBar) progressBar.style.width = ((refreshInterval-countdown)/refreshInterval*100)+'%';
+            if (countdown <= 0) location.reload();
         }
-
-        // Tick every second
         setInterval(updateProgress, 1000);
 
-        /*
-         * CUSTOM SESSION LOADING
-         * When the user fills in Year / Round / Session Type and clicks
-         * "Load Session", we redirect to the same page with query params.
-         */
         function loadCustomSession() {
-            const year = document.getElementById('yearInput').value;
-            const round = document.getElementById('roundInput').value;
-            const type = document.getElementById('sessionType').value;
-
-            if (!year || !round) {
-                alert('Please enter both Year and Round number.');
-                return;
-            }
-
-            // Build the URL with query parameters
-            const url = `/?year=${year}&round=${round}&session_type=${type}`;
-            window.location.href = url;
+            const y=document.getElementById('yearInput').value, r=document.getElementById('roundInput').value, t=document.getElementById('sessionType').value;
+            if(!y||!r){alert('Enter Year and Round.');return;}
+            window.location.href=`/?year=${y}&round=${r}&session_type=${t}`;
         }
-
-        /*
-         * Allow pressing Enter in the input fields to trigger load
-         */
-        document.getElementById('yearInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') loadCustomSession();
-        });
-        document.getElementById('roundInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') loadCustomSession();
-        });
+        document.getElementById('yearInput').addEventListener('keypress',e=>{if(e.key==='Enter')loadCustomSession();});
+        document.getElementById('roundInput').addEventListener('keypress',e=>{if(e.key==='Enter')loadCustomSession();});
     </script>
-
 </body>
 </html>
