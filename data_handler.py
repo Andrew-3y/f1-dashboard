@@ -18,12 +18,12 @@ KEY CONCEPTS FOR BEGINNERS:
     to human-readable strings like "1:23.456".
 """
 
+import datetime
+import logging
+import os
+
 import fastf1
 import pandas as pd
-import datetime
-import os
-import logging
-from functools import lru_cache
 
 # ---------------------------------------------------------------------------
 # Logging — lets us see what's happening in Render's log viewer
@@ -114,7 +114,7 @@ def get_latest_session_info():
       5. If nothing in the current year, fall back to the previous year's
          last race.
     """
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(datetime.timezone.utc)
     year = now.year
 
     for attempt_year in [year, year - 1]:
@@ -124,35 +124,32 @@ def get_latest_session_info():
             logger.warning("Could not load %d schedule: %s", attempt_year, exc)
             continue
 
-        # Session columns in priority order (most interesting first)
-        session_priority = [
-            ("Race", "Session5Date"),
-            ("Sprint", "Session4Date"),
-            ("Qualifying", "Session3Date"),
-            ("Practice 3", "Session3Date"),
-            ("Practice 2", "Session2Date"),
-            ("Practice 1", "Session1Date"),
-        ]
-
         # Walk events newest-first
         for _, event in schedule.iloc[::-1].iterrows():
-            for session_type, date_col in session_priority:
-                try:
-                    session_date = pd.Timestamp(event[date_col])
-                    if pd.isna(session_date):
-                        continue
-                    # Make comparison timezone-naive
-                    if session_date.tz is not None:
-                        session_date = session_date.tz_localize(None)
-                    if session_date <= pd.Timestamp(now):
-                        return {
-                            "year": attempt_year,
-                            "round_number": int(event["RoundNumber"]),
-                            "event_name": event["EventName"],
-                            "session_type": session_type,
-                        }
-                except Exception:
+            sessions = []
+            for idx in range(1, 6):
+                session_name = event.get(f"Session{idx}")
+                session_date = event.get(f"Session{idx}DateUtc")
+
+                if pd.isna(session_name) or pd.isna(session_date):
                     continue
+
+                session_ts = pd.Timestamp(session_date)
+                if session_ts.tzinfo is None:
+                    session_ts = session_ts.tz_localize("UTC")
+                else:
+                    session_ts = session_ts.tz_convert("UTC")
+
+                sessions.append((session_ts, str(session_name)))
+
+            for session_ts, session_name in sorted(sessions, reverse=True):
+                if session_ts <= pd.Timestamp(now):
+                    return {
+                        "year": attempt_year,
+                        "round_number": int(event["RoundNumber"]),
+                        "event_name": event["EventName"],
+                        "session_type": session_name,
+                    }
 
     raise RuntimeError("No completed F1 session found. It may be the off-season.")
 

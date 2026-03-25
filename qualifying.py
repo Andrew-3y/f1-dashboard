@@ -24,6 +24,41 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _split_quali_sessions(laps):
+    """Return Q1/Q2/Q3 lap sets when session status data is available."""
+    try:
+        q1, q2, q3 = laps.split_qualifying_sessions()
+        return {
+            "Q1": q1 if q1 is not None else pd.DataFrame(),
+            "Q2": q2 if q2 is not None else pd.DataFrame(),
+            "Q3": q3 if q3 is not None else pd.DataFrame(),
+        }
+    except Exception as exc:
+        logger.warning("Could not split qualifying sessions: %s", exc)
+        return {"Q1": pd.DataFrame(), "Q2": pd.DataFrame(), "Q3": pd.DataFrame()}
+
+
+def _driver_best_times(session_laps):
+    """Return best lap info for each driver within a qualifying phase."""
+    if session_laps is None or session_laps.empty:
+        return {}
+
+    bests = {}
+    for driver, dlaps in session_laps.groupby("Driver"):
+        valid = dlaps.dropna(subset=["LapTime"])
+        if valid.empty:
+            continue
+
+        bests[driver] = {
+            "driver": driver,
+            "team": valid["Team"].iloc[0] if "Team" in valid.columns and pd.notna(valid["Team"].iloc[0]) else "Unknown",
+            "best_lap_s": round(valid["LapTime"].min().total_seconds(), 3),
+            "total_laps": len(valid),
+        }
+
+    return bests
+
+
 # ---------------------------------------------------------------------------
 # Sector Time Breakdown
 # ---------------------------------------------------------------------------
@@ -118,42 +153,29 @@ def analyze_elimination(laps):
     if laps.empty:
         return {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}
 
-    driver_bests = []
-    for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
-        if valid.empty:
-            continue
-        best = valid["LapTime"].min()
-        team = valid["Team"].iloc[0] if "Team" in valid.columns and pd.notna(valid["Team"].iloc[0]) else "Unknown"
-        total_laps = len(valid)
-        driver_bests.append({
-            "driver": driver,
-            "team": team,
-            "best_lap_s": round(best.total_seconds(), 3),
-            "total_laps": total_laps,
-        })
+    split = _split_quali_sessions(laps)
+    q1_bests = sorted(_driver_best_times(split["Q1"]).values(), key=lambda x: x["best_lap_s"])
+    q2_bests = sorted(_driver_best_times(split["Q2"]).values(), key=lambda x: x["best_lap_s"])
+    q3_bests = sorted(_driver_best_times(split["Q3"]).values(), key=lambda x: x["best_lap_s"])
 
-    if not driver_bests:
+    if not q1_bests:
         return {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}
 
-    driver_bests.sort(key=lambda x: x["best_lap_s"])
-    n = len(driver_bests)
+    q1_cut = min(15, len(q1_bests))
+    q2_cut = min(10, len(q2_bests))
 
-    q1_cut = max(n - 5, 10)
-    q2_cut = min(10, q1_cut)
-
-    q3_drivers = driver_bests[:q2_cut]
-    q2_eliminated = driver_bests[q2_cut:q1_cut]
-    q1_eliminated = driver_bests[q1_cut:]
+    q1_eliminated = q1_bests[q1_cut:]
+    q2_eliminated = q2_bests[q2_cut:]
+    q3_drivers = q3_bests if q3_bests else q2_bests[:q2_cut]
 
     if q1_eliminated and q1_cut > 0:
-        q1_cutoff_time = driver_bests[q1_cut - 1]["best_lap_s"]
+        q1_cutoff_time = q1_bests[q1_cut - 1]["best_lap_s"]
         for d in q1_eliminated:
             d["gap_to_cutoff"] = round(d["best_lap_s"] - q1_cutoff_time, 3)
             d["eliminated_in"] = "Q1"
 
     if q2_eliminated and q2_cut > 0:
-        q2_cutoff_time = driver_bests[q2_cut - 1]["best_lap_s"]
+        q2_cutoff_time = q2_bests[q2_cut - 1]["best_lap_s"]
         for d in q2_eliminated:
             d["gap_to_cutoff"] = round(d["best_lap_s"] - q2_cutoff_time, 3)
             d["eliminated_in"] = "Q2"
@@ -453,57 +475,41 @@ def analyze_close_calls(laps):
     if laps.empty:
         return []
 
-    driver_bests = []
-    for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
-        if valid.empty:
-            continue
-        best = valid["LapTime"].min().total_seconds()
-        team = valid["Team"].iloc[0] if "Team" in valid.columns and pd.notna(valid["Team"].iloc[0]) else "Unknown"
-        driver_bests.append({"driver": driver, "team": team, "time": best})
+    split = _split_quali_sessions(laps)
+    q1_bests = sorted(_driver_best_times(split["Q1"]).values(), key=lambda x: x["best_lap_s"])
+    q2_bests = sorted(_driver_best_times(split["Q2"]).values(), key=lambda x: x["best_lap_s"])
 
-    if len(driver_bests) < 11:
+    if len(q1_bests) < 11:
         return []
-
-    driver_bests.sort(key=lambda x: x["time"])
-    n = len(driver_bests)
-    q1_cut = max(n - 5, 10)
-    q2_cut = min(10, q1_cut)
 
     close_calls = []
 
-    # Q2 cutoff margin (P10 vs P11)
-    if q2_cut < n:
-        safe = driver_bests[q2_cut - 1]
-        eliminated = driver_bests[q2_cut] if q2_cut < len(driver_bests) else None
-        margin = round(eliminated["time"] - safe["time"], 3) if eliminated else None
-
+    if len(q2_bests) >= 11:
+        safe = q2_bests[9]
+        eliminated = q2_bests[10]
         close_calls.append({
-            "cutoff": "Q2 → Q3",
+            "cutoff": "Q2 -> Q3",
             "last_safe": safe["driver"],
             "last_safe_team": safe["team"],
-            "last_safe_time": round(safe["time"], 3),
-            "first_out": eliminated["driver"] if eliminated else "—",
-            "first_out_team": eliminated["team"] if eliminated else "",
-            "first_out_time": round(eliminated["time"], 3) if eliminated else None,
-            "margin": margin,
+            "last_safe_time": safe["best_lap_s"],
+            "first_out": eliminated["driver"],
+            "first_out_team": eliminated["team"],
+            "first_out_time": eliminated["best_lap_s"],
+            "margin": round(eliminated["best_lap_s"] - safe["best_lap_s"], 3),
         })
 
-    # Q1 cutoff margin (P15 vs P16)
-    if q1_cut < n:
-        safe = driver_bests[q1_cut - 1]
-        eliminated = driver_bests[q1_cut] if q1_cut < len(driver_bests) else None
-        margin = round(eliminated["time"] - safe["time"], 3) if eliminated else None
-
+    if len(q1_bests) >= 16:
+        safe = q1_bests[14]
+        eliminated = q1_bests[15]
         close_calls.append({
-            "cutoff": "Q1 → Q2",
+            "cutoff": "Q1 -> Q2",
             "last_safe": safe["driver"],
             "last_safe_team": safe["team"],
-            "last_safe_time": round(safe["time"], 3),
-            "first_out": eliminated["driver"] if eliminated else "—",
-            "first_out_team": eliminated["team"] if eliminated else "",
-            "first_out_time": round(eliminated["time"], 3) if eliminated else None,
-            "margin": margin,
+            "last_safe_time": safe["best_lap_s"],
+            "first_out": eliminated["driver"],
+            "first_out_team": eliminated["team"],
+            "first_out_time": eliminated["best_lap_s"],
+            "margin": round(eliminated["best_lap_s"] - safe["best_lap_s"], 3),
         })
 
     return close_calls

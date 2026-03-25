@@ -48,10 +48,12 @@ def _identify_stints(driver_laps):
             stints.append(current_stint)
             current_stint = []
 
-        if pd.notna(lap.get("LapTime")):
+        # Exclude pit-in and pit-out laps so long-run pace isn't polluted by
+        # in-lap / out-lap outliers.
+        if pd.notna(lap.get("LapTime")) and not is_pit_out and not is_pit_in:
             current_stint.append(lap)
 
-        if is_pit_in:
+        if is_pit_in and current_stint:
             stints.append(current_stint)
             current_stint = []
 

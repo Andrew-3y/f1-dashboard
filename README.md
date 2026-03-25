@@ -119,14 +119,14 @@ Each analysis module is wrapped in try/except — a failure in one never crashes
 Routes requests to the correct analysis pipeline based on session type. Classifies sessions into three categories (race, qualifying, practice) and runs only the relevant modules. Serves three endpoints: `/` (dashboard), `/api/data` (JSON), `/health` (Render health check).
 
 ### `data_handler.py` — Data Layer
-All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for the most recent completed session. `load_session()` downloads and caches lap data in memory. `build_leaderboard()` uses finishing positions for races and fastest lap for qualifying/practice.
+All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for the most recent completed session using FastF1's actual named session slots and UTC timestamps, so sprint weekends and timezone boundaries are handled correctly. `load_session()` downloads and caches lap data in memory. `build_leaderboard()` uses finishing positions for races and fastest lap for qualifying/practice.
 
 ### `qualifying.py` — Qualifying Intelligence (9 modules)
 | Module | Algorithm |
 |--------|-----------|
 | Sector Breakdown | Extracts S1/S2/S3 from each driver's fastest lap, computes delta to session-best sector, classifies as best/good/ok/slow |
-| Elimination Tracker | Reconstructs Q1/Q2/Q3 phases from sorted best laps (top 10 = Q3, 11-15 = Q2 eliminated, 16-20 = Q1 eliminated) |
-| Close Calls | Computes exact margin between last-safe and first-eliminated at each cutoff boundary |
+| Elimination Tracker | Uses FastF1's qualifying-session split to read Q1/Q2/Q3 as separate phases, then computes knockout order and gap to cutoff from the real session segments |
+| Close Calls | Computes exact Q1 and Q2 cutoff margins from the real split qualifying phases rather than the combined final classification |
 | Teammate Battles | Groups drivers by team, compares best laps, computes gap in seconds and percentage |
 | Team Pace | Ranks teams by best driver's time, shows intra-team gap |
 | Theoretical Best | Combines each driver's personal best S1 + S2 + S3 from any lap, compares to actual best |
@@ -138,8 +138,8 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Module | Algorithm |
 |--------|-----------|
 | Short Run Pace | Best lap per driver with top-3 average, consistency (std dev), compound |
-| Long Run Pace | Stints of 5+ laps, fuel-corrected average (0.06s/lap fuel effect), linear regression for degradation slope |
-| Race Pace Prediction | Aggregates fuel-corrected long run data per driver to predict race-day pace order |
+| Long Run Pace | Stints of 5+ clean laps with pit-in/pit-out laps excluded, fuel-corrected average (0.06s/lap fuel effect), linear regression for degradation slope |
+| Race Pace Prediction | Aggregates fuel-corrected long run data per driver from clean stints only to predict race-day pace order |
 | Compound Comparison | Best/avg/median pace per tyre type across all drivers |
 | Tyre Deg Curves | Per-compound degradation slope aggregated across multiple stints, classified STABLE/LOW/MODERATE/HIGH |
 | Team Ranking | Teams ranked by best driver's time, both drivers shown |
@@ -259,6 +259,14 @@ git push origin main
 | Practice panels empty | Ensure you selected the correct session type (Practice 1/2/3) |
 | No sector data | Some older sessions lack sector timing in FastF1 |
 | Render build failed | Check build logs — usually a pip dependency issue |
+
+---
+
+## Accuracy Notes
+
+- Latest-session auto-detection reads the actual FastF1 schedule slots (`Session1` to `Session5`) with UTC timestamps instead of assuming every weekend follows the same practice/qualifying/sprint ordering.
+- Qualifying elimination and close-call panels use FastF1's split-session support for Q1, Q2, and Q3 when timing status data is available, which is more accurate than inferring knockout order from the combined final lap table.
+- Practice long-run and race-pace calculations exclude pit-in and pit-out laps from stint construction so in-laps and out-laps do not skew race-simulation pace.
 
 ---
 
