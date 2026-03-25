@@ -149,9 +149,7 @@ def get_latest_session_info():
                             "year": attempt_year,
                             "round_number": int(event["RoundNumber"]),
                             "event_name": event["EventName"],
-                            "session_type": session_type.split()[0]
-                            if session_type.startswith("Practice")
-                            else session_type,
+                            "session_type": session_type,
                         }
                 except Exception:
                     continue

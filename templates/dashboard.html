@@ -67,6 +67,37 @@
         }
 
         /* ============================================================= */
+        /* WEEKEND NAVIGATION BAR                                         */
+        /* ============================================================= */
+        .weekend-nav {
+            background: var(--bg-secondary);
+            padding: 0.6rem 2rem;
+            display: flex;
+            gap: 0.4rem;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+        .weekend-nav-label {
+            font-size: 0.7rem; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px; margin-right: 0.5rem;
+        }
+        .weekend-nav-btn {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            color: var(--text-secondary); padding: 0.35rem 0.8rem; border-radius: 8px;
+            font-family: inherit; font-size: 0.75rem; font-weight: 600;
+            cursor: pointer; transition: var(--transition); text-decoration: none;
+        }
+        .weekend-nav-btn:hover {
+            background: var(--bg-card-hover); color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+        .weekend-nav-btn.active {
+            background: var(--accent-red); border-color: var(--accent-red);
+            color: #fff;
+        }
+
+        /* ============================================================= */
         /* SESSION SELECTOR                                               */
         /* ============================================================= */
         .session-selector {
@@ -146,6 +177,8 @@
         .card-header .badge-orange { background: var(--accent-orange); }
         .card-header .badge-purple { background: var(--accent-purple); }
         .card-header .badge-cyan { background: var(--accent-cyan); color: #000; }
+        .card-header .badge-blue { background: var(--accent-blue); }
+        .card-header .badge-yellow { background: var(--accent-yellow); color: #000; }
 
         .card-body { padding: 0; max-height: 420px; overflow-y: auto; }
         .card-body::-webkit-scrollbar { width: 5px; }
@@ -212,6 +245,17 @@
         .rec-STAY-OUT     { background: rgba(0,200,83,0.12); color: var(--accent-green); border: 1px solid rgba(0,200,83,0.25); }
         .rec-HOLD         { background: rgba(51,102,255,0.12); color: var(--accent-blue); border: 1px solid rgba(51,102,255,0.25); }
 
+        /* Qualifying elimination tags */
+        .tag-Q1 { background: rgba(225,6,0,0.2); color: var(--accent-red); border: 1px solid rgba(225,6,0,0.3); }
+        .tag-Q2 { background: rgba(255,109,0,0.15); color: var(--accent-orange); border: 1px solid rgba(255,109,0,0.3); }
+        .tag-Q3 { background: rgba(0,200,83,0.15); color: var(--accent-green); border: 1px solid rgba(0,200,83,0.3); }
+
+        /* Consistency tags */
+        .tag-EXCELLENT     { background: rgba(0,200,83,0.15); color: var(--accent-green); border: 1px solid rgba(0,200,83,0.3); }
+        .tag-GOOD          { background: rgba(0,188,212,0.12); color: var(--accent-cyan); border: 1px solid rgba(0,188,212,0.25); }
+        .tag-AVERAGE       { background: rgba(255,214,0,0.12); color: var(--accent-yellow); border: 1px solid rgba(255,214,0,0.25); }
+        .tag-INCONSISTENT  { background: rgba(225,6,0,0.2); color: var(--accent-red); border: 1px solid rgba(225,6,0,0.3); }
+
         .item-content { flex: 1; }
         .item-title { font-weight: 700; font-size: 0.82rem; }
         .item-detail { color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.1rem; }
@@ -227,6 +271,21 @@
         .compound-INTERMEDIATE { background: #00c853; color: #000; }
         .compound-WET { background: #3366ff; color: #fff; }
         .compound-UNKNOWN { background: var(--border-color); color: var(--text-secondary); }
+
+        /* ============================================================= */
+        /* SECTOR TIME BARS                                               */
+        /* ============================================================= */
+        .sector-bar {
+            display: flex; gap: 2px; margin-top: 0.3rem;
+        }
+        .sector-segment {
+            height: 4px; border-radius: 2px; flex: 1;
+            transition: var(--transition);
+        }
+        .sector-best { background: var(--accent-purple); }
+        .sector-good { background: var(--accent-green); }
+        .sector-ok { background: var(--accent-yellow); }
+        .sector-slow { background: var(--accent-orange); }
 
         /* ============================================================= */
         /* MISC                                                           */
@@ -256,6 +315,20 @@
         .confidence-HIGH   { color: var(--accent-green); }
         .confidence-MEDIUM { color: var(--accent-yellow); }
         .confidence-LOW    { color: var(--text-muted); }
+
+        .delta-positive { color: var(--accent-orange); }
+        .delta-zero { color: var(--accent-purple); font-weight: 700; }
+        .delta-small { color: var(--accent-green); }
+
+        /* Sector cell coloring for qualifying/practice tables */
+        .sector-cell-best { color: var(--accent-purple); font-weight: 700; }
+        .sector-cell-good { color: var(--accent-green); }
+        .sector-cell-ok { color: var(--accent-yellow); }
+        .sector-cell-slow { color: var(--accent-orange); }
+
+        /* Degradation trend tags for practice */
+        .tag-LOW { background: rgba(0,200,83,0.12); color: var(--accent-green); border: 1px solid rgba(0,200,83,0.2); }
+        .tag-HIGH { background: rgba(255,109,0,0.15); color: var(--accent-orange); border: 1px solid rgba(255,109,0,0.3); }
     </style>
 </head>
 
@@ -276,6 +349,28 @@
 
     <div class="refresh-bar"><div class="progress" id="refreshProgress"></div></div>
 
+    <!-- WEEKEND NAVIGATION — Quick-switch between sessions for this round -->
+    {% if session_info %}
+    <nav class="weekend-nav">
+        <span class="weekend-nav-label">Weekend:</span>
+        {% set y = session_info.year %}
+        {% set r = session_info.round_number %}
+        {% set current = session_info.session_type %}
+        <a class="weekend-nav-btn {% if current == 'Practice 1' or current == 'Practice' %}active{% endif %}"
+           href="/?year={{ y }}&round={{ r }}&session_type=Practice+1">FP1</a>
+        <a class="weekend-nav-btn {% if current == 'Practice 2' %}active{% endif %}"
+           href="/?year={{ y }}&round={{ r }}&session_type=Practice+2">FP2</a>
+        <a class="weekend-nav-btn {% if current == 'Practice 3' %}active{% endif %}"
+           href="/?year={{ y }}&round={{ r }}&session_type=Practice+3">FP3</a>
+        <a class="weekend-nav-btn {% if current == 'Qualifying' %}active{% endif %}"
+           href="/?year={{ y }}&round={{ r }}&session_type=Qualifying">Qualifying</a>
+        <a class="weekend-nav-btn {% if current == 'Sprint' %}active{% endif %}"
+           href="/?year={{ y }}&round={{ r }}&session_type=Sprint">Sprint</a>
+        <a class="weekend-nav-btn {% if current == 'Race' %}active{% endif %}"
+           href="/?year={{ y }}&round={{ r }}&session_type=Race">Race</a>
+    </nav>
+    {% endif %}
+
     <!-- SESSION SELECTOR -->
     <div class="session-selector">
         <label>Session:</label>
@@ -287,6 +382,9 @@
             <option value="Race" {% if session_info and session_info.session_type == 'Race' %}selected{% endif %}>Race</option>
             <option value="Qualifying" {% if session_info and session_info.session_type == 'Qualifying' %}selected{% endif %}>Qualifying</option>
             <option value="Sprint" {% if session_info and session_info.session_type == 'Sprint' %}selected{% endif %}>Sprint</option>
+            <option value="Practice 1" {% if session_info and session_info.session_type in ('Practice 1', 'Practice') %}selected{% endif %}>Practice 1</option>
+            <option value="Practice 2" {% if session_info and session_info.session_type == 'Practice 2' %}selected{% endif %}>Practice 2</option>
+            <option value="Practice 3" {% if session_info and session_info.session_type == 'Practice 3' %}selected{% endif %}>Practice 3</option>
         </select>
         <button onclick="loadCustomSession()">Load</button>
         <button onclick="window.location.href='/'" style="background:var(--bg-card);border-color:var(--border-color);color:var(--text-primary);">Latest</button>
@@ -314,7 +412,793 @@
     <!-- ============================================================= -->
     <div class="container">
 
-        <!-- ==================== STATS ROW ==================== -->
+        <!-- ################################################################ -->
+        <!-- QUALIFYING VIEW                                                  -->
+        <!-- ################################################################ -->
+        {% if session_category == 'qualifying' %}
+
+        <!-- QUALIFYING STATS ROW -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value">{{ quali_summary.pole_driver|default('—') }}</div>
+                <div class="stat-label">Pole Position</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-green);">{{ quali_summary.pole_time|default(0) }}s</div>
+                <div class="stat-label">Pole Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-orange);">{% if quali_summary.closest_margin %}+{{ quali_summary.closest_margin }}s{% else %}—{% endif %}</div>
+                <div class="stat-label">Gap to P2</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-cyan);">{{ quali_summary.biggest_improver|default('—') }}</div>
+                <div class="stat-label">Most Improved</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ quali_summary.total_drivers|default(0) }}</div>
+                <div class="stat-label">Drivers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-purple);">{% if quali_summary.theoretical_pole_delta %}+{{ quali_summary.theoretical_pole_delta }}s{% else %}—{% endif %}</div>
+                <div class="stat-label">Pole vs Theoretical</div>
+            </div>
+        </div>
+
+        <!-- QUALIFYING LEADERBOARD WITH SECTORS -->
+        <div class="card full-width" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>Qualifying Results <span class="badge">{{ quali_analysis.sectors|length }}</span></h2>
+            </div>
+            <div class="card-body" style="max-height:480px;">
+                {% if quali_analysis.sectors %}
+                <table class="leaderboard-table">
+                    <thead><tr><th>P</th><th>Driver</th><th>Team</th><th>Best Lap</th><th>Tyre</th><th>S1</th><th>S2</th><th>S3</th><th>Gap</th></tr></thead>
+                    <tbody>
+                        {% for d in quali_analysis.sectors %}
+                        <tr>
+                            <td class="pos-cell pos-{{ d.position }}">{{ d.position }}</td>
+                            <td class="driver-name">{{ d.driver }}</td>
+                            <td class="team-name">{{ d.team }}</td>
+                            <td class="laptime">{{ d.best_lap_s }}s</td>
+                            <td><span class="compound compound-{{ d.compound|default('UNKNOWN') }}">{{ d.compound|default('?') }}</span></td>
+                            <td class="laptime {% if d.s1_class is not none %}sector-cell-{{ d.s1_class }}{% endif %}">
+                                {% if d.s1 is not none %}{{ d.s1 }}s{% else %}—{% endif %}
+                            </td>
+                            <td class="laptime {% if d.s2_class is not none %}sector-cell-{{ d.s2_class }}{% endif %}">
+                                {% if d.s2 is not none %}{{ d.s2 }}s{% else %}—{% endif %}
+                            </td>
+                            <td class="laptime {% if d.s3_class is not none %}sector-cell-{{ d.s3_class }}{% endif %}">
+                                {% if d.s3 is not none %}{{ d.s3 }}s{% else %}—{% endif %}
+                            </td>
+                            <td class="gap {% if d.position == 1 %}gap-leader{% endif %}">
+                                {% if d.position == 1 %}POLE{% else %}+{{ (d.best_lap_s - quali_analysis.sectors[0].best_lap_s)|round(3) }}s{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state"><div class="icon">&#127937;</div><p>No qualifying data</p></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- QUALIFYING ANALYSIS GRID -->
+        <div class="section-title">Session Breakdown</div>
+        <div class="dashboard-grid">
+
+            <!-- Q1/Q2/Q3 ELIMINATION -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Elimination Tracker
+                        <span class="badge badge-green">Q3: {{ quali_analysis.elimination.q3_drivers|length }}</span>
+                        <span class="badge badge-orange">Q2: {{ quali_analysis.elimination.q2_eliminated|length }}</span>
+                        <span class="badge">Q1: {{ quali_analysis.elimination.q1_eliminated|length }}</span>
+                    </h2>
+                </div>
+                <div class="card-body">
+                    {% for d in quali_analysis.elimination.q3_drivers %}
+                    <div class="list-item">
+                        <div class="tag tag-Q3">Q3</div>
+                        <div class="item-content">
+                            <div class="item-title">P{{ loop.index }} {{ d.driver }}</div>
+                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s }}s &middot; {{ d.total_laps }} laps</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% for d in quali_analysis.elimination.q2_eliminated %}
+                    <div class="list-item">
+                        <div class="tag tag-Q2">Q2</div>
+                        <div class="item-content">
+                            <div class="item-title">{{ d.driver }} <span style="color:var(--accent-orange);font-size:0.75rem;">eliminated</span></div>
+                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s }}s &middot; +{{ d.gap_to_cutoff }}s from Q3</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% for d in quali_analysis.elimination.q1_eliminated %}
+                    <div class="list-item">
+                        <div class="tag tag-Q1">Q1</div>
+                        <div class="item-content">
+                            <div class="item-title">{{ d.driver }} <span style="color:var(--accent-red);font-size:0.75rem;">eliminated</span></div>
+                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s }}s &middot; +{{ d.gap_to_cutoff }}s from Q2</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not quali_analysis.elimination.q3_drivers and not quali_analysis.elimination.q2_eliminated and not quali_analysis.elimination.q1_eliminated %}
+                    <div class="empty-state"><div class="icon">&#127937;</div><p>No elimination data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- CLOSE CALLS -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Close Calls <span class="badge badge-orange">{{ quali_analysis.close_calls|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if quali_analysis.close_calls %}
+                        {% for cc in quali_analysis.close_calls %}
+                        <div class="list-item">
+                            <div class="tag tag-HIGH" style="min-width:68px;">{{ cc.cutoff }}</div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ cc.last_safe }} <span style="color:var(--accent-green);font-size:0.75rem;">SAFE</span>
+                                    vs {{ cc.first_out }} <span style="color:var(--accent-red);font-size:0.75rem;">OUT</span>
+                                </div>
+                                <div class="item-detail">
+                                    Margin: <span class="item-highlight">{{ cc.margin }}s</span>
+                                    &middot; {{ cc.last_safe_team }} vs {{ cc.first_out_team }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128064;</div><p>No close call data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- TEAMMATE & TEAM ANALYSIS -->
+        <div class="section-title">Team Analysis</div>
+        <div class="dashboard-grid">
+
+            <!-- TEAMMATE HEAD-TO-HEAD -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Teammate Battles <span class="badge badge-cyan">{{ quali_analysis.teammate_battles|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if quali_analysis.teammate_battles %}
+                        {% for tb in quali_analysis.teammate_battles %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:58px;text-align:center;">
+                                <span style="color:var(--accent-green);font-weight:800;font-size:0.8rem;">{{ tb.gap }}s</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ tb.team }}
+                                </div>
+                                <div class="item-detail">
+                                    <span style="color:var(--accent-green);">{{ tb.winner }}</span> P{{ tb.winner_position }} ({{ tb.winner_time }}s)
+                                    beat
+                                    <span style="color:var(--accent-orange);">{{ tb.loser }}</span> P{{ tb.loser_position }} ({{ tb.loser_time }}s)
+                                    &middot; {{ tb.gap_pct }}%
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#9876;</div><p>No teammate battle data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- TEAM QUALIFYING PACE -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Team Pace <span class="badge badge-purple">{{ quali_analysis.team_pace|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if quali_analysis.team_pace %}
+                        {% for t in quali_analysis.team_pace %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:36px;text-align:center;">
+                                <span style="font-weight:800;font-size:0.85rem;{% if loop.index <= 3 %}color:var(--accent-green);{% else %}color:var(--text-secondary);{% endif %}">{{ loop.index }}</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ t.team }}
+                                    {% if t.gap_to_best_team > 0 %}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">+{{ t.gap_to_best_team }}s</span>
+                                    {% endif %}
+                                </div>
+                                <div class="item-detail">
+                                    {{ t.driver_1 }}: {{ t.driver_1_time }}s
+                                    {% if t.driver_2 != '—' %}
+                                     &middot; {{ t.driver_2 }}: {{ t.driver_2_time }}s
+                                     &middot; gap: {{ t.intra_team_gap }}s
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#127942;</div><p>No team pace data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- THEORETICAL BEST & IMPROVEMENT -->
+        <div class="section-title">Performance Deep Dive</div>
+        <div class="dashboard-grid">
+
+            <!-- THEORETICAL BEST LAP -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Theoretical Best Lap <span class="badge badge-purple">{{ quali_analysis.theoretical_best|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if quali_analysis.theoretical_best %}
+                        {% for tb in quali_analysis.theoretical_best %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:36px;text-align:center;">
+                                <span style="font-weight:800;font-size:0.85rem;{% if tb.theoretical_position <= 3 %}color:var(--accent-green);{% else %}color:var(--text-secondary);{% endif %}">{{ tb.theoretical_position }}</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ tb.driver }}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ tb.team }}</span>
+                                </div>
+                                <div class="item-detail">
+                                    Theoretical: <span style="color:var(--accent-purple);font-weight:600;">{{ tb.theoretical_s }}s</span>
+                                    &middot; Actual: {{ tb.actual_best_s }}s
+                                    &middot; Left on table: <span class="item-highlight">{{ tb.time_lost_s }}s</span>
+                                </div>
+                                <div class="item-detail">
+                                    Best sectors: S1 {{ tb.s1 }}s &middot; S2 {{ tb.s2 }}s &middot; S3 {{ tb.s3 }}s
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128161;</div><p>No sector data for theoretical analysis</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- LAP IMPROVEMENT -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Lap Improvement <span class="badge badge-cyan">{{ quali_analysis.improvement|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if quali_analysis.improvement %}
+                        {% for imp in quali_analysis.improvement %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:58px;text-align:center;">
+                                <span style="color:var(--accent-green);font-weight:800;font-size:0.85rem;">-{{ imp.improvement_s }}s</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ imp.driver }}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ imp.team }}</span>
+                                </div>
+                                <div class="item-detail">
+                                    First: {{ imp.first_lap_s }}s &rarr; Best: {{ imp.best_lap_s }}s
+                                    &middot; {{ imp.improvement_pct }}% faster
+                                    &middot; {{ imp.num_attempts }} attempts
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128200;</div><p>No improvement data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- TRACK EVOLUTION -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Track Evolution <span class="badge badge-green">{{ quali_analysis.track_evolution|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if quali_analysis.track_evolution %}
+                        {% for te in quali_analysis.track_evolution %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:68px;text-align:center;">
+                                <span style="font-weight:700;font-size:0.75rem;color:var(--text-secondary);">{{ te.phase }}</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ te.fastest_time_s }}s
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ te.fastest_driver }}</span>
+                                    {% if te.evolution_delta < 0 %}
+                                    <span style="color:var(--accent-green);font-weight:600;font-size:0.75rem;">{{ te.evolution_delta }}s</span>
+                                    {% elif te.evolution_delta > 0 %}
+                                    <span style="color:var(--accent-orange);font-weight:600;font-size:0.75rem;">+{{ te.evolution_delta }}s</span>
+                                    {% endif %}
+                                </div>
+                                <div class="item-detail">
+                                    Avg: {{ te.avg_time_s }}s &middot; {{ te.num_laps }} laps &middot; Laps {{ te.lap_range }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128200;</div><p>No track evolution data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- TYRE STRATEGY -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Tyre Strategy <span class="badge badge-yellow">{{ quali_analysis.tyre_usage|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if quali_analysis.tyre_usage %}
+                        {% for tu in quali_analysis.tyre_usage %}
+                        <div class="list-item">
+                            <div><span class="compound compound-{{ tu.best_compound }}">{{ tu.best_compound }}</span></div>
+                            <div class="item-content">
+                                <div class="item-title">{{ tu.driver }} <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ tu.team }}</span></div>
+                                <div class="item-detail">
+                                    {{ tu.total_laps }} laps &middot;
+                                    Used: {% for c in tu.compounds_used %}<span class="compound compound-{{ c }}" style="font-size:0.55rem;margin-right:2px;">{{ c }}</span>{% endfor %}
+                                    {% for comp, data in tu.compound_laps.items() %}
+                                    &middot; {{ comp }}: {{ data.count }}L ({{ data.best }}s)
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128722;</div><p>No tyre data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ################################################################ -->
+        <!-- PRACTICE VIEW                                                    -->
+        <!-- ################################################################ -->
+        {% elif session_category == 'practice' %}
+
+        <!-- PRACTICE STATS ROW -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value">{{ practice_summary.fastest_driver|default('—') }}</div>
+                <div class="stat-label">Fastest Driver</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-green);">{{ practice_summary.fastest_time|default(0) }}s</div>
+                <div class="stat-label">Best Lap</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-orange);">{{ practice_summary.race_pace_leader|default('—') }}</div>
+                <div class="stat-label">Race Pace Leader</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-cyan);">{{ practice_summary.compounds_tested|default(0) }}</div>
+                <div class="stat-label">Compounds Used</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-purple);">{{ practice_summary.most_consistent|default('—') }}</div>
+                <div class="stat-label">Most Consistent</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ practice_summary.total_laps|default(0) }}</div>
+                <div class="stat-label">Total Laps</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-yellow);">{{ practice_summary.most_laps_driver|default('—') }}</div>
+                <div class="stat-label">Most Active ({{ practice_summary.most_laps|default(0) }}L)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ practice_summary.top_team|default('—') }}</div>
+                <div class="stat-label">Top Team</div>
+            </div>
+        </div>
+
+        <!-- SHORT RUN LEADERBOARD -->
+        <div class="card full-width" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>Single-Lap Pace (Qualifying Sim) <span class="badge">{{ practice_analysis.short_runs|length }}</span></h2>
+            </div>
+            <div class="card-body" style="max-height:380px;">
+                {% if practice_analysis.short_runs %}
+                <table class="leaderboard-table">
+                    <thead><tr><th>P</th><th>Driver</th><th>Team</th><th>Best Lap</th><th>Top 3 Avg</th><th>Compound</th><th>Gap</th><th>Consistency</th><th>Laps</th></tr></thead>
+                    <tbody>
+                        {% for d in practice_analysis.short_runs %}
+                        <tr>
+                            <td class="pos-cell pos-{{ d.position }}">{{ d.position }}</td>
+                            <td class="driver-name">{{ d.driver }}</td>
+                            <td class="team-name">{{ d.team }}</td>
+                            <td class="laptime">{{ d.best_lap_s }}s</td>
+                            <td class="laptime" style="color:var(--text-secondary);">{{ d.top_3_avg }}s</td>
+                            <td><span class="compound compound-{{ d.compound }}">{{ d.compound }}</span></td>
+                            <td class="gap {% if d.gap_to_best == 0 %}gap-leader{% endif %}">
+                                {% if d.gap_to_best == 0 %}FASTEST{% else %}+{{ d.gap_to_best }}s{% endif %}
+                            </td>
+                            <td style="font-variant-numeric:tabular-nums;color:{% if d.consistency < 0.3 %}var(--accent-green){% elif d.consistency < 0.6 %}var(--accent-yellow){% else %}var(--accent-orange){% endif %};">
+                                {{ d.consistency }}s
+                            </td>
+                            <td>{{ d.num_attempts }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state"><div class="icon">&#127937;</div><p>No short run data</p></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- RACE PACE SECTION -->
+        <div class="section-title">Race Pace Intelligence</div>
+        <div class="dashboard-grid">
+
+            <!-- LONG RUN PACE (Race Simulation) -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Long Run Pace (Race Sim) <span class="badge badge-orange">{{ practice_analysis.long_runs|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.long_runs %}
+                        {% for lr in practice_analysis.long_runs %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:36px;text-align:center;">
+                                <span style="font-weight:800;font-size:0.85rem;{% if loop.index <= 3 %}color:var(--accent-green);{% else %}color:var(--text-secondary);{% endif %}">{{ loop.index }}</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ lr.driver }}
+                                    <span class="compound compound-{{ lr.compound }}">{{ lr.compound }}</span>
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.7rem;margin-left:0.3rem;">
+                                        fuel-adj: {{ lr.fuel_corrected_pace }}s
+                                    </span>
+                                </div>
+                                <div class="item-detail">
+                                    Avg: {{ lr.avg_pace_s }}s &middot; {{ lr.stint_laps }} laps &middot;
+                                    First: {{ lr.first_lap_s }}s &rarr; Last: {{ lr.last_lap_s }}s
+                                    {% if lr.degradation_per_lap > 0.01 %}
+                                     &middot; deg: <span class="item-highlight">+{{ lr.degradation_per_lap }}s/lap</span>
+                                    {% elif lr.degradation_per_lap < -0.01 %}
+                                     &middot; <span style="color:var(--accent-green);">improving {{ (lr.degradation_per_lap * -1)|round(3) }}s/lap</span>
+                                    {% else %}
+                                     &middot; <span style="color:var(--accent-cyan);">stable pace</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128336;</div><p>No long runs detected (need 5+ consecutive laps)</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- RACE PACE PREDICTION -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Race Pace Prediction <span class="badge badge-green">{{ practice_analysis.race_pace_prediction|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.race_pace_prediction %}
+                        {% for rp in practice_analysis.race_pace_prediction %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:36px;text-align:center;">
+                                <span style="font-weight:800;font-size:0.85rem;{% if rp.position <= 3 %}color:var(--accent-green);{% else %}color:var(--text-secondary);{% endif %}">{{ rp.position }}</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ rp.driver }}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ rp.team }}</span>
+                                    {% if rp.gap_to_fastest > 0 %}
+                                    <span style="color:var(--accent-orange);font-weight:400;font-size:0.75rem;">+{{ rp.gap_to_fastest }}s</span>
+                                    {% endif %}
+                                </div>
+                                <div class="item-detail">
+                                    Predicted pace: {{ rp.predicted_race_pace_s }}s &middot;
+                                    Best run: {{ rp.best_run_pace_s }}s &middot;
+                                    {{ rp.num_long_runs }} long run{{ 's' if rp.num_long_runs > 1 else '' }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128640;</div><p>No long run data for race pace predictions</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- TYRE ANALYSIS SECTION -->
+        <div class="section-title">Tyre Analysis</div>
+        <div class="dashboard-grid">
+
+            <!-- COMPOUND COMPARISON -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Compound Comparison <span class="badge badge-yellow">{{ practice_analysis.compounds|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.compounds %}
+                        {% for c in practice_analysis.compounds %}
+                        <div class="list-item">
+                            <div><span class="compound compound-{{ c.compound }}">{{ c.compound }}</span></div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    Best: {{ c.best_pace_s }}s
+                                    {% if c.delta_to_fastest > 0 %}
+                                    <span style="color:var(--accent-orange);font-weight:400;font-size:0.75rem;">+{{ c.delta_to_fastest }}s</span>
+                                    {% else %}
+                                    <span style="color:var(--accent-green);font-weight:400;font-size:0.75rem;">FASTEST</span>
+                                    {% endif %}
+                                </div>
+                                <div class="item-detail">
+                                    Avg: {{ c.avg_pace_s }}s &middot; Median: {{ c.median_pace_s }}s &middot;
+                                    {{ c.num_drivers }} drivers &middot; {{ c.num_laps }} laps
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128722;</div><p>No compound data available</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- TYRE DEGRADATION CURVES -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Tyre Degradation by Compound <span class="badge badge-orange">{{ practice_analysis.tyre_deg_curves|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.tyre_deg_curves %}
+                        {% for tc in practice_analysis.tyre_deg_curves %}
+                        <div class="list-item">
+                            <div><span class="compound compound-{{ tc.compound }}">{{ tc.compound }}</span></div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    Deg: <span style="color:{% if tc.trend == 'STABLE' %}var(--accent-cyan){% elif tc.trend == 'LOW' %}var(--accent-green){% elif tc.trend == 'MODERATE' %}var(--accent-yellow){% else %}var(--accent-red){% endif %};font-weight:700;">{{ tc.trend }}</span>
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">
+                                        +{{ tc.avg_deg_per_lap }}s/lap
+                                    </span>
+                                </div>
+                                <div class="item-detail">
+                                    Avg pace: {{ tc.avg_pace_s }}s &middot;
+                                    {{ tc.num_stints }} stint{{ 's' if tc.num_stints > 1 else '' }} &middot;
+                                    {{ tc.total_laps }} laps &middot;
+                                    {{ tc.drivers|join(', ') }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128200;</div><p>No degradation curve data (need long runs)</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- TEAM & DRIVER ANALYSIS -->
+        <div class="section-title">Team &amp; Driver Analysis</div>
+        <div class="dashboard-grid">
+
+            <!-- TEAM RANKING -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Team Pace Ranking <span class="badge badge-purple">{{ practice_analysis.team_ranking|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.team_ranking %}
+                        {% for t in practice_analysis.team_ranking %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:36px;text-align:center;">
+                                <span style="font-weight:800;font-size:0.85rem;{% if t.position <= 3 %}color:var(--accent-green);{% else %}color:var(--text-secondary);{% endif %}">{{ t.position }}</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ t.team }}
+                                    {% if t.gap_to_best_team > 0 %}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">+{{ t.gap_to_best_team }}s</span>
+                                    {% endif %}
+                                </div>
+                                <div class="item-detail">
+                                    {% for d in t.both_drivers %}
+                                        {{ d.driver }}: {{ d.time }}s{% if not loop.last %} &middot; {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#127942;</div><p>No team ranking data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- CONSISTENCY -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Driver Consistency <span class="badge badge-cyan">{{ practice_analysis.consistency|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.consistency %}
+                        {% for c in practice_analysis.consistency %}
+                        <div class="list-item">
+                            <div class="tag tag-{{ c.consistency_rating }}">{{ c.consistency_rating }}</div>
+                            <div class="item-content">
+                                <div class="item-title">{{ c.driver }}</div>
+                                <div class="item-detail">
+                                    {{ c.team }} &middot;
+                                    Std dev: {{ c.std_dev }}s &middot;
+                                    Avg: {{ c.avg_pace_s }}s &middot;
+                                    {{ c.num_laps }} laps
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128202;</div><p>No consistency data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- PERFORMANCE DEEP DIVE -->
+        <div class="section-title">Performance Deep Dive</div>
+        <div class="dashboard-grid">
+
+            <!-- THEORETICAL BEST LAP -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Theoretical Best Lap <span class="badge badge-purple">{{ practice_analysis.theoretical_best|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.theoretical_best %}
+                        {% for tb in practice_analysis.theoretical_best %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:36px;text-align:center;">
+                                <span style="font-weight:800;font-size:0.85rem;{% if tb.position <= 3 %}color:var(--accent-green);{% else %}color:var(--text-secondary);{% endif %}">{{ tb.position }}</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ tb.driver }}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ tb.team }}</span>
+                                </div>
+                                <div class="item-detail">
+                                    Theoretical: <span style="color:var(--accent-purple);font-weight:600;">{{ tb.theoretical_s }}s</span>
+                                    &middot; Actual: {{ tb.actual_best_s }}s
+                                    &middot; Left on table: <span class="item-highlight">{{ tb.time_left_on_table }}s</span>
+                                </div>
+                                <div class="item-detail">
+                                    Best sectors: S1 {{ tb.s1 }}s &middot; S2 {{ tb.s2 }}s &middot; S3 {{ tb.s3 }}s
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128161;</div><p>No sector data for theoretical analysis</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- SECTOR ANALYSIS -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Sector Analysis <span class="badge badge-blue">{{ practice_analysis.sectors|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.sectors %}
+                        {% for s in practice_analysis.sectors %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:36px;text-align:center;">
+                                <span style="font-weight:800;font-size:0.85rem;{% if s.position <= 3 %}color:var(--accent-green);{% else %}color:var(--text-secondary);{% endif %}">{{ s.position }}</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ s.driver }}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ s.team }}</span>
+                                </div>
+                                <div class="item-detail">
+                                    S1: <span class="{% if s.s1_class == 'best' %}delta-zero{% elif s.s1_class == 'good' %}delta-small{% else %}delta-positive{% endif %}">{{ s.s1 }}s</span>
+                                    &middot; S2: <span class="{% if s.s2_class == 'best' %}delta-zero{% elif s.s2_class == 'good' %}delta-small{% else %}delta-positive{% endif %}">{{ s.s2 }}s</span>
+                                    &middot; S3: <span class="{% if s.s3_class == 'best' %}delta-zero{% elif s.s3_class == 'good' %}delta-small{% else %}delta-positive{% endif %}">{{ s.s3 }}s</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#9201;</div><p>No sector time data available</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- TRACK EVOLUTION -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Track Evolution <span class="badge badge-green">{{ practice_analysis.track_evolution|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.track_evolution %}
+                        {% for te in practice_analysis.track_evolution %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:68px;text-align:center;">
+                                <span style="font-weight:700;font-size:0.75rem;color:var(--text-secondary);">{{ te.phase }}</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ te.fastest_time_s }}s
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ te.fastest_driver }}</span>
+                                    {% if te.evolution_delta is defined %}
+                                        {% if te.evolution_delta < 0 %}
+                                        <span style="color:var(--accent-green);font-weight:600;font-size:0.75rem;">{{ te.evolution_delta }}s</span>
+                                        {% elif te.evolution_delta > 0 %}
+                                        <span style="color:var(--accent-orange);font-weight:600;font-size:0.75rem;">+{{ te.evolution_delta }}s</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                                <div class="item-detail">
+                                    Avg: {{ te.avg_time_s }}s &middot; {{ te.num_laps }} laps &middot;
+                                    {{ te.num_drivers }} drivers &middot; Laps {{ te.lap_range }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128200;</div><p>No track evolution data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- DRIVER PROGRAMME SUMMARY -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Driver Programmes <span class="badge">{{ practice_analysis.programmes|length }}</span></h2>
+                </div>
+                <div class="card-body">
+                    {% if practice_analysis.programmes %}
+                        {% for p in practice_analysis.programmes %}
+                        <div class="list-item">
+                            <div style="flex-shrink:0;min-width:36px;text-align:center;">
+                                <span style="font-weight:800;font-size:0.85rem;color:var(--accent-cyan);">{{ p.total_laps }}L</span>
+                            </div>
+                            <div class="item-content">
+                                <div class="item-title">
+                                    {{ p.driver }}
+                                    <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ p.team }}</span>
+                                </div>
+                                <div class="item-detail">
+                                    {{ p.num_stints }} stint{{ 's' if p.num_stints > 1 else '' }} &middot;
+                                    Long: {{ p.long_run_laps }}L &middot; Short: {{ p.short_run_laps }}L &middot;
+                                    Time: {{ p.total_time_display }}
+                                    &middot; Tyres: {% for c in p.compounds_used %}<span class="compound compound-{{ c }}" style="font-size:0.55rem;margin-right:2px;">{{ c }}</span>{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state"><div class="icon">&#128203;</div><p>No programme data</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ################################################################ -->
+        <!-- RACE / SPRINT VIEW (original dashboard)                          -->
+        <!-- ################################################################ -->
+        {% else %}
+
+        <!-- RACE STATS ROW -->
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-value">{{ leaderboard|length }}</div>
@@ -342,7 +1226,7 @@
             </div>
         </div>
 
-        <!-- ==================== LEADERBOARD ==================== -->
+        <!-- LEADERBOARD -->
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
                 <h2>Leaderboard <span class="badge">{{ leaderboard|length }}</span></h2>
@@ -370,7 +1254,7 @@
             </div>
         </div>
 
-        <!-- ==================== STRATEGY SECTION ==================== -->
+        <!-- STRATEGY SECTION -->
         <div class="section-title">Strategy Intelligence</div>
         <div class="dashboard-grid">
 
@@ -452,7 +1336,7 @@
             </div>
         </div>
 
-        <!-- ==================== RACE ACTION SECTION ==================== -->
+        <!-- RACE ACTION SECTION -->
         <div class="section-title">Race Action</div>
         <div class="dashboard-grid">
 
@@ -531,7 +1415,7 @@
             </div>
         </div>
 
-        <!-- ==================== ANOMALY SECTION ==================== -->
+        <!-- ANOMALY SECTION -->
         <div class="section-title">Anomaly Detection</div>
         <div class="dashboard-grid">
             <div class="card full-width">
@@ -561,6 +1445,9 @@
                 </div>
             </div>
         </div>
+
+        {% endif %}
+        <!-- END session_category conditionals -->
 
     </div><!-- /container -->
     {% endif %}
@@ -592,7 +1479,7 @@
         function loadCustomSession() {
             const y=document.getElementById('yearInput').value, r=document.getElementById('roundInput').value, t=document.getElementById('sessionType').value;
             if(!y||!r){alert('Enter Year and Round.');return;}
-            window.location.href=`/?year=${y}&round=${r}&session_type=${t}`;
+            window.location.href=`/?year=${y}&round=${r}&session_type=${encodeURIComponent(t)}`;
         }
         document.getElementById('yearInput').addEventListener('keypress',e=>{if(e.key==='Enter')loadCustomSession();});
         document.getElementById('roundInput').addEventListener('keypress',e=>{if(e.key==='Enter')loadCustomSession();});

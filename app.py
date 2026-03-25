@@ -3,17 +3,18 @@ app.py — Flask Application (Main Entry Point)
 ==============================================
 
 This is the file that Render will run.  It creates a Flask web server
-that serves a single page: the F1 Intelligence Dashboard.
+that serves the F1 Intelligence Dashboard with session-specific analysis.
 
 HOW IT WORKS (on-demand architecture):
   1. User opens the URL → Flask receives a GET request.
   2. Flask calls data_handler to fetch the latest F1 session data.
-  3. The data is passed through ALL analysis modules:
-     - anomaly.py         → pace anomaly detection
-     - predictor.py       → overtake prediction
-     - degradation.py     → tire degradation + pit window
-     - strategy.py        → pit strategy simulation
-     - battle_detector.py → on-track battle detection
+  3. Based on session type, the data is routed to the right analysis:
+     RACE / SPRINT:
+       - anomaly.py, predictor.py, degradation.py, strategy.py, battle_detector.py
+     QUALIFYING:
+       - qualifying.py (sectors, elimination, improvement, team pace)
+     PRACTICE:
+       - practice.py (long runs, short runs, compounds, team ranking, consistency)
   4. Everything is injected into an HTML template and returned.
   5. The server does NOTHING between requests (Render's free tier
      spins it down after ~15 min of inactivity).
@@ -36,6 +37,8 @@ from predictor import predict_overtakes, get_prediction_summary
 from degradation import analyze_degradation, get_degradation_summary
 from strategy import simulate_strategies, get_strategy_summary
 from battle_detector import detect_battles, get_battle_summary
+from qualifying import analyze_qualifying, get_qualifying_summary
+from practice import analyze_practice, get_practice_summary
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -51,23 +54,27 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Helper: run all analysis modules on the loaded data
+# Helper: classify session type
 # ---------------------------------------------------------------------------
-def _run_full_analysis(laps):
-    """
-    Run every analysis module and return their outputs in a dict.
-    Each module is wrapped in a try/except so a failure in one
-    doesn't crash the entire dashboard.
+def _session_category(session_type):
+    """Return 'race', 'qualifying', or 'practice' based on session type string."""
+    if not session_type:
+        return "race"
+    st = session_type.lower()
+    if st in ("race", "sprint"):
+        return "race"
+    elif st in ("qualifying",):
+        return "qualifying"
+    elif st.startswith("practice") or st.startswith("fp") or st in ("practice 1", "practice 2", "practice 3"):
+        return "practice"
+    return "race"
 
-    Parameters
-    ----------
-    laps : pandas.DataFrame
-        The laps DataFrame from a loaded FastF1 session.
 
-    Returns
-    -------
-    dict with keys for each module's outputs + summaries.
-    """
+# ---------------------------------------------------------------------------
+# Helper: run race analysis modules
+# ---------------------------------------------------------------------------
+def _run_race_analysis(laps):
+    """Run race-specific analysis modules."""
     # 1. Anomaly detection
     try:
         alerts = detect_anomalies(laps)
@@ -92,7 +99,7 @@ def _run_full_analysis(laps):
         logger.warning("Degradation analysis failed: %s", exc)
         degradation, degradation_summary = [], {}
 
-    # 4. Pit strategy simulation (uses degradation data if available)
+    # 4. Pit strategy simulation
     try:
         strategies = simulate_strategies(laps, degradation_data=degradation)
         strategy_summary = get_strategy_summary(strategies)
@@ -123,6 +130,69 @@ def _run_full_analysis(laps):
 
 
 # ---------------------------------------------------------------------------
+# Helper: run qualifying analysis
+# ---------------------------------------------------------------------------
+def _run_qualifying_analysis(laps):
+    """Run qualifying-specific analysis modules."""
+    try:
+        quali_analysis = analyze_qualifying(laps)
+        quali_summary = get_qualifying_summary(quali_analysis)
+    except Exception as exc:
+        logger.warning("Qualifying analysis failed: %s", exc)
+        quali_analysis = {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": []}
+        quali_summary = {}
+
+    return {
+        "quali_analysis": quali_analysis,
+        "quali_summary": quali_summary,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Helper: run practice analysis
+# ---------------------------------------------------------------------------
+def _run_practice_analysis(laps):
+    """Run practice-specific analysis modules."""
+    try:
+        practice_analysis = analyze_practice(laps)
+        practice_summary = get_practice_summary(practice_analysis)
+    except Exception as exc:
+        logger.warning("Practice analysis failed: %s", exc)
+        practice_analysis = {"long_runs": [], "short_runs": [], "compounds": [], "team_ranking": [], "consistency": [], "programmes": [], "theoretical_best": [], "sectors": [], "track_evolution": [], "tyre_deg_curves": [], "race_pace_prediction": []}
+        practice_summary = {}
+
+    return {
+        "practice_analysis": practice_analysis,
+        "practice_summary": practice_summary,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Helper: empty defaults for all analysis types
+# ---------------------------------------------------------------------------
+def _empty_race():
+    return {
+        "alerts": [], "alert_summary": {},
+        "predictions": [], "prediction_summary": {},
+        "degradation": [], "degradation_summary": {},
+        "strategies": [], "strategy_summary": {},
+        "battles": [], "battle_summary": {},
+    }
+
+def _empty_qualifying():
+    return {
+        "quali_analysis": {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": []},
+        "quali_summary": {},
+    }
+
+def _empty_practice():
+    return {
+        "practice_analysis": {"long_runs": [], "short_runs": [], "compounds": [], "team_ranking": [], "consistency": [], "programmes": [], "theoretical_best": [], "sectors": [], "track_evolution": [], "tyre_deg_curves": [], "race_pace_prediction": []},
+        "practice_summary": {},
+    }
+
+
+# ---------------------------------------------------------------------------
 # ROUTE: Main Dashboard
 # ---------------------------------------------------------------------------
 @app.route("/")
@@ -133,7 +203,7 @@ def index():
     Query parameters (all optional):
         year         — e.g. 2025
         round        — round number, e.g. 3
-        session_type — 'Race', 'Qualifying', 'Sprint'
+        session_type — 'Race', 'Qualifying', 'Sprint', 'Practice 1', etc.
 
     If no parameters are given, auto-detects the latest session.
     """
@@ -148,6 +218,10 @@ def index():
     logger.info("Dashboard request: year=%s round=%s type=%s", year, round_num, session_type)
     data = get_dashboard_data(year, round_num, session_type)
 
+    # Determine session category
+    actual_type = data.get("session_info", {}).get("session_type", session_type) if data.get("session_info") else session_type
+    category = _session_category(actual_type)
+
     # If there was an error, render error page with empty data for all sections
     if data["error"]:
         elapsed = round(time.time() - start_time, 2)
@@ -155,17 +229,21 @@ def index():
             "dashboard.html",
             error=data["error"],
             session_info=None,
+            session_category=category,
             leaderboard=[],
-            alerts=[], alert_summary={},
-            predictions=[], prediction_summary={},
-            degradation=[], degradation_summary={},
-            strategies=[], strategy_summary={},
-            battles=[], battle_summary={},
+            **_empty_race(),
+            **_empty_qualifying(),
+            **_empty_practice(),
             load_time=elapsed,
         )
 
-    # Run all analysis modules
-    analysis = _run_full_analysis(data["laps"])
+    # Run session-specific analysis
+    if category == "qualifying":
+        analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"]), **_empty_practice()}
+    elif category == "practice":
+        analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"])}
+    else:
+        analysis = {**_run_race_analysis(data["laps"]), **_empty_qualifying(), **_empty_practice()}
 
     elapsed = round(time.time() - start_time, 2)
     logger.info("Dashboard rendered in %.2fs", elapsed)
@@ -174,9 +252,10 @@ def index():
         "dashboard.html",
         error=None,
         session_info=data["session_info"],
+        session_category=category,
         leaderboard=data["leaderboard"],
         load_time=elapsed,
-        **analysis,  # unpack all analysis results into template context
+        **analysis,
     )
 
 
@@ -202,13 +281,22 @@ def api_data():
     if data["error"]:
         return jsonify({"error": data["error"]}), 500
 
-    analysis = _run_full_analysis(data["laps"])
+    actual_type = data.get("session_info", {}).get("session_type", session_type)
+    category = _session_category(actual_type)
+
+    if category == "qualifying":
+        analysis = _run_qualifying_analysis(data["laps"])
+    elif category == "practice":
+        analysis = _run_practice_analysis(data["laps"])
+    else:
+        analysis = _run_race_analysis(data["laps"])
 
     elapsed = round(time.time() - start_time, 2)
 
     return jsonify(
         {
             "session_info": data["session_info"],
+            "session_category": category,
             "leaderboard": [
                 {k: v for k, v in d.items() if k != "best_lap"}
                 for d in data["leaderboard"]
