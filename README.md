@@ -20,6 +20,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 ### Qualifying Analysis
 - **Full results with sector breakdown** — S1, S2, S3 times color-coded (purple = best in session, green = within 0.1s, yellow = within 0.3s, orange = off pace)
 - **Tyre compound per driver** on their best lap
+- **Projected race finish** — qualifying-page pre-race forecast that blends grid position with available practice long-run pace and qualifying-form signals
 - **Q1 / Q2 / Q3 elimination tracker** — who got knocked out, gap to the cutoff line
 - **Close calls** — exact margin between last-safe and first-eliminated at each cutoff
 - **Teammate head-to-head** — who beat who within each team, gap in seconds and percentage
@@ -63,6 +64,7 @@ f1-dashboard/
 ├── battle_detector.py    # On-track battle detection
 ├── qualifying.py         # Qualifying-specific analysis (9 modules)
 ├── practice.py           # Practice-specific analysis (11 modules)
+├── race_projection.py    # Pre-race finish projection for the qualifying page
 ├── requirements.txt      # Python dependencies
 ├── render.yaml           # Render deployment blueprint
 ├── .gitignore
@@ -133,6 +135,11 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Improvement | Tracks delta from first flying lap to best lap per driver |
 | Track Evolution | Splits session into 4 time phases, shows fastest lap and average per phase |
 | Tyre Strategy | Maps compound usage per driver with lap counts and best times per compound |
+
+### `race_projection.py` — Qualifying-Page Pre-Race Projection
+| Module | Algorithm |
+|--------|-----------|
+| Projected Race Finish | Aggregates available practice race-pace rankings, blends them with qualifying grid position, theoretical-best underperformance, session improvement, and tyre usage hints to estimate a projected finishing order for the race |
 
 ### `practice.py` — Practice Intelligence (11 modules)
 | Module | Algorithm |
@@ -232,11 +239,12 @@ git push origin main
 
 ### Catching Up on Qualifying You Missed
 1. Navigate to the qualifying session via the Weekend bar or session selector
-2. Check the **Elimination Tracker** to see who got knocked out and where
-3. Look at **Teammate Battles** to see which driver had the edge in each team
-4. Check **Close Calls** for the most dramatic cutoff margins
-5. Review **Theoretical Best** to see who had untapped pace
-6. Look at **Track Evolution** to understand session conditions
+2. Start with **Projected Race Finish** for the pre-race outlook built from the full weekend context
+3. Check the **Elimination Tracker** to see who got knocked out and where
+4. Look at **Teammate Battles** to see which driver had the edge in each team
+5. Check **Close Calls** for the most dramatic cutoff margins
+6. Review **Theoretical Best** to see who had untapped pace
+7. Look at **Track Evolution** to understand session conditions
 
 ### Scouting Practice Before the Race
 1. Load the practice session (FP1/FP2/FP3)
@@ -267,6 +275,7 @@ git push origin main
 - Latest-session auto-detection reads the actual FastF1 schedule slots (`Session1` to `Session5`) with UTC timestamps instead of assuming every weekend follows the same practice/qualifying/sprint ordering.
 - Qualifying elimination and close-call panels use FastF1's split-session support for Q1, Q2, and Q3 when timing status data is available, which is more accurate than inferring knockout order from the combined final lap table.
 - Practice long-run and race-pace calculations exclude pit-in and pit-out laps from stint construction so in-laps and out-laps do not skew race-simulation pace.
+- The qualifying-page projected race finish is a pre-race forecast, not a simulation of the actual race. It is strongest when practice long-run data is available and falls back to lower-confidence qualifying-led signals when it is not.
 
 ---
 
@@ -294,6 +303,7 @@ git push origin main
 | Module-level try/except isolation | One module failing never crashes the dashboard — graceful degradation |
 | In-memory session cache | Repeat requests within the same Render wake cycle are instant |
 | Linear regression over ML | Simple math runs fast on Render's constrained CPU; no model training needed |
+| Qualifying page hosts the pre-race forecast | Qualifying is the final pre-race checkpoint, so it is the natural place to present a weekend-wide projected finishing order |
 | Single HTML file | No build tools, no CDN dependencies, zero frontend complexity |
 | Fuel correction in practice | Long run times are misleading without accounting for ~0.06s/lap fuel burn-off |
 
@@ -301,4 +311,4 @@ git push origin main
 
 ## Portfolio Description
 
-> **F1 Strategy Intelligence Dashboard** — A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 25+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, race pace prediction from fuel-corrected long run data, and tyre degradation curves per compound. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
+> **F1 Strategy Intelligence Dashboard** — A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 26+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, race pace prediction from fuel-corrected long run data, and tyre degradation curves per compound. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
