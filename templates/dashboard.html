@@ -156,6 +156,22 @@
         @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
         .dashboard-grid .full-width { grid-column: 1 / -1; }
 
+        @media (max-width: 700px) {
+            .header { padding: 1rem; }
+            .header h1 { font-size: 1.3rem; }
+            .header-meta { gap: 0.5rem; }
+            .weekend-nav { padding: 0.6rem 1rem; }
+            .session-selector { padding: 0.8rem 1rem; align-items: stretch; }
+            .session-selector label { width: 100%; }
+            .session-selector select,
+            .session-selector input,
+            .session-selector button { width: 100%; }
+            .container { padding: 1rem; }
+            .stats-row { grid-template-columns: 1fr; }
+            .card-body { overflow-x: auto; }
+            .leaderboard-table { min-width: 620px; }
+        }
+
         /* ============================================================= */
         /* CARDS                                                          */
         /* ============================================================= */
