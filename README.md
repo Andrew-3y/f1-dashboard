@@ -1,6 +1,6 @@
-# F1 Strategy Intelligence Dashboard
+﻿# F1 Strategy Intelligence Dashboard
 
-A comprehensive, free Formula 1 analytics platform that delivers session-specific intelligence for **races**, **qualifying**, and **practice sessions**. Fetches real timing data via FastF1 and transforms it into actionable insights — whether you're watching live or catching up on a session you missed.
+A comprehensive, free Formula 1 analytics platform that delivers session-specific intelligence for **races**, **qualifying**, and **practice sessions**. Fetches real timing data via FastF1 and transforms it into actionable insights â€” whether you're watching live or catching up on a session you missed.
 
 **Architecture:** On-demand, zero-cost. The app sleeps on Render's free tier and wakes on request. No always-running server, no paid services, no database.
 
@@ -10,44 +10,45 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 
 ### Race & Sprint Analysis
 - **Live leaderboard** with finishing positions, best laps, and gaps
-- **Tire degradation modeling** — linear regression on clean stint laps, classified IMPROVING / STABLE / MODERATE / HIGH / CRITICAL
-- **Pit window prediction** — estimates when cumulative tire loss exceeds pit stop cost (OPEN / APPROACHING / CLOSED)
-- **Pit strategy simulator** — simulates "what if this driver pits now?", predicts rejoin position, traffic risk, and undercut feasibility (PIT NOW / CONSIDER PIT / STAY OUT / HOLD)
-- **Battle detection** — identifies drivers within 2s, tracks closing rates, classifies intensity (INTENSE / CLOSE / WATCHING) with DRS flags
-- **Overtake predictions** — gap-closing rate analysis with estimated laps to DRS range
-- **Anomaly detection** — rolling-average pace analysis, severity levels CRITICAL / HIGH / MEDIUM / LOW
+- **Tire degradation modeling** â€” linear regression on clean stint laps, classified IMPROVING / STABLE / MODERATE / HIGH / CRITICAL
+- **Pit window prediction** â€” estimates when cumulative tire loss exceeds pit stop cost (OPEN / APPROACHING / CLOSED)
+- **Pit strategy simulator** â€” simulates "what if this driver pits now?", predicts rejoin position, traffic risk, and undercut feasibility (PIT NOW / CONSIDER PIT / STAY OUT / HOLD)
+- **Battle detection** â€” identifies drivers within 2s, tracks closing rates, classifies intensity (INTENSE / CLOSE / WATCHING) with DRS flags
+- **Overtake predictions** â€” gap-closing rate analysis with estimated laps to DRS range
+- **Anomaly detection** â€” rolling-average pace analysis, severity levels CRITICAL / HIGH / MEDIUM / LOW
 
 ### Qualifying Analysis
-- **Full results with sector breakdown** — S1, S2, S3 times color-coded (purple = best in session, green = within 0.1s, yellow = within 0.3s, orange = off pace)
+- **Full results with sector breakdown** â€” S1, S2, S3 times color-coded (purple = best in session, green = within 0.1s, yellow = within 0.3s, orange = off pace)
 - **Tyre compound per driver** on their best lap
-- **Projected race finish** — qualifying-page pre-race forecast that blends grid position with available practice long-run pace and qualifying-form signals
-- **Q1 / Q2 / Q3 elimination tracker** — who got knocked out, gap to the cutoff line
-- **Close calls** — exact margin between last-safe and first-eliminated at each cutoff
-- **Teammate head-to-head** — who beat who within each team, gap in seconds and percentage
-- **Team qualifying pace ranking** — teams ordered by best driver, intra-team gap shown
-- **Theoretical best lap** — best S1 + best S2 + best S3 per driver, showing time left on the table vs. actual best
-- **Lap improvement progression** — how much each driver improved from first flying lap to best lap, with attempt count
-- **Track evolution** — how the circuit got faster through the session in 4 phases (Early / Mid-Early / Mid-Late / Late)
-- **Tyre strategy breakdown** — compounds used per driver, lap counts per compound, best time on each
+- **Projected race finish** â€” qualifying-page pre-race forecast that blends grid position with available practice long-run pace and qualifying-form signals
+- **Q1 / Q2 / Q3 elimination tracker** â€” who got knocked out, gap to the cutoff line
+- **Close calls** â€” exact margin between last-safe and first-eliminated at each cutoff
+- **Teammate head-to-head** â€” who beat who within each team, gap in seconds and percentage
+- **Team qualifying pace ranking** â€” teams ordered by best driver, intra-team gap shown
+- **Theoretical best lap** â€” best S1 + best S2 + best S3 per driver, showing time left on the table vs. actual best
+- **Lap improvement progression** â€” how much each driver improved from first flying lap to best lap, with attempt count
+- **Track evolution** â€” how the circuit got faster through the session in 4 phases (Early / Mid-Early / Mid-Late / Late)
+- **Tyre strategy breakdown** â€” compounds used per driver, lap counts per compound, best time on each
 
 ### Practice Session Analysis
-- **Single-lap pace ranking** — qualifying simulation with best lap, top-3 average, compound, consistency (std dev), and gap to fastest
-- **Long run pace** — sustained stints (5+ laps) ranked by fuel-corrected average, with first-to-last-lap trend and degradation rate
-- **Race pace prediction** — estimated race-day order from fuel-corrected long run aggregation
-- **Compound comparison** — best/avg/median pace per tyre type, driver and lap counts
-- **Tyre degradation curves** — per-compound degradation slope aggregated across stints (STABLE / LOW / MODERATE / HIGH)
-- **Team pace ranking** — teams ordered by best representative time, both drivers shown
-- **Driver consistency** — std-dev ranking classified EXCELLENT / GOOD / AVERAGE / INCONSISTENT
-- **Theoretical best lap** — best S1 + S2 + S3 combined, time left on the table
-- **Sector analysis** — best sector times per driver, color-coded by delta to overall session best
-- **Track evolution** — 5-phase breakdown (Opening / Early / Middle / Late / Final) showing how the track rubbered in
-- **Driver programme summary** — total laps, stint count, long-run vs short-run split, time on track, compounds used
+- **Single-lap pace ranking** â€” qualifying simulation with best lap, top-3 average, compound, consistency (std dev), and gap to fastest
+- **Long run pace** â€” sustained stints (5+ laps) ranked by fuel-corrected average, with first-to-last-lap trend and degradation rate
+- **Race pace prediction** â€” estimated race-day order from fuel-corrected long run aggregation
+- **Compound comparison** â€” best/avg/median pace per tyre type, driver and lap counts
+- **Tyre degradation curves** â€” per-compound degradation slope aggregated across stints (STABLE / LOW / MODERATE / HIGH)
+- **Team pace ranking** â€” teams ordered by best representative time, both drivers shown
+- **Driver consistency** â€” std-dev ranking classified EXCELLENT / GOOD / AVERAGE / INCONSISTENT
+- **Theoretical best lap** â€” best S1 + S2 + S3 combined, time left on the table
+- **Sector analysis** â€” best sector times per driver, color-coded by delta to overall session best
+- **Track evolution** â€” 5-phase breakdown (Opening / Early / Middle / Late / Final) showing how the track rubbered in
+- **Driver programme summary** â€” total laps, stint count, long-run vs short-run split, time on track, compounds used
 
 ### Navigation & UI
-- **Weekend navigation bar** — one-click switching between FP1, FP2, FP3, Qualifying, Sprint, and Race for the current round
-- **Session selector** — manual year/round/session picker for historical data (supports all session types)
-- **Auto-refresh** — configurable: OFF / Live (30s) / Session (60s) / Casual (5min)
-- **Dark F1-themed interface** — color-coded compound badges, sector classifications, strategy tags, intensity indicators
+- **Weekend navigation bar** â€” one-click switching between FP1, FP2, FP3, Qualifying, Sprint, and Race for the current round
+- **Session selector** â€” manual year/round/session picker for historical data (supports all session types)
+- **Auto-refresh** â€” configurable: OFF / Live (30s) / Session (60s) / Casual (5min), persists across reloads
+- **Mobile-friendly layout** â€” responsive tweaks on small screens without changing desktop layout
+- **Dark F1-themed interface** â€” color-coded compound badges, sector classifications, strategy tags, intensity indicators
 
 ---
 
@@ -55,21 +56,21 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 
 ```
 f1-dashboard/
-├── app.py                # Flask server — routes requests to session-specific analysis
-├── data_handler.py       # FastF1 integration, caching, leaderboard building
-├── anomaly.py            # Lap-time anomaly detection (rolling average)
-├── predictor.py          # Overtake prediction (gap-closing rate analysis)
-├── degradation.py        # Tire degradation modeling + pit window prediction
-├── strategy.py           # Pit strategy simulator (undercut/overcut/traffic)
-├── battle_detector.py    # On-track battle detection
-├── qualifying.py         # Qualifying-specific analysis (9 modules)
-├── practice.py           # Practice-specific analysis (11 modules)
-├── race_projection.py    # Pre-race finish projection for the qualifying page
-├── requirements.txt      # Python dependencies
-├── render.yaml           # Render deployment blueprint
-├── .gitignore
-└── templates/
-    └── dashboard.html    # Full HTML/CSS/JS dashboard (single file, ~1400 lines)
+â”œâ”€â”€ app.py                # Flask server â€” routes requests to session-specific analysis
+â”œâ”€â”€ data_handler.py       # FastF1 integration, caching, leaderboard building
+â”œâ”€â”€ anomaly.py            # Lap-time anomaly detection (rolling average)
+â”œâ”€â”€ predictor.py          # Overtake prediction (gap-closing rate analysis)
+â”œâ”€â”€ degradation.py        # Tire degradation modeling + pit window prediction
+â”œâ”€â”€ strategy.py           # Pit strategy simulator (undercut/overcut/traffic)
+â”œâ”€â”€ battle_detector.py    # On-track battle detection
+â”œâ”€â”€ qualifying.py         # Qualifying-specific analysis (9 modules)
+â”œâ”€â”€ practice.py           # Practice-specific analysis (11 modules)
+â”œâ”€â”€ race_projection.py    # Pre-race finish projection for the qualifying page
+â”œâ”€â”€ requirements.txt      # Python dependencies
+â”œâ”€â”€ render.yaml           # Render deployment blueprint
+â”œâ”€â”€ .gitignore
+â””â”€â”€ templates/
+    â””â”€â”€ dashboard.html    # Full HTML/CSS/JS dashboard (single file, ~1400 lines)
 ```
 
 ---
@@ -78,52 +79,52 @@ f1-dashboard/
 
 ```
 User visits URL
-       │
-       ▼
+       â”‚
+       â–¼
    Flask receives GET /
-       │
-       ▼
+       â”‚
+       â–¼
    data_handler.py fetches session via FastF1
-       │
-       ├── Detects session type
-       │
-       ▼
-   ┌─────────────────────────────────────┐
-   │  Session Router (app.py)            │
-   │                                     │
-   │  Race/Sprint ──► anomaly.py         │
-   │                  predictor.py       │
-   │                  degradation.py     │
-   │                  strategy.py        │
-   │                  battle_detector.py │
-   │                                     │
-   │  Qualifying ───► qualifying.py      │
-   │                  (9 analysis modules)│
-   │                                     │
-   │  Practice ─────► practice.py        │
-   │                  (11 analysis modules)│
-   └─────────────────────────────────────┘
-       │
-       ▼
+       â”‚
+       â”œâ”€â”€ Detects session type
+       â”‚
+       â–¼
+   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+   â”‚  Session Router (app.py)            â”‚
+   â”‚                                     â”‚
+   â”‚  Race/Sprint â”€â”€â–º anomaly.py         â”‚
+   â”‚                  predictor.py       â”‚
+   â”‚                  degradation.py     â”‚
+   â”‚                  strategy.py        â”‚
+   â”‚                  battle_detector.py â”‚
+   â”‚                                     â”‚
+   â”‚  Qualifying â”€â”€â”€â–º qualifying.py      â”‚
+   â”‚                  (9 analysis modules)â”‚
+   â”‚                                     â”‚
+   â”‚  Practice â”€â”€â”€â”€â”€â–º practice.py        â”‚
+   â”‚                  (11 analysis modules)â”‚
+   â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+       â”‚
+       â–¼
    Results injected into dashboard.html
-       │
-       ▼
+       â”‚
+       â–¼
    Rendered page returned to user
 ```
 
-Each analysis module is wrapped in try/except — a failure in one never crashes the dashboard.
+Each analysis module is wrapped in try/except â€” a failure in one never crashes the dashboard.
 
 ---
 
 ## Module Reference
 
-### `app.py` — Application Entry Point
-Routes requests to the correct analysis pipeline based on session type. Classifies sessions into three categories (race, qualifying, practice) and runs only the relevant modules. Serves three endpoints: `/` (dashboard), `/api/data` (JSON), `/health` (Render health check).
+### `app.py` â€” Application Entry Point
+Routes requests to the correct analysis pipeline based on session type. Classifies sessions into three categories (race, qualifying, practice) and runs only the relevant modules. Serves three endpoints: `/` (dashboard), `/api/data` (JSON), `/health` (Render health check). Includes cold-start warmup to avoid timeouts on initial loads.
 
-### `data_handler.py` — Data Layer
+### `data_handler.py` â€” Data Layer
 All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for the most recent completed session using FastF1's actual named session slots and UTC timestamps, so sprint weekends and timezone boundaries are handled correctly. `load_session()` downloads and caches lap data in memory. `build_leaderboard()` uses finishing positions for races and fastest lap for qualifying/practice.
 
-### `qualifying.py` — Qualifying Intelligence (9 modules)
+### `qualifying.py` â€” Qualifying Intelligence (9 modules)
 | Module | Algorithm |
 |--------|-----------|
 | Sector Breakdown | Extracts S1/S2/S3 from each driver's fastest lap, computes delta to session-best sector, classifies as best/good/ok/slow |
@@ -136,12 +137,12 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Track Evolution | Splits session into 4 time phases, shows fastest lap and average per phase |
 | Tyre Strategy | Maps compound usage per driver with lap counts and best times per compound |
 
-### `race_projection.py` — Qualifying-Page Pre-Race Projection
+### `race_projection.py` â€” Qualifying-Page Pre-Race Projection
 | Module | Algorithm |
 |--------|-----------|
 | Projected Race Finish | Aggregates available practice race-pace rankings, blends them with qualifying grid position, theoretical-best underperformance, session improvement, and tyre usage hints to estimate a projected finishing order for the race |
 
-### `practice.py` — Practice Intelligence (11 modules)
+### `practice.py` â€” Practice Intelligence (11 modules)
 | Module | Algorithm |
 |--------|-----------|
 | Short Run Pace | Best lap per driver with top-3 average, consistency (std dev), compound |
@@ -214,7 +215,7 @@ git push origin main
 
 ### First-Time Setup
 1. Sign up at [render.com](https://render.com) (free) and connect GitHub
-2. **New + → Web Service** → select `f1-dashboard`
+2. **New + â†’ Web Service** â†’ select `f1-dashboard`
 3. Configure:
 
 | Setting | Value |
@@ -224,7 +225,7 @@ git push origin main
 | Start Command | `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120` |
 | Plan | Free |
 
-4. Add environment variable: `FASTF1_CACHE` = `/tmp/fastf1_cache`
+4. Add environment variable: `FASTF1_CACHE` = `/tmp/fastf1_cache` (optional; defaults to OS temp directory)
 5. Deploy
 
 ---
@@ -261,12 +262,13 @@ git push origin main
 | Problem | Solution |
 |---------|----------|
 | "No completed session found" | Off-season. Use manual selector (e.g. year=2024, round=24, Race) |
-| First load is slow (30-60s) | Normal — FastF1 downloads data on first request, cached after |
+| First load is slow (30-60s) | Normal â€” FastF1 downloads data on first request, cached after |
+| Cold start shows warming message | Expected â€” wait a few seconds and the page will auto-refresh |
 | Degradation shows N/A | Stint too short (<4 clean laps). Common early in a race |
-| Strategy shows no data | Requires cumulative race time — only available in Race sessions |
+| Strategy shows no data | Requires cumulative race time â€” only available in Race sessions |
 | Practice panels empty | Ensure you selected the correct session type (Practice 1/2/3) |
 | No sector data | Some older sessions lack sector timing in FastF1 |
-| Render build failed | Check build logs — usually a pip dependency issue |
+| Render build failed | Check build logs â€” usually a pip dependency issue |
 
 ---
 
@@ -299,8 +301,8 @@ git push origin main
 
 | Decision | Rationale |
 |----------|-----------|
-| Session-specific analysis routing | Race/qualifying/practice have fundamentally different data patterns — running pit strategy analysis on a qualifying session is meaningless |
-| Module-level try/except isolation | One module failing never crashes the dashboard — graceful degradation |
+| Session-specific analysis routing | Race/qualifying/practice have fundamentally different data patterns â€” running pit strategy analysis on a qualifying session is meaningless |
+| Module-level try/except isolation | One module failing never crashes the dashboard â€” graceful degradation |
 | In-memory session cache | Repeat requests within the same Render wake cycle are instant |
 | Linear regression over ML | Simple math runs fast on Render's constrained CPU; no model training needed |
 | Qualifying page hosts the pre-race forecast | Qualifying is the final pre-race checkpoint, so it is the natural place to present a weekend-wide projected finishing order |
@@ -311,4 +313,5 @@ git push origin main
 
 ## Portfolio Description
 
-> **F1 Strategy Intelligence Dashboard** — A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 26+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, race pace prediction from fuel-corrected long run data, and tyre degradation curves per compound. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
+> **F1 Strategy Intelligence Dashboard** â€” A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 26+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, race pace prediction from fuel-corrected long run data, and tyre degradation curves per compound. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
+
