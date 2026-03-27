@@ -27,6 +27,7 @@ ROUTES:
 
 import os
 import time
+import threading
 import logging
 from flask import Flask, render_template, request, jsonify
 
@@ -52,6 +53,60 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Warmup cache (avoid cold-start timeouts)
+# ---------------------------------------------------------------------------
+_warm_cache = {
+    "key": None,
+    "data": None,
+    "analysis": None,
+    "session_category": None,
+    "error": None,
+    "in_progress": False,
+    "updated_at": None,
+}
+_warm_lock = threading.Lock()
+
+
+def _start_warmup(year, round_num, session_type):
+    """Warm up the latest session in a background thread."""
+    with _warm_lock:
+        if _warm_cache["in_progress"]:
+            return
+        _warm_cache["in_progress"] = True
+        _warm_cache["error"] = None
+
+    def _worker():
+        try:
+            data = get_dashboard_data(year, round_num, session_type)
+            actual_type = data.get("session_info", {}).get("session_type", session_type) if data.get("session_info") else session_type
+            category = _session_category(actual_type)
+            if category == "qualifying":
+                analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info")), **_empty_practice()}
+            elif category == "practice":
+                analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"])}
+            else:
+                analysis = {**_run_race_analysis(data["laps"]), **_empty_qualifying(), **_empty_practice()}
+            with _warm_lock:
+                _warm_cache.update(
+                    {
+                        "key": (year, round_num, session_type),
+                        "data": data,
+                        "analysis": analysis,
+                        "session_category": category,
+                        "error": data.get("error"),
+                        "updated_at": time.time(),
+                    }
+                )
+        except Exception as exc:
+            with _warm_lock:
+                _warm_cache["error"] = str(exc)
+        finally:
+            with _warm_lock:
+                _warm_cache["in_progress"] = False
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
@@ -279,6 +334,54 @@ def index():
     year = request.args.get("year", type=int)
     round_num = request.args.get("round", type=int)
     session_type = request.args.get("session_type", default=None, type=str)
+
+    # Cold-start warmup path for auto-detected sessions.
+    if not (year and round_num and session_type):
+        with _warm_lock:
+            cache_key = _warm_cache["key"]
+            cached = _warm_cache["data"]
+            cached_analysis = _warm_cache["analysis"]
+            cached_category = _warm_cache["session_category"]
+            cached_error = _warm_cache["error"]
+            in_progress = _warm_cache["in_progress"]
+
+        if cached and cached_analysis and cache_key == (year, round_num, session_type):
+            if cached_error:
+                return render_template(
+                    "dashboard.html",
+                    error=cached_error,
+                    session_info=None,
+                    session_category="race",
+                    leaderboard=[],
+                    **_empty_race(),
+                    **_empty_qualifying(),
+                    **_empty_practice(),
+                    load_time=0,
+                )
+            return render_template(
+                "dashboard.html",
+                error=None,
+                session_info=cached["session_info"],
+                session_category=cached_category,
+                leaderboard=cached["leaderboard"],
+                load_time=0,
+                **cached_analysis,
+            )
+
+        if not in_progress:
+            _start_warmup(year, round_num, session_type)
+
+        return render_template(
+            "dashboard.html",
+            error="WARMUP: Loading the latest session data. This can take ~30s on a cold start. The page will refresh automatically.",
+            session_info=None,
+            session_category="race",
+            leaderboard=[],
+            **_empty_race(),
+            **_empty_qualifying(),
+            **_empty_practice(),
+            load_time=0,
+        )
 
     # Fetch data (on-demand!)
     logger.info("Dashboard request: year=%s round=%s type=%s", year, round_num, session_type)

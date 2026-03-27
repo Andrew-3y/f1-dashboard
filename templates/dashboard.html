@@ -400,9 +400,18 @@
     {% if error %}
     <div class="container">
         <div class="error-container">
+            {% if error.startswith('WARMUP:') %}
+            <h2>Warming Up Session Data</h2>
+            <p>This is a cold start. The dashboard will refresh automatically in a few seconds.</p>
+            <div class="error-detail">{{ error }}</div>
+            <script>
+                setTimeout(function(){ location.reload(); }, 12000);
+            </script>
+            {% else %}
             <h2>Could Not Load Session Data</h2>
             <p>Try selecting a specific past session above (e.g. Year: 2024, Round: 24, Race).</p>
             <div class="error-detail">{{ error }}</div>
+            {% endif %}
         </div>
     </div>
 
