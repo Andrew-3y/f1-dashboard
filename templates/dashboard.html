@@ -405,10 +405,10 @@
         <button onclick="loadCustomSession()">Load</button>
         <button onclick="window.location.href='/'" style="background:var(--bg-card);border-color:var(--border-color);color:var(--text-primary);">Latest</button>
         <select id="refreshSelect" onchange="setRefreshInterval()" style="margin-left:auto;">
-            <option value="0">Refresh: OFF</option>
-            <option value="30">Live (30s)</option>
-            <option value="60">Session (60s)</option>
-            <option value="300">Casual (5m)</option>
+            <option value="0">Auto Refresh: OFF</option>
+            <option value="30">Auto Refresh: Live (30s)</option>
+            <option value="60">Auto Refresh: Session (60s)</option>
+            <option value="300">Auto Refresh: Casual (5m)</option>
         </select>
     </div>
 
@@ -1578,10 +1578,13 @@
     <script>
         let refreshInterval = 0, countdown = 0;
         const progressBar = document.getElementById('refreshProgress');
+        const refreshSelect = document.getElementById('refreshSelect');
+
         function setRefreshInterval() {
-            refreshInterval = parseInt(document.getElementById('refreshSelect').value);
+            refreshInterval = parseInt(refreshSelect.value);
             countdown = refreshInterval;
             if (progressBar) progressBar.style.width = '0%';
+            localStorage.setItem('autoRefreshSeconds', String(refreshInterval));
         }
         function updateProgress() {
             if (refreshInterval === 0) { if (progressBar) progressBar.style.width='0%'; return; }
@@ -1589,7 +1592,17 @@
             if (progressBar) progressBar.style.width = ((refreshInterval-countdown)/refreshInterval*100)+'%';
             if (countdown <= 0) location.reload();
         }
-        setInterval(updateProgress, 1000);
+        function initAutoRefresh() {
+            const saved = localStorage.getItem('autoRefreshSeconds');
+            if (saved !== null) {
+                refreshSelect.value = saved;
+                refreshInterval = parseInt(saved);
+                countdown = refreshInterval;
+            }
+            setInterval(updateProgress, 1000);
+        }
+
+        initAutoRefresh();
 
         function loadCustomSession() {
             const y=document.getElementById('yearInput').value, r=document.getElementById('roundInput').value, t=document.getElementById('sessionType').value;
