@@ -383,9 +383,23 @@ def index():
             load_time=0,
         )
 
-    # Fetch data (on-demand!)
-    logger.info("Dashboard request: year=%s round=%s type=%s", year, round_num, session_type)
-    data = get_dashboard_data(year, round_num, session_type)
+    try:
+        # Fetch data (on-demand!)
+        logger.info("Dashboard request: year=%s round=%s type=%s", year, round_num, session_type)
+        data = get_dashboard_data(year, round_num, session_type)
+    except Exception as exc:
+        logger.exception("Dashboard request failed")
+        return render_template(
+            "dashboard.html",
+            error=str(exc),
+            session_info=None,
+            session_category="race",
+            leaderboard=[],
+            **_empty_race(),
+            **_empty_qualifying(),
+            **_empty_practice(),
+            load_time=0,
+        )
 
     # Determine session category
     actual_type = data.get("session_info", {}).get("session_type", session_type) if data.get("session_info") else session_type
@@ -447,7 +461,11 @@ def api_data():
     round_num = request.args.get("round", type=int)
     session_type = request.args.get("session_type", default=None, type=str)
 
-    data = get_dashboard_data(year, round_num, session_type)
+    try:
+        data = get_dashboard_data(year, round_num, session_type)
+    except Exception as exc:
+        logger.exception("API request failed")
+        return jsonify({"error": str(exc)}), 500
 
     if data["error"]:
         return jsonify({"error": data["error"]}), 500
