@@ -28,7 +28,8 @@ def _valid_quali_laps(laps):
     """Return laps that are safe to use for qualifying timing analysis."""
     valid = laps.dropna(subset=["LapTime"]).copy()
     if "Deleted" in valid.columns:
-        valid = valid[~valid["Deleted"]]
+        deleted_mask = valid["Deleted"].fillna(False).astype(bool)
+        valid = valid[~deleted_mask]
     return valid
 
 

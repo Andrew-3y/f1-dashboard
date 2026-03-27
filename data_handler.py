@@ -220,7 +220,8 @@ def _valid_laps(df):
     """Return laps that are safe to use for timing/classification display."""
     valid = df.dropna(subset=["LapTime"]).copy()
     if "Deleted" in valid.columns:
-        valid = valid[~valid["Deleted"]]
+        deleted_mask = valid["Deleted"].fillna(False).astype(bool)
+        valid = valid[~deleted_mask]
     return valid
 
 
