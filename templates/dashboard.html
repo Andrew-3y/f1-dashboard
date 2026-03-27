@@ -805,10 +805,40 @@
             </div>
         </div>
 
+        <!-- OFFICIAL PRACTICE CLASSIFICATION -->
+        <div class="card full-width" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>Official Practice Classification <span class="badge">{{ leaderboard|length }}</span></h2>
+            </div>
+            <div class="card-body" style="max-height:380px;">
+                {% if leaderboard %}
+                <table class="leaderboard-table">
+                    <thead><tr><th>P</th><th>Driver</th><th>Team</th><th>Best Lap</th><th>Gap</th><th>Laps</th></tr></thead>
+                    <tbody>
+                        {% for d in leaderboard %}
+                        <tr>
+                            <td class="pos-cell pos-{{ d.position }}">{{ d.position }}</td>
+                            <td class="driver-name">{{ d.driver }}</td>
+                            <td class="team-name">{{ d.team }}</td>
+                            <td class="laptime">{{ d.best_lap_display }}</td>
+                            <td class="gap {% if d.gap_seconds == 0 %}gap-leader{% endif %}">
+                                {% if d.gap_seconds == 0 %}FASTEST{% else %}{{ d.gap_display }}{% endif %}
+                            </td>
+                            <td>{{ d.total_laps }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state"><div class="icon">&#127937;</div><p>No practice classification data</p></div>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- SHORT RUN LEADERBOARD -->
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
-                <h2>Single-Lap Pace (Qualifying Sim) <span class="badge">{{ practice_analysis.short_runs|length }}</span></h2>
+                <h2>Single-Lap Form (Best Lap + Clean-Lap Metrics) <span class="badge">{{ practice_analysis.short_runs|length }}</span></h2>
             </div>
             <div class="card-body" style="max-height:380px;">
                 {% if practice_analysis.short_runs %}

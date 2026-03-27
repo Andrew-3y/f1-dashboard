@@ -33,6 +33,38 @@ FUEL_EFFECT_S_PER_LAP = 0.06   # Typical fuel burn-off pace improvement
 
 
 # ---------------------------------------------------------------------------
+# Helpers: clean practice lap sets
+# ---------------------------------------------------------------------------
+def _drop_pit_laps(df):
+    """Exclude pit-in and pit-out laps from pace-sensitive analysis."""
+    cleaned = df.copy()
+    if "PitInTime" in cleaned.columns:
+        cleaned = cleaned[cleaned["PitInTime"].isna()]
+    if "PitOutTime" in cleaned.columns:
+        cleaned = cleaned[cleaned["PitOutTime"].isna()]
+    return cleaned
+
+
+def _session_progress_seconds(df):
+    """Return a per-lap session-progress metric in seconds."""
+    if "SessionTime" in df.columns:
+        progress = df["SessionTime"].dropna()
+        if not progress.empty:
+            return df["SessionTime"].apply(
+                lambda x: x.total_seconds() if pd.notna(x) else np.nan
+            )
+
+    if "Time" in df.columns:
+        progress = df["Time"].dropna()
+        if not progress.empty:
+            return df["Time"].apply(
+                lambda x: x.total_seconds() if pd.notna(x) else np.nan
+            )
+
+    return pd.to_numeric(df.get("LapNumber"), errors="coerce")
+
+
+# ---------------------------------------------------------------------------
 # Helper: identify stints
 # ---------------------------------------------------------------------------
 def _identify_stints(driver_laps):
@@ -152,7 +184,7 @@ def analyze_short_runs(laps):
 
     results = []
     for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
+        valid = _drop_pit_laps(dlaps.dropna(subset=["LapTime"]).copy())
         if valid.empty:
             continue
 
@@ -163,8 +195,10 @@ def analyze_short_runs(laps):
         if not cleaned:
             continue
 
-        best = min(cleaned)
+        # Keep the official session-best lap for ordering/display, while using
+        # a cleaned lap set for "top 3 average" and consistency metrics.
         best_idx = valid["LapTime"].idxmin()
+        best = valid.loc[best_idx, "LapTime"].total_seconds()
         compound = "UNKNOWN"
         if "Compound" in valid.columns:
             c = valid.loc[best_idx, "Compound"]
@@ -181,7 +215,7 @@ def analyze_short_runs(laps):
             "team": team,
             "best_lap_s": round(best, 3),
             "compound": compound,
-            "num_attempts": len(cleaned),
+            "num_attempts": len(valid),
             "consistency": consistency,
             "top_3_avg": round(np.mean(top_laps), 3),
         })
@@ -207,7 +241,7 @@ def analyze_compounds(laps):
     if laps.empty or "Compound" not in laps.columns:
         return []
 
-    valid = laps.dropna(subset=["LapTime", "Compound"])
+    valid = _drop_pit_laps(laps.dropna(subset=["LapTime", "Compound"]))
     if valid.empty:
         return []
 
@@ -251,7 +285,7 @@ def analyze_team_ranking(laps):
 
     driver_data = {}
     for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
+        valid = _drop_pit_laps(dlaps.dropna(subset=["LapTime"]))
         if valid.empty:
             continue
         best = valid["LapTime"].min().total_seconds()
@@ -302,7 +336,7 @@ def analyze_consistency(laps):
 
     results = []
     for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
+        valid = _drop_pit_laps(dlaps.dropna(subset=["LapTime"]))
         if len(valid) < 3:
             continue
 
@@ -541,27 +575,34 @@ def analyze_track_evolution(laps):
     if laps.empty:
         return []
 
-    valid = laps.dropna(subset=["LapTime", "LapNumber"]).copy()
+    valid = _drop_pit_laps(laps.dropna(subset=["LapTime"]).copy())
     if valid.empty or len(valid) < 5:
         return []
 
     valid["LapTimeS"] = valid["LapTime"].apply(lambda x: x.total_seconds())
-
-    max_lap = valid["LapNumber"].max()
-    min_lap = valid["LapNumber"].min()
-    if max_lap == min_lap:
+    valid["ProgressS"] = _session_progress_seconds(valid)
+    valid = valid.dropna(subset=["ProgressS"]).sort_values("ProgressS")
+    if valid.empty:
         return []
 
     # Split into 5 phases for practice (longer sessions)
     num_phases = 5
-    range_size = (max_lap - min_lap) / num_phases
+    min_progress = valid["ProgressS"].min()
+    max_progress = valid["ProgressS"].max()
+    if max_progress == min_progress:
+        return []
+
+    range_size = (max_progress - min_progress) / num_phases
     phase_names = ["Opening", "Early", "Middle", "Late", "Final"]
 
     phases = []
     for i in range(num_phases):
-        start = min_lap + i * range_size
-        end = min_lap + (i + 1) * range_size
-        phase_laps = valid[(valid["LapNumber"] >= start) & (valid["LapNumber"] < end + (1 if i == num_phases - 1 else 0))]
+        start = min_progress + i * range_size
+        end = min_progress + (i + 1) * range_size
+        if i == num_phases - 1:
+            phase_laps = valid[(valid["ProgressS"] >= start) & (valid["ProgressS"] <= end)]
+        else:
+            phase_laps = valid[(valid["ProgressS"] >= start) & (valid["ProgressS"] < end)]
         if phase_laps.empty:
             continue
 
@@ -580,7 +621,7 @@ def analyze_track_evolution(laps):
             "avg_time_s": round(avg, 3),
             "num_laps": len(phase_laps),
             "num_drivers": phase_laps["Driver"].nunique(),
-            "lap_range": f"{int(start)}-{int(end)}",
+            "lap_range": f"{int(start // 60)}-{int(end // 60)} min",
         })
 
     if len(phases) >= 2:
