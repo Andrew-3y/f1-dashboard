@@ -843,7 +843,7 @@
             <div class="card-body" style="max-height:380px;">
                 {% if practice_analysis.short_runs %}
                 <table class="leaderboard-table">
-                    <thead><tr><th>P</th><th>Driver</th><th>Team</th><th>Best Lap</th><th>Top 3 Avg</th><th>Compound</th><th>Gap</th><th>Consistency</th><th>Laps</th></tr></thead>
+                    <thead><tr><th>P</th><th>Driver</th><th>Team</th><th>Best Lap</th><th>Top 3 Avg</th><th>Compound</th><th>Gap</th><th>Consistency</th><th>Clean Laps</th></tr></thead>
                     <tbody>
                         {% for d in practice_analysis.short_runs %}
                         <tr>
@@ -877,7 +877,7 @@
             <!-- LONG RUN PACE (Race Simulation) -->
             <div class="card">
                 <div class="card-header">
-                    <h2>Long Run Pace (Race Sim) <span class="badge badge-orange">{{ practice_analysis.long_runs|length }}</span></h2>
+                <h2>Long-Run Stints (Race Sim) <span class="badge badge-orange">{{ practice_analysis.long_runs|length }}</span></h2>
                 </div>
                 <div class="card-body">
                     {% if practice_analysis.long_runs %}

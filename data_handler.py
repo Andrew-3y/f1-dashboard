@@ -388,12 +388,13 @@ def _build_practice_leaderboard(laps):
     """
     Practice leaderboard: sort by fastest single lap time.
     """
+    valid_laps = _valid_laps(laps)
     quicklaps = (
-        _valid_laps(laps).groupby("Driver")
+        valid_laps.groupby("Driver")
         .agg(
             BestLap=("LapTime", "min"),
             Team=("Team", "first"),
-            TotalLaps=("LapNumber", "max"),
+            TotalLaps=("LapTime", "size"),
         )
         .dropna(subset=["BestLap"])
         .sort_values("BestLap")
