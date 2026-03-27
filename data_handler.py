@@ -216,7 +216,51 @@ def load_session(year, round_number, session_type):
 # ---------------------------------------------------------------------------
 # Build a leaderboard from the laps DataFrame
 # ---------------------------------------------------------------------------
-def build_leaderboard(laps, session_type="Race"):
+def _valid_laps(df):
+    """Return laps that are safe to use for timing/classification display."""
+    valid = df.dropna(subset=["LapTime"]).copy()
+    if "Deleted" in valid.columns:
+        valid = valid[~valid["Deleted"]]
+    return valid
+
+
+def _official_best_td(result_row):
+    """Return the driver's official best qualifying lap from session results."""
+    for col in ("Q3", "Q2", "Q1"):
+        if col in result_row and pd.notna(result_row[col]):
+            return result_row[col]
+    return pd.NaT
+
+
+def _session_results_rows(session):
+    """Return official session result rows sorted by official position."""
+    if session is None:
+        return pd.DataFrame()
+
+    try:
+        results = session.results
+    except Exception:
+        return pd.DataFrame()
+
+    if results is None or results.empty:
+        return pd.DataFrame()
+
+    rows = results.reset_index()
+    if "DriverNumber" not in rows.columns:
+        rows = rows.rename(columns={rows.columns[0]: "DriverNumber"})
+
+    if "Position" not in rows.columns:
+        return pd.DataFrame()
+
+    rows = rows.dropna(subset=["Position"]).copy()
+    if rows.empty:
+        return pd.DataFrame()
+
+    rows["Position"] = rows["Position"].astype(int)
+    return rows.sort_values("Position").reset_index(drop=True)
+
+
+def build_leaderboard(laps, session_type="Race", session=None):
     """
     Build a sorted leaderboard.
 
@@ -250,71 +294,101 @@ def build_leaderboard(laps, session_type="Race"):
     is_race = session_type.lower() in ("race", "sprint")
 
     if is_race:
-        return _build_race_leaderboard(laps)
+        return _build_race_leaderboard(session, laps)
+    elif session_type.lower() == "qualifying":
+        return _build_quali_leaderboard(session, laps)
     else:
-        return _build_quali_leaderboard(laps)
+        return _build_practice_leaderboard(laps)
 
 
-def _build_race_leaderboard(laps):
+def _build_race_leaderboard(session, laps):
     """
-    Race leaderboard: use the official Position from each driver's
-    last recorded lap, and calculate gaps from cumulative race time.
+    Race leaderboard: prefer FastF1's official session results.
     """
-    # For each driver, grab their last lap entry
-    last_laps_idx = laps.groupby("Driver")["LapNumber"].idxmax()
-    last_laps = laps.loc[last_laps_idx].copy()
-
-    # Drop drivers with no position data
-    last_laps = last_laps.dropna(subset=["Position"])
-    last_laps["Position"] = last_laps["Position"].astype(int)
-    last_laps = last_laps.sort_values("Position").reset_index(drop=True)
-
-    if last_laps.empty:
+    result_rows = _session_results_rows(session)
+    if result_rows.empty:
         return []
 
-    # Get cumulative race time for each driver (the 'Time' column in FastF1
-    # represents total elapsed time at the END of that lap)
-    # Use it to calculate gaps to the leader
-    leader_total_time = None
-    if "Time" in last_laps.columns:
-        leader_row = last_laps.iloc[0]
-        if pd.notna(leader_row["Time"]):
-            leader_total_time = leader_row["Time"].total_seconds()
+    leader_time = result_rows.iloc[0]["Time"] if "Time" in result_rows.columns else pd.NaT
+    valid_laps = _valid_laps(laps)
 
     leaderboard = []
-    for _, row in last_laps.iterrows():
-        # Best lap for display (fastest individual lap this driver set)
-        driver_laps = laps[laps["Driver"] == row["Driver"]]
+    for _, row in result_rows.iterrows():
+        driver = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
+        driver_laps = valid_laps[valid_laps["Driver"] == driver]
         best_lap = driver_laps["LapTime"].min()
-
-        # Gap calculation
-        if leader_total_time and "Time" in row and pd.notna(row["Time"]):
-            gap = row["Time"].total_seconds() - leader_total_time
+        if pd.notna(row.get("Time")) and pd.notna(leader_time):
+            gap = row["Time"].total_seconds() - leader_time.total_seconds()
+            gap_display = "LEADER" if row["Position"] == 1 else format_gap(gap)
+            gap_seconds = round(gap, 3)
+        elif row["Position"] == 1:
+            gap_display = "LEADER"
+            gap_seconds = 0.0
         else:
-            gap = 0 if row["Position"] == 1 else None
+            status = row.get("Status")
+            classified = row.get("ClassifiedPosition")
+            gap_display = status if pd.notna(status) and status else (classified if pd.notna(classified) else "N/A")
+            gap_seconds = None
 
         leaderboard.append(
             {
                 "position": int(row["Position"]),
-                "driver": row["Driver"],
-                "team": row["Team"] if pd.notna(row["Team"]) else "Unknown",
+                "driver": driver,
+                "team": row["TeamName"] if pd.notna(row.get("TeamName")) else "Unknown",
                 "best_lap": best_lap,
                 "best_lap_display": format_laptime(best_lap),
-                "gap_seconds": round(gap, 3) if gap is not None else 0,
-                "gap_display": format_gap(gap),
-                "total_laps": int(row["LapNumber"]),
+                "gap_seconds": gap_seconds,
+                "gap_display": gap_display,
+                "total_laps": int(row["Laps"]) if pd.notna(row.get("Laps")) else int(driver_laps["LapNumber"].max()) if not driver_laps.empty else 0,
             }
         )
 
     return leaderboard
 
 
-def _build_quali_leaderboard(laps):
+def _build_quali_leaderboard(session, laps):
     """
-    Qualifying / Practice leaderboard: sort by fastest single lap time.
+    Qualifying leaderboard: prefer FastF1's official session results.
+    """
+    result_rows = _session_results_rows(session)
+    if result_rows.empty:
+        return _build_practice_leaderboard(laps)
+
+    leaderboard = []
+    pole_time = _official_best_td(result_rows.iloc[0])
+    valid_laps = _valid_laps(laps)
+
+    for _, row in result_rows.iterrows():
+        best_lap = _official_best_td(row)
+        if pd.isna(best_lap):
+            continue
+
+        driver = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
+        driver_laps = valid_laps[valid_laps["Driver"] == driver]
+        gap = best_lap.total_seconds() - pole_time.total_seconds() if pd.notna(pole_time) else None
+
+        leaderboard.append(
+            {
+                "position": int(row["Position"]),
+                "driver": driver,
+                "team": row["TeamName"] if pd.notna(row.get("TeamName")) else "Unknown",
+                "best_lap": best_lap,
+                "best_lap_display": format_laptime(best_lap),
+                "gap_seconds": round(gap, 3) if gap is not None else None,
+                "gap_display": "LEADER" if gap == 0 else format_gap(gap),
+                "total_laps": int(driver_laps["LapNumber"].max()) if not driver_laps.empty else 0,
+            }
+        )
+
+    return leaderboard
+
+
+def _build_practice_leaderboard(laps):
+    """
+    Practice leaderboard: sort by fastest single lap time.
     """
     quicklaps = (
-        laps.groupby("Driver")
+        _valid_laps(laps).groupby("Driver")
         .agg(
             BestLap=("LapTime", "min"),
             Team=("Team", "first"),
@@ -389,11 +463,12 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
         # Update event name from loaded session (more accurate)
         info["event_name"] = session.event["EventName"]
 
-        leaderboard = build_leaderboard(laps, session_type=info["session_type"])
+        leaderboard = build_leaderboard(laps, session_type=info["session_type"], session=session)
 
         return {
             "session_info": info,
             "leaderboard": leaderboard,
+            "session": session,
             "laps": laps,
             "error": None,
         }
@@ -403,6 +478,7 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
         return {
             "session_info": None,
             "leaderboard": [],
+            "session": None,
             "laps": pd.DataFrame(),
             "error": str(exc),
         }

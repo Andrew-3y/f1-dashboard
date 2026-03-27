@@ -24,6 +24,79 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _valid_quali_laps(laps):
+    """Return laps that are safe to use for qualifying timing analysis."""
+    valid = laps.dropna(subset=["LapTime"]).copy()
+    if "Deleted" in valid.columns:
+        valid = valid[~valid["Deleted"]]
+    return valid
+
+
+def _session_results_rows(session):
+    """Return official session results sorted by official qualifying position."""
+    if session is None:
+        return pd.DataFrame()
+
+    try:
+        results = session.results
+    except Exception:
+        return pd.DataFrame()
+
+    if results is None or results.empty:
+        return pd.DataFrame()
+
+    rows = results.reset_index()
+    if "DriverNumber" not in rows.columns:
+        rows = rows.rename(columns={rows.columns[0]: "DriverNumber"})
+
+    if "Position" not in rows.columns:
+        return pd.DataFrame()
+
+    rows = rows.dropna(subset=["Position"]).copy()
+    if rows.empty:
+        return pd.DataFrame()
+
+    rows["Position"] = rows["Position"].astype(int)
+    return rows.sort_values("Position").reset_index(drop=True)
+
+
+def _official_best_td(result_row):
+    """Return the driver's official best lap from the relevant qualifying phase."""
+    for col in ("Q3", "Q2", "Q1"):
+        if col in result_row and pd.notna(result_row[col]):
+            return result_row[col]
+    return pd.NaT
+
+
+def _lap_count_map(laps):
+    """Return counted timed laps per driver."""
+    valid = _valid_quali_laps(laps)
+    if valid.empty:
+        return {}
+    return valid.groupby("Driver").size().to_dict()
+
+
+def _session_progress_seconds(laps):
+    """Return elapsed session seconds for each lap when timing columns exist."""
+    if "SessionTime" in laps.columns and laps["SessionTime"].notna().any():
+        return laps["SessionTime"].apply(lambda x: x.total_seconds() if pd.notna(x) else np.nan)
+    if "Time" in laps.columns and laps["Time"].notna().any():
+        return laps["Time"].apply(lambda x: x.total_seconds() if pd.notna(x) else np.nan)
+    return pd.Series(np.nan, index=laps.index, dtype=float)
+
+
+def _match_best_lap_row(driver_laps, official_best_td):
+    """Find the lap row that matches the driver's official best lap."""
+    if driver_laps.empty:
+        return None
+
+    if pd.isna(official_best_td):
+        return driver_laps.loc[driver_laps["LapTime"].idxmin()]
+
+    deltas = (driver_laps["LapTime"] - official_best_td).abs()
+    return driver_laps.loc[deltas.idxmin()]
+
+
 def _split_quali_sessions(laps):
     """Return Q1/Q2/Q3 lap sets when session status data is available."""
     try:
@@ -62,7 +135,7 @@ def _driver_best_times(session_laps):
 # ---------------------------------------------------------------------------
 # Sector Time Breakdown
 # ---------------------------------------------------------------------------
-def analyze_sectors(laps):
+def analyze_sectors(laps, session=None):
     """
     Extract best sector times for each driver's fastest lap.
     Color-codes each sector delta: purple (best), green (<0.1), yellow (<0.3), orange (rest).
@@ -75,40 +148,71 @@ def analyze_sectors(laps):
         return []
 
     has_sectors = all(c in laps.columns for c in sector_cols)
+    valid_laps = _valid_quali_laps(laps)
+    official_rows = _session_results_rows(session)
 
     results = []
-    for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
-        if valid.empty:
-            continue
+    if not official_rows.empty:
+        for _, row in official_rows.iterrows():
+            best_td = _official_best_td(row)
+            if pd.isna(best_td):
+                continue
 
-        best_idx = valid["LapTime"].idxmin()
-        best_row = valid.loc[best_idx]
+            driver = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
+            driver_laps = valid_laps[valid_laps["Driver"] == driver]
+            best_row = _match_best_lap_row(driver_laps, best_td)
 
-        entry = {
-            "driver": driver,
-            "team": best_row.get("Team", "Unknown") if pd.notna(best_row.get("Team")) else "Unknown",
-            "best_lap_s": round(best_row["LapTime"].total_seconds(), 3),
-        }
+            entry = {
+                "driver": driver,
+                "team": row["TeamName"] if pd.notna(row.get("TeamName")) else "Unknown",
+                "best_lap_s": round(best_td.total_seconds(), 3),
+                "position": int(row["Position"]),
+            }
 
-        if has_sectors:
-            for i, col in enumerate(sector_cols, 1):
-                val = best_row.get(col)
-                entry[f"s{i}"] = round(val.total_seconds(), 3) if pd.notna(val) else None
-        else:
-            entry["s1"] = entry["s2"] = entry["s3"] = None
+            if has_sectors and best_row is not None:
+                for i, col in enumerate(sector_cols, 1):
+                    val = best_row.get(col)
+                    entry[f"s{i}"] = round(val.total_seconds(), 3) if pd.notna(val) else None
+            else:
+                entry["s1"] = entry["s2"] = entry["s3"] = None
 
-        # Compound used for best lap
-        entry["compound"] = "UNKNOWN"
-        if "Compound" in laps.columns and pd.notna(best_row.get("Compound")):
-            entry["compound"] = str(best_row["Compound"]).upper()
+            entry["compound"] = "UNKNOWN"
+            if best_row is not None and "Compound" in best_row.index and pd.notna(best_row.get("Compound")):
+                entry["compound"] = str(best_row["Compound"]).upper()
 
-        results.append(entry)
+            results.append(entry)
+    else:
+        for driver, dlaps in valid_laps.groupby("Driver"):
+            if dlaps.empty:
+                continue
+
+            best_idx = dlaps["LapTime"].idxmin()
+            best_row = dlaps.loc[best_idx]
+
+            entry = {
+                "driver": driver,
+                "team": best_row.get("Team", "Unknown") if pd.notna(best_row.get("Team")) else "Unknown",
+                "best_lap_s": round(best_row["LapTime"].total_seconds(), 3),
+            }
+
+            if has_sectors:
+                for i, col in enumerate(sector_cols, 1):
+                    val = best_row.get(col)
+                    entry[f"s{i}"] = round(val.total_seconds(), 3) if pd.notna(val) else None
+            else:
+                entry["s1"] = entry["s2"] = entry["s3"] = None
+
+            entry["compound"] = "UNKNOWN"
+            if "Compound" in best_row.index and pd.notna(best_row.get("Compound")):
+                entry["compound"] = str(best_row["Compound"]).upper()
+
+            results.append(entry)
 
     if not results:
         return []
 
-    results.sort(key=lambda x: x["best_lap_s"])
+    if "position" not in results[0]:
+        results.sort(key=lambda x: x["best_lap_s"])
 
     # Calculate deltas to best sector times + classify
     if has_sectors:
@@ -138,7 +242,7 @@ def analyze_sectors(laps):
                     r[f"{si}_class"] = None
 
     for i, r in enumerate(results, 1):
-        r["position"] = i
+        r["position"] = r.get("position", i)
 
     return results
 
@@ -146,20 +250,56 @@ def analyze_sectors(laps):
 # ---------------------------------------------------------------------------
 # Q1 / Q2 / Q3 Elimination Tracking
 # ---------------------------------------------------------------------------
-def analyze_elimination(laps):
+def analyze_elimination(laps, session=None):
     """
     Determine which drivers were eliminated in Q1, Q2, Q3.
     """
     if laps.empty:
         return {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}
 
-    split = _split_quali_sessions(laps)
-    q1_bests = sorted(_driver_best_times(split["Q1"]).values(), key=lambda x: x["best_lap_s"])
-    q2_bests = sorted(_driver_best_times(split["Q2"]).values(), key=lambda x: x["best_lap_s"])
-    q3_bests = sorted(_driver_best_times(split["Q3"]).values(), key=lambda x: x["best_lap_s"])
+    official_rows = _session_results_rows(session)
+    lap_counts = _lap_count_map(laps)
+
+    if not official_rows.empty and "Q1" in official_rows.columns:
+        q1_bests = [
+            {
+                "driver": row["Abbreviation"],
+                "team": row["TeamName"],
+                "best_lap_s": round(row["Q1"].total_seconds(), 3),
+                "total_laps": lap_counts.get(row["Abbreviation"], 0),
+            }
+            for _, row in official_rows.iterrows() if pd.notna(row.get("Q1"))
+        ]
+        q2_bests = [
+            {
+                "driver": row["Abbreviation"],
+                "team": row["TeamName"],
+                "best_lap_s": round(row["Q2"].total_seconds(), 3),
+                "total_laps": lap_counts.get(row["Abbreviation"], 0),
+            }
+            for _, row in official_rows.iterrows() if pd.notna(row.get("Q2"))
+        ]
+        q3_bests = [
+            {
+                "driver": row["Abbreviation"],
+                "team": row["TeamName"],
+                "best_lap_s": round(row["Q3"].total_seconds(), 3),
+                "total_laps": lap_counts.get(row["Abbreviation"], 0),
+            }
+            for _, row in official_rows.iterrows() if pd.notna(row.get("Q3"))
+        ]
+    else:
+        split = _split_quali_sessions(laps)
+        q1_bests = sorted(_driver_best_times(split["Q1"]).values(), key=lambda x: x["best_lap_s"])
+        q2_bests = sorted(_driver_best_times(split["Q2"]).values(), key=lambda x: x["best_lap_s"])
+        q3_bests = sorted(_driver_best_times(split["Q3"]).values(), key=lambda x: x["best_lap_s"])
 
     if not q1_bests:
         return {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}
+
+    q1_bests.sort(key=lambda x: x["best_lap_s"])
+    q2_bests.sort(key=lambda x: x["best_lap_s"])
+    q3_bests.sort(key=lambda x: x["best_lap_s"])
 
     q1_cut = min(15, len(q1_bests))
     q2_cut = min(10, len(q2_bests))
@@ -200,8 +340,8 @@ def analyze_improvement(laps):
         return []
 
     results = []
-    for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"]).sort_values("LapNumber")
+    for driver, dlaps in _valid_quali_laps(laps).groupby("Driver"):
+        valid = dlaps.sort_values("LapNumber")
         if len(valid) < 2:
             continue
 
@@ -230,19 +370,29 @@ def analyze_improvement(laps):
 # ---------------------------------------------------------------------------
 # Team Qualifying Pace Comparison
 # ---------------------------------------------------------------------------
-def analyze_team_pace(laps):
+def analyze_team_pace(laps, session=None):
     """Compare qualifying pace between teams using each team's best driver."""
     if laps.empty:
         return []
 
+    official_rows = _session_results_rows(session)
     driver_bests = {}
-    for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
-        if valid.empty:
-            continue
-        best = valid["LapTime"].min().total_seconds()
-        team = valid["Team"].iloc[0] if "Team" in valid.columns and pd.notna(valid["Team"].iloc[0]) else "Unknown"
-        driver_bests[driver] = {"time": best, "team": team}
+    if not official_rows.empty:
+        for _, row in official_rows.iterrows():
+            best_td = _official_best_td(row)
+            if pd.isna(best_td):
+                continue
+            driver_bests[row["Abbreviation"]] = {
+                "time": best_td.total_seconds(),
+                "team": row["TeamName"] if pd.notna(row.get("TeamName")) else "Unknown",
+            }
+    else:
+        for driver, dlaps in _valid_quali_laps(laps).groupby("Driver"):
+            if dlaps.empty:
+                continue
+            best = dlaps["LapTime"].min().total_seconds()
+            team = dlaps["Team"].iloc[0] if "Team" in dlaps.columns and pd.notna(dlaps["Team"].iloc[0]) else "Unknown"
+            driver_bests[driver] = {"time": best, "team": team}
 
     teams = {}
     for driver, info in driver_bests.items():
@@ -294,8 +444,8 @@ def analyze_theoretical_best(laps):
         return []
 
     results = []
-    for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
+    for driver, dlaps in _valid_quali_laps(laps).groupby("Driver"):
+        valid = dlaps
         if valid.empty:
             continue
 
@@ -348,22 +498,35 @@ def analyze_theoretical_best(laps):
 # ---------------------------------------------------------------------------
 # NEW: Teammate Head-to-Head
 # ---------------------------------------------------------------------------
-def analyze_teammate_battles(laps):
+def analyze_teammate_battles(laps, session=None):
     """
     Direct teammate qualifying comparison — who beat who and by how much.
     """
     if laps.empty:
         return []
 
+    official_rows = _session_results_rows(session)
+    lap_counts = _lap_count_map(laps)
     driver_bests = {}
-    for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
-        if valid.empty:
-            continue
-        best = valid["LapTime"].min().total_seconds()
-        team = valid["Team"].iloc[0] if "Team" in valid.columns and pd.notna(valid["Team"].iloc[0]) else "Unknown"
-        total_laps = len(valid)
-        driver_bests[driver] = {"time": best, "team": team, "laps": total_laps}
+    if not official_rows.empty:
+        for _, row in official_rows.iterrows():
+            best_td = _official_best_td(row)
+            if pd.isna(best_td):
+                continue
+            driver = row["Abbreviation"]
+            driver_bests[driver] = {
+                "time": best_td.total_seconds(),
+                "team": row["TeamName"] if pd.notna(row.get("TeamName")) else "Unknown",
+                "laps": lap_counts.get(driver, 0),
+            }
+    else:
+        for driver, dlaps in _valid_quali_laps(laps).groupby("Driver"):
+            if dlaps.empty:
+                continue
+            best = dlaps["LapTime"].min().total_seconds()
+            team = dlaps["Team"].iloc[0] if "Team" in dlaps.columns and pd.notna(dlaps["Team"].iloc[0]) else "Unknown"
+            total_laps = len(dlaps)
+            driver_bests[driver] = {"time": best, "team": team, "laps": total_laps}
 
     # All drivers sorted by time for position lookup
     all_sorted = sorted(driver_bests.items(), key=lambda x: x[1]["time"])
@@ -413,27 +576,41 @@ def analyze_track_evolution(laps):
     if laps.empty:
         return []
 
-    valid = laps.dropna(subset=["LapTime", "LapNumber"]).copy()
+    valid = _valid_quali_laps(laps).copy()
     if valid.empty or len(valid) < 5:
         return []
 
     valid["LapTimeS"] = valid["LapTime"].apply(lambda x: x.total_seconds())
+    valid["SessionProgressS"] = _session_progress_seconds(valid)
 
-    # Use LapNumber as a proxy for session progression
-    max_lap = valid["LapNumber"].max()
-    min_lap = valid["LapNumber"].min()
-    if max_lap == min_lap:
+    if valid["SessionProgressS"].notna().sum() >= 5:
+        timeline = valid.dropna(subset=["SessionProgressS"]).copy()
+        metric = "SessionProgressS"
+        range_label = lambda start, end: f"{int(start // 60)}-{int(end // 60)} min"
+    else:
+        timeline = valid.dropna(subset=["LapNumber"]).copy()
+        if timeline.empty:
+            return []
+        metric = "LapNumber"
+        range_label = lambda start, end: f"{int(start)}-{int(end)}"
+
+    max_value = timeline[metric].max()
+    min_value = timeline[metric].min()
+    if max_value == min_value:
         return []
 
     # Split into roughly 4 phases
-    range_size = (max_lap - min_lap) / 4
+    range_size = (max_value - min_value) / 4
     phases = []
     phase_names = ["Early", "Mid-Early", "Mid-Late", "Late"]
 
     for i in range(4):
-        start = min_lap + i * range_size
-        end = min_lap + (i + 1) * range_size
-        phase_laps = valid[(valid["LapNumber"] >= start) & (valid["LapNumber"] < end + (1 if i == 3 else 0))]
+        start = min_value + i * range_size
+        end = min_value + (i + 1) * range_size
+        if i == 3:
+            phase_laps = timeline[(timeline[metric] >= start) & (timeline[metric] <= end)]
+        else:
+            phase_laps = timeline[(timeline[metric] >= start) & (timeline[metric] < end)]
 
         if phase_laps.empty:
             continue
@@ -449,7 +626,7 @@ def analyze_track_evolution(laps):
             "fastest_driver": fastest["Driver"],
             "avg_time_s": round(avg_time, 3),
             "num_laps": num_laps,
-            "lap_range": f"{int(start)}-{int(end)}",
+            "lap_range": range_label(start, end),
         })
 
     # Calculate evolution delta
@@ -467,7 +644,7 @@ def analyze_track_evolution(laps):
 # ---------------------------------------------------------------------------
 # NEW: Close Calls (drivers who nearly got eliminated)
 # ---------------------------------------------------------------------------
-def analyze_close_calls(laps):
+def analyze_close_calls(laps, session=None):
     """
     Identify drivers who narrowly avoided elimination.
     Shows the margin between the last safe driver and the first eliminated.
@@ -475,9 +652,26 @@ def analyze_close_calls(laps):
     if laps.empty:
         return []
 
-    split = _split_quali_sessions(laps)
-    q1_bests = sorted(_driver_best_times(split["Q1"]).values(), key=lambda x: x["best_lap_s"])
-    q2_bests = sorted(_driver_best_times(split["Q2"]).values(), key=lambda x: x["best_lap_s"])
+    official_rows = _session_results_rows(session)
+    if not official_rows.empty and "Q1" in official_rows.columns:
+        q1_bests = sorted(
+            [
+                {"driver": row["Abbreviation"], "team": row["TeamName"], "best_lap_s": round(row["Q1"].total_seconds(), 3)}
+                for _, row in official_rows.iterrows() if pd.notna(row.get("Q1"))
+            ],
+            key=lambda x: x["best_lap_s"]
+        )
+        q2_bests = sorted(
+            [
+                {"driver": row["Abbreviation"], "team": row["TeamName"], "best_lap_s": round(row["Q2"].total_seconds(), 3)}
+                for _, row in official_rows.iterrows() if pd.notna(row.get("Q2"))
+            ],
+            key=lambda x: x["best_lap_s"]
+        )
+    else:
+        split = _split_quali_sessions(laps)
+        q1_bests = sorted(_driver_best_times(split["Q1"]).values(), key=lambda x: x["best_lap_s"])
+        q2_bests = sorted(_driver_best_times(split["Q2"]).values(), key=lambda x: x["best_lap_s"])
 
     if len(q1_bests) < 11:
         return []
@@ -527,8 +721,8 @@ def analyze_tyre_usage(laps):
         return []
 
     results = []
-    for driver, dlaps in laps.groupby("Driver"):
-        valid = dlaps.dropna(subset=["LapTime"])
+    for driver, dlaps in _valid_quali_laps(laps).groupby("Driver"):
+        valid = dlaps
         if valid.empty:
             continue
 
@@ -574,17 +768,17 @@ def analyze_tyre_usage(laps):
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
-def analyze_qualifying(laps):
+def analyze_qualifying(laps, session=None):
     """Run all qualifying analysis modules."""
     modules = {
-        "sectors": (analyze_sectors, []),
-        "elimination": (analyze_elimination, {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}),
+        "sectors": (lambda l: analyze_sectors(l, session=session), []),
+        "elimination": (lambda l: analyze_elimination(l, session=session), {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}),
         "improvement": (analyze_improvement, []),
-        "team_pace": (analyze_team_pace, []),
+        "team_pace": (lambda l: analyze_team_pace(l, session=session), []),
         "theoretical_best": (analyze_theoretical_best, []),
-        "teammate_battles": (analyze_teammate_battles, []),
+        "teammate_battles": (lambda l: analyze_teammate_battles(l, session=session), []),
         "track_evolution": (analyze_track_evolution, []),
-        "close_calls": (analyze_close_calls, []),
+        "close_calls": (lambda l: analyze_close_calls(l, session=session), []),
         "tyre_usage": (analyze_tyre_usage, []),
     }
 

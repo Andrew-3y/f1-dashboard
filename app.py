@@ -132,10 +132,10 @@ def _run_race_analysis(laps):
 # ---------------------------------------------------------------------------
 # Helper: run qualifying analysis
 # ---------------------------------------------------------------------------
-def _run_qualifying_analysis(laps):
+def _run_qualifying_analysis(laps, session=None):
     """Run qualifying-specific analysis modules."""
     try:
-        quali_analysis = analyze_qualifying(laps)
+        quali_analysis = analyze_qualifying(laps, session=session)
         quali_summary = get_qualifying_summary(quali_analysis)
     except Exception as exc:
         logger.warning("Qualifying analysis failed: %s", exc)
@@ -239,7 +239,7 @@ def index():
 
     # Run session-specific analysis
     if category == "qualifying":
-        analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"]), **_empty_practice()}
+        analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session")), **_empty_practice()}
     elif category == "practice":
         analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"])}
     else:
@@ -285,7 +285,7 @@ def api_data():
     category = _session_category(actual_type)
 
     if category == "qualifying":
-        analysis = _run_qualifying_analysis(data["laps"])
+        analysis = _run_qualifying_analysis(data["laps"], session=data.get("session"))
     elif category == "practice":
         analysis = _run_practice_analysis(data["laps"])
     else:
