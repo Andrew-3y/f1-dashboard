@@ -445,6 +445,62 @@
             </div>
         </div>
 
+        <!-- PROJECTED RACE FINISH -->
+        <div class="card full-width" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>
+                    Projected Race Finish
+                    <span class="badge badge-cyan">{{ quali_analysis.race_projection|length }}</span>
+                    <span class="badge {% if quali_summary.race_projection.confidence == 'MEDIUM' %}badge-green{% else %}badge-orange{% endif %}">
+                        {{ quali_summary.race_projection.confidence|default('LOW') }}
+                    </span>
+                </h2>
+            </div>
+            <div class="card-body" style="max-height:420px;">
+                {% if quali_analysis.race_projection %}
+                <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+                    <div class="tag tag-HIGH">Winner: {{ quali_summary.race_projection.predicted_winner|default('â€”') }}</div>
+                    <div class="tag tag-MEDIUM">Biggest Riser: {{ quali_summary.race_projection.biggest_riser|default('â€”') }}</div>
+                    <div class="tag tag-INFO">
+                        {% if quali_summary.race_projection.practice_sessions_used %}
+                            Inputs: {{ quali_summary.race_projection.practice_sessions_used|join(', ') }} + Qualifying
+                        {% else %}
+                            Inputs: Qualifying only
+                        {% endif %}
+                    </div>
+                </div>
+                <table class="leaderboard-table">
+                    <thead><tr><th>Proj</th><th>Driver</th><th>Team</th><th>Start</th><th>Move</th><th>Signals</th></tr></thead>
+                    <tbody>
+                        {% for d in quali_analysis.race_projection %}
+                        <tr>
+                            <td class="pos-cell pos-{{ d.projected_position }}">{{ d.projected_position }}</td>
+                            <td class="driver-name">{{ d.driver }}</td>
+                            <td class="team-name">{{ d.team }}</td>
+                            <td class="laptime">P{{ d.starting_position }}</td>
+                            <td class="gap">
+                                {% if d.position_change > 0 %}
+                                    <span style="color:var(--accent-green);">+{{ d.position_change }}</span>
+                                {% elif d.position_change < 0 %}
+                                    <span style="color:var(--accent-orange);">{{ d.position_change }}</span>
+                                {% else %}
+                                    <span style="color:var(--text-muted);">0</span>
+                                {% endif %}
+                            </td>
+                            <td class="item-detail">{{ d.reasons|join(' &middot; ')|safe }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="item-detail" style="margin-top:0.8rem;">
+                    Projection is weighted toward starting position and practice long-run pace when available. It is a pre-race forecast, not a final result.
+                </div>
+                {% else %}
+                <div class="empty-state"><div class="icon">&#128200;</div><p>No pre-race projection available</p></div>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- QUALIFYING LEADERBOARD WITH SECTORS -->
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">

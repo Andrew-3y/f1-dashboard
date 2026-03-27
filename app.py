@@ -31,7 +31,7 @@ import logging
 from flask import Flask, render_template, request, jsonify
 
 # Our custom modules
-from data_handler import get_dashboard_data
+from data_handler import get_dashboard_data, load_session
 from anomaly import detect_anomalies, get_anomaly_summary
 from predictor import predict_overtakes, get_prediction_summary
 from degradation import analyze_degradation, get_degradation_summary
@@ -39,6 +39,7 @@ from strategy import simulate_strategies, get_strategy_summary
 from battle_detector import detect_battles, get_battle_summary
 from qualifying import analyze_qualifying, get_qualifying_summary
 from practice import analyze_practice, get_practice_summary
+from race_projection import project_race_finish
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -132,15 +133,63 @@ def _run_race_analysis(laps):
 # ---------------------------------------------------------------------------
 # Helper: run qualifying analysis
 # ---------------------------------------------------------------------------
-def _run_qualifying_analysis(laps, session=None):
+def _load_practice_context(session_info):
+    """Load available practice sessions for the same weekend."""
+    if not session_info:
+        return []
+
+    practice_sessions = []
+    for session_type in ("Practice 1", "Practice 2", "Practice 3"):
+        try:
+            _, practice_laps = load_session(
+                session_info["year"],
+                session_info["round_number"],
+                session_type,
+            )
+        except Exception as exc:
+            logger.info("Skipping %s context: %s", session_type, exc)
+            continue
+
+        if practice_laps is None or practice_laps.empty:
+            continue
+
+        practice_sessions.append(
+            {
+                "session_type": session_type,
+                "laps": practice_laps,
+            }
+        )
+
+    return practice_sessions
+
+
+def _empty_projection():
+    return {
+        "projected_finish": [],
+        "summary": {
+            "predicted_winner": "-",
+            "biggest_riser": "-",
+            "confidence": "LOW",
+            "practice_sessions_used": [],
+            "has_practice_pace": False,
+        },
+    }
+
+
+def _run_qualifying_analysis(laps, session=None, session_info=None):
     """Run qualifying-specific analysis modules."""
     try:
         quali_analysis = analyze_qualifying(laps, session=session)
+        practice_sessions = _load_practice_context(session_info)
+        projection = project_race_finish(quali_analysis, practice_sessions=practice_sessions)
+        quali_analysis["race_projection"] = projection["projected_finish"]
         quali_summary = get_qualifying_summary(quali_analysis)
+        quali_summary["race_projection"] = projection["summary"]
     except Exception as exc:
         logger.warning("Qualifying analysis failed: %s", exc)
-        quali_analysis = {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": []}
+        quali_analysis = {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": [], "race_projection": []}
         quali_summary = {}
+        quali_summary["race_projection"] = _empty_projection()["summary"]
 
     return {
         "quali_analysis": quali_analysis,
@@ -181,8 +230,8 @@ def _empty_race():
 
 def _empty_qualifying():
     return {
-        "quali_analysis": {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": []},
-        "quali_summary": {},
+        "quali_analysis": {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": [], "race_projection": []},
+        "quali_summary": {"race_projection": _empty_projection()["summary"]},
     }
 
 def _empty_practice():
@@ -239,7 +288,7 @@ def index():
 
     # Run session-specific analysis
     if category == "qualifying":
-        analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session")), **_empty_practice()}
+        analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info")), **_empty_practice()}
     elif category == "practice":
         analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"])}
     else:
@@ -285,7 +334,7 @@ def api_data():
     category = _session_category(actual_type)
 
     if category == "qualifying":
-        analysis = _run_qualifying_analysis(data["laps"], session=data.get("session"))
+        analysis = _run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))
     elif category == "practice":
         analysis = _run_practice_analysis(data["laps"])
     else:
