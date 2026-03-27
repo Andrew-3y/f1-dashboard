@@ -54,6 +54,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@app.errorhandler(Exception)
+def _handle_unexpected_error(exc):
+    logger.exception("Unhandled error")
+    return render_template(
+        "dashboard.html",
+        error=str(exc),
+        session_info=None,
+        session_category="race",
+        leaderboard=[],
+        **_empty_race(),
+        **_empty_qualifying(),
+        **_empty_practice(),
+        load_time=0,
+    ), 500
+
 # ---------------------------------------------------------------------------
 # Warmup cache (avoid cold-start timeouts)
 # ---------------------------------------------------------------------------

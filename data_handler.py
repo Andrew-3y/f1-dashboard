@@ -456,6 +456,23 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
     """
     try:
         if year and round_number and session_type:
+            # Validate the requested round exists for the given year to
+            # avoid deeper FastF1 errors when the schedule isn't published yet.
+            try:
+                schedule = fastf1.get_event_schedule(year, include_testing=False)
+                if schedule is None or schedule.empty:
+                    raise RuntimeError(f"No event schedule available for {year}.")
+                if int(round_number) not in schedule["RoundNumber"].astype(int).tolist():
+                    raise RuntimeError(f"Round {round_number} does not exist in the {year} schedule.")
+            except Exception as exc:
+                return {
+                    "session_info": None,
+                    "leaderboard": [],
+                    "session": None,
+                    "laps": pd.DataFrame(),
+                    "error": str(exc),
+                }
+
             info = {
                 "year": year,
                 "round_number": round_number,
