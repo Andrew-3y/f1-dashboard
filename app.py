@@ -270,6 +270,9 @@ def index():
 
     If no parameters are given, auto-detects the latest session.
     """
+    # Render health checks use HEAD; respond fast to avoid expensive loads.
+    if request.method == "HEAD":
+        return ("", 200)
     start_time = time.time()
 
     # Check for manual session selection
@@ -333,6 +336,8 @@ def api_data():
 
     Same query parameters as the main route.
     """
+    if request.method == "HEAD":
+        return ("", 200)
     start_time = time.time()
 
     year = request.args.get("year", type=int)
