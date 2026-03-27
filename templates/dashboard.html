@@ -407,6 +407,10 @@
             <script>
                 setTimeout(function(){ location.reload(); }, 12000);
             </script>
+            {% elif 'Session.load' in error or 'has not been loaded yet' in error %}
+            <h2>Session Data Still Loading</h2>
+            <p>The upstream timing feed didn’t finish loading in time. Please try again in a few seconds.</p>
+            <div class="error-detail">Tip: hit Reload once, or pick a different session and come back.</div>
             {% else %}
             <h2>Could Not Load Session Data</h2>
             <p>Try selecting a specific past session above (e.g. Year: 2024, Round: 24, Race).</p>
