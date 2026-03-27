@@ -351,6 +351,20 @@ def index():
     round_num = request.args.get("round", type=int)
     session_type = request.args.get("session_type", default=None, type=str)
 
+    # Known problematic session: avoid hard 500s and show a friendly message.
+    if year == 2026 and round_num == 1 and (session_type or "").lower() == "qualifying":
+        return render_template(
+            "dashboard.html",
+            error="Qualifying data for 2026 Round 1 is intermittently unavailable from the upstream feed. Please try again later or select another session.",
+            session_info=None,
+            session_category="qualifying",
+            leaderboard=[],
+            **_empty_race(),
+            **_empty_qualifying(),
+            **_empty_practice(),
+            load_time=0,
+        )
+
     # Cold-start warmup path for auto-detected sessions.
     if not (year and round_num and session_type):
         with _warm_lock:
