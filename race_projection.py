@@ -92,7 +92,16 @@ def project_race_finish(quali_analysis, practice_sessions=None):
     """
     sectors = quali_analysis.get("sectors", [])
     if not sectors:
-        return {"projected_finish": [], "summary": {}}
+        return {
+            "projected_finish": [],
+            "summary": {
+                "predicted_winner": "-",
+                "biggest_riser": "-",
+                "confidence": "LOW",
+                "practice_sessions_used": [],
+                "has_practice_pace": False,
+            },
+        }
 
     practice_pace = _aggregate_practice_race_pace(practice_sessions or [])
     theoretical_map, improvement_map, tyre_usage_map = _build_maps(quali_analysis)

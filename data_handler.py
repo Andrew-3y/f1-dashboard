@@ -21,6 +21,7 @@ KEY CONCEPTS FOR BEGINNERS:
 import datetime
 import logging
 import os
+import tempfile
 
 import fastf1
 import pandas as pd
@@ -33,9 +34,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # FastF1 cache setup
 # ---------------------------------------------------------------------------
-# Render gives us an ephemeral filesystem.  We store the cache in /tmp
-# so it survives across requests within the same dyno wake-up cycle.
-CACHE_DIR = os.environ.get("FASTF1_CACHE", "/tmp/fastf1_cache")
+# Render gives us an ephemeral filesystem. Use the OS temp directory by
+# default so this also works on Windows, where "/tmp" is not writable.
+DEFAULT_CACHE_DIR = os.path.join(tempfile.gettempdir(), "fastf1_cache")
+CACHE_DIR = os.environ.get("FASTF1_CACHE", DEFAULT_CACHE_DIR)
 os.makedirs(CACHE_DIR, exist_ok=True)
 fastf1.Cache.enable_cache(CACHE_DIR)
 

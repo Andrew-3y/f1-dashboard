@@ -180,16 +180,30 @@ def _run_qualifying_analysis(laps, session=None, session_info=None):
     """Run qualifying-specific analysis modules."""
     try:
         quali_analysis = analyze_qualifying(laps, session=session)
-        practice_sessions = _load_practice_context(session_info)
-        projection = project_race_finish(quali_analysis, practice_sessions=practice_sessions)
-        quali_analysis["race_projection"] = projection["projected_finish"]
         quali_summary = get_qualifying_summary(quali_analysis)
-        quali_summary["race_projection"] = projection["summary"]
     except Exception as exc:
         logger.warning("Qualifying analysis failed: %s", exc)
         quali_analysis = {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": [], "race_projection": []}
-        quali_summary = {}
-        quali_summary["race_projection"] = _empty_projection()["summary"]
+        quali_summary = {"race_projection": _empty_projection()["summary"]}
+        return {
+            "quali_analysis": quali_analysis,
+            "quali_summary": quali_summary,
+        }
+
+    try:
+        practice_sessions = _load_practice_context(session_info)
+    except Exception as exc:
+        logger.warning("Practice context load failed: %s", exc)
+        practice_sessions = []
+
+    try:
+        projection = project_race_finish(quali_analysis, practice_sessions=practice_sessions)
+    except Exception as exc:
+        logger.warning("Race projection failed: %s", exc)
+        projection = _empty_projection()
+
+    quali_analysis["race_projection"] = projection["projected_finish"]
+    quali_summary["race_projection"] = projection["summary"]
 
     return {
         "quali_analysis": quali_analysis,
