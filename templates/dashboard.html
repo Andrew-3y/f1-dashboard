@@ -453,7 +453,7 @@
                 <div class="stat-label">Pole Position</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" style="color:var(--accent-green);">{{ quali_summary.pole_time|default(0) }}s</div>
+                <div class="stat-value" style="color:var(--accent-green);">{% if quali_summary.pole_time %}{{ quali_summary.pole_time|lapfmt }}{% else %}—{% endif %}</div>
                 <div class="stat-label">Pole Time</div>
             </div>
             <div class="stat-card">
@@ -545,16 +545,16 @@
                             <td class="pos-cell pos-{{ d.position }}">{{ d.position }}</td>
                             <td class="driver-name">{{ d.driver }}</td>
                             <td class="team-name">{{ d.team }}</td>
-                            <td class="laptime">{{ d.best_lap_s }}s</td>
+                            <td class="laptime">{{ d.best_lap_s|lapfmt }}</td>
                             <td><span class="compound compound-{{ d.compound|default('UNKNOWN') }}">{{ d.compound|default('?') }}</span></td>
                             <td class="laptime {% if d.s1_class is not none %}sector-cell-{{ d.s1_class }}{% endif %}">
-                                {% if d.s1 is not none %}{{ d.s1 }}s{% else %}—{% endif %}
+                                {% if d.s1 is not none %}{{ d.s1|lapfmt }}{% else %}—{% endif %}
                             </td>
                             <td class="laptime {% if d.s2_class is not none %}sector-cell-{{ d.s2_class }}{% endif %}">
-                                {% if d.s2 is not none %}{{ d.s2 }}s{% else %}—{% endif %}
+                                {% if d.s2 is not none %}{{ d.s2|lapfmt }}{% else %}—{% endif %}
                             </td>
                             <td class="laptime {% if d.s3_class is not none %}sector-cell-{{ d.s3_class }}{% endif %}">
-                                {% if d.s3 is not none %}{{ d.s3 }}s{% else %}—{% endif %}
+                                {% if d.s3 is not none %}{{ d.s3|lapfmt }}{% else %}—{% endif %}
                             </td>
                             <td class="gap {% if d.position == 1 %}gap-leader{% endif %}">
                                 {% if d.position == 1 %}POLE{% else %}+{{ (d.best_lap_s - quali_analysis.sectors[0].best_lap_s)|round(3) }}s{% endif %}
@@ -588,7 +588,7 @@
                         <div class="tag tag-Q3">Q3</div>
                         <div class="item-content">
                             <div class="item-title">P{{ loop.index }} {{ d.driver }}</div>
-                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s }}s &middot; {{ d.total_laps }} laps</div>
+                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s|lapfmt }} &middot; {{ d.total_laps }} laps</div>
                         </div>
                     </div>
                     {% endfor %}
@@ -597,7 +597,7 @@
                         <div class="tag tag-Q2">Q2</div>
                         <div class="item-content">
                             <div class="item-title">{{ d.driver }} <span style="color:var(--accent-orange);font-size:0.75rem;">eliminated</span></div>
-                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s }}s &middot; +{{ d.gap_to_cutoff }}s from Q3</div>
+                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s|lapfmt }} &middot; +{{ d.gap_to_cutoff }}s from Q3</div>
                         </div>
                     </div>
                     {% endfor %}
@@ -606,7 +606,7 @@
                         <div class="tag tag-Q1">Q1</div>
                         <div class="item-content">
                             <div class="item-title">{{ d.driver }} <span style="color:var(--accent-red);font-size:0.75rem;">eliminated</span></div>
-                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s }}s &middot; +{{ d.gap_to_cutoff }}s from Q2</div>
+                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s|lapfmt }} &middot; +{{ d.gap_to_cutoff }}s from Q2</div>
                         </div>
                     </div>
                     {% endfor %}
@@ -666,9 +666,9 @@
                                     {{ tb.team }}
                                 </div>
                                 <div class="item-detail">
-                                    <span style="color:var(--accent-green);">{{ tb.winner }}</span> P{{ tb.winner_position }} ({{ tb.winner_time }}s)
+                                    <span style="color:var(--accent-green);">{{ tb.winner }}</span> P{{ tb.winner_position }} ({{ tb.winner_time|lapfmt }})
                                     beat
-                                    <span style="color:var(--accent-orange);">{{ tb.loser }}</span> P{{ tb.loser_position }} ({{ tb.loser_time }}s)
+                                    <span style="color:var(--accent-orange);">{{ tb.loser }}</span> P{{ tb.loser_position }} ({{ tb.loser_time|lapfmt }})
                                     &middot; {{ tb.gap_pct }}%
                                 </div>
                             </div>
@@ -700,9 +700,9 @@
                                     {% endif %}
                                 </div>
                                 <div class="item-detail">
-                                    {{ t.driver_1 }}: {{ t.driver_1_time }}s
+                                    {{ t.driver_1 }}: {{ t.driver_1_time|lapfmt }}
                                     {% if t.driver_2 != '—' %}
-                                     &middot; {{ t.driver_2 }}: {{ t.driver_2_time }}s
+                                     &middot; {{ t.driver_2 }}: {{ t.driver_2_time|lapfmt }}
                                      &middot; gap: {{ t.intra_team_gap }}s
                                     {% endif %}
                                 </div>
@@ -738,12 +738,12 @@
                                     <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ tb.team }}</span>
                                 </div>
                                 <div class="item-detail">
-                                    Theoretical: <span style="color:var(--accent-purple);font-weight:600;">{{ tb.theoretical_s }}s</span>
-                                    &middot; Actual: {{ tb.actual_best_s }}s
+                                    Theoretical: <span style="color:var(--accent-purple);font-weight:600;">{{ tb.theoretical_s|lapfmt }}</span>
+                                    &middot; Actual: {{ tb.actual_best_s|lapfmt }}
                                     &middot; Left on table: <span class="item-highlight">{{ tb.time_lost_s }}s</span>
                                 </div>
                                 <div class="item-detail">
-                                    Best sectors: S1 {{ tb.s1 }}s &middot; S2 {{ tb.s2 }}s &middot; S3 {{ tb.s3 }}s
+                                    Best sectors: S1 {{ tb.s1|lapfmt }} &middot; S2 {{ tb.s2|lapfmt }} &middot; S3 {{ tb.s3|lapfmt }}
                                 </div>
                             </div>
                         </div>
@@ -772,7 +772,7 @@
                                     <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ imp.team }}</span>
                                 </div>
                                 <div class="item-detail">
-                                    First: {{ imp.first_lap_s }}s &rarr; Best: {{ imp.best_lap_s }}s
+                                    First: {{ imp.first_lap_s|lapfmt }} &rarr; Best: {{ imp.best_lap_s|lapfmt }}
                                     &middot; {{ imp.improvement_pct }}% faster
                                     &middot; {{ imp.num_attempts }} attempts
                                 </div>
@@ -799,7 +799,7 @@
                             </div>
                             <div class="item-content">
                                 <div class="item-title">
-                                    {{ te.fastest_time_s }}s
+                                    {{ te.fastest_time_s|lapfmt }}
                                     <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ te.fastest_driver }}</span>
                                     {% if te.evolution_delta < 0 %}
                                     <span style="color:var(--accent-green);font-weight:600;font-size:0.75rem;">{{ te.evolution_delta }}s</span>
@@ -808,7 +808,7 @@
                                     {% endif %}
                                 </div>
                                 <div class="item-detail">
-                                    Avg: {{ te.avg_time_s }}s &middot; {{ te.num_laps }} laps &middot; Laps {{ te.lap_range }}
+                                    Avg: {{ te.avg_time_s|lapfmt }} &middot; {{ te.num_laps }} laps &middot; Laps {{ te.lap_range }}
                                 </div>
                             </div>
                         </div>
@@ -835,7 +835,7 @@
                                     {{ tu.total_laps }} laps &middot;
                                     Used: {% for c in tu.compounds_used %}<span class="compound compound-{{ c }}" style="font-size:0.55rem;margin-right:2px;">{{ c }}</span>{% endfor %}
                                     {% for comp, data in tu.compound_laps.items() %}
-                                    &middot; {{ comp }}: {{ data.count }}L ({{ data.best }}s)
+                                    &middot; {{ comp }}: {{ data.count }}L ({{ data.best|lapfmt }})
                                     {% endfor %}
                                 </div>
                             </div>
@@ -861,7 +861,7 @@
                 <div class="stat-label">Fastest Driver</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" style="color:var(--accent-green);">{{ practice_summary.fastest_time|default(0) }}s</div>
+                <div class="stat-value" style="color:var(--accent-green);">{% if practice_summary.fastest_time %}{{ practice_summary.fastest_time|lapfmt }}{% else %}—{% endif %}</div>
                 <div class="stat-label">Best Lap</div>
             </div>
             <div class="stat-card">
@@ -990,8 +990,8 @@
                             <td class="pos-cell pos-{{ d.position }}">{{ d.position }}</td>
                             <td class="driver-name">{{ d.driver }}</td>
                             <td class="team-name">{{ d.team }}</td>
-                            <td class="laptime">{{ d.best_lap_s }}s</td>
-                            <td class="laptime" style="color:var(--text-secondary);">{{ d.top_3_avg }}s</td>
+                            <td class="laptime">{{ d.best_lap_s|lapfmt }}</td>
+                            <td class="laptime" style="color:var(--text-secondary);">{{ d.top_3_avg|lapfmt }}</td>
                             <td><span class="compound compound-{{ d.compound }}">{{ d.compound }}</span></td>
                             <td class="gap {% if d.gap_to_best == 0 %}gap-leader{% endif %}">
                                 {% if d.gap_to_best == 0 %}FASTEST{% else %}+{{ d.gap_to_best }}s{% endif %}
@@ -1031,12 +1031,12 @@
                                     {{ lr.driver }}
                                     <span class="compound compound-{{ lr.compound }}">{{ lr.compound }}</span>
                                     <span style="color:var(--text-muted);font-weight:400;font-size:0.7rem;margin-left:0.3rem;">
-                                        fuel-adj: {{ lr.fuel_corrected_pace }}s
+                                        fuel-adj: {{ lr.fuel_corrected_pace|lapfmt }}
                                     </span>
                                 </div>
                                 <div class="item-detail">
-                                    Avg: {{ lr.avg_pace_s }}s &middot; {{ lr.stint_laps }} laps &middot;
-                                    First: {{ lr.first_lap_s }}s &rarr; Last: {{ lr.last_lap_s }}s
+                                    Avg: {{ lr.avg_pace_s|lapfmt }} &middot; {{ lr.stint_laps }} laps &middot;
+                                    First: {{ lr.first_lap_s|lapfmt }} &rarr; Last: {{ lr.last_lap_s|lapfmt }}
                                     {% if lr.degradation_per_lap > 0.01 %}
                                      &middot; deg: <span class="item-highlight">+{{ lr.degradation_per_lap }}s/lap</span>
                                     {% elif lr.degradation_per_lap < -0.01 %}
@@ -1075,8 +1075,8 @@
                                     {% endif %}
                                 </div>
                                 <div class="item-detail">
-                                    Predicted pace: {{ rp.predicted_race_pace_s }}s &middot;
-                                    Best run: {{ rp.best_run_pace_s }}s &middot;
+                                    Predicted pace: {{ rp.predicted_race_pace_s|lapfmt }} &middot;
+                                    Best run: {{ rp.best_run_pace_s|lapfmt }} &middot;
                                     {{ rp.num_long_runs }} long run{{ 's' if rp.num_long_runs > 1 else '' }}
                                 </div>
                             </div>
@@ -1105,7 +1105,7 @@
                             <div><span class="compound compound-{{ c.compound }}">{{ c.compound }}</span></div>
                             <div class="item-content">
                                 <div class="item-title">
-                                    Best: {{ c.best_pace_s }}s
+                                    Best: {{ c.best_pace_s|lapfmt }}
                                     {% if c.delta_to_fastest > 0 %}
                                     <span style="color:var(--accent-orange);font-weight:400;font-size:0.75rem;">+{{ c.delta_to_fastest }}s</span>
                                     {% else %}
@@ -1113,7 +1113,7 @@
                                     {% endif %}
                                 </div>
                                 <div class="item-detail">
-                                    Avg: {{ c.avg_pace_s }}s &middot; Median: {{ c.median_pace_s }}s &middot;
+                                    Avg: {{ c.avg_pace_s|lapfmt }} &middot; Median: {{ c.median_pace_s|lapfmt }} &middot;
                                     {{ c.num_drivers }} drivers &middot; {{ c.num_laps }} laps
                                 </div>
                             </div>
@@ -1143,7 +1143,7 @@
                                     </span>
                                 </div>
                                 <div class="item-detail">
-                                    Avg pace: {{ tc.avg_pace_s }}s &middot;
+                                    Avg pace: {{ tc.avg_pace_s|lapfmt }} &middot;
                                     {{ tc.num_stints }} stint{{ 's' if tc.num_stints > 1 else '' }} &middot;
                                     {{ tc.total_laps }} laps &middot;
                                     {{ tc.drivers|join(', ') }}
@@ -1183,7 +1183,7 @@
                                 </div>
                                 <div class="item-detail">
                                     {% for d in t.both_drivers %}
-                                        {{ d.driver }}: {{ d.time }}s{% if not loop.last %} &middot; {% endif %}
+                                        {{ d.driver }}: {{ d.time|lapfmt }}{% if not loop.last %} &middot; {% endif %}
                                     {% endfor %}
                                 </div>
                             </div>
@@ -1210,7 +1210,7 @@
                                 <div class="item-detail">
                                     {{ c.team }} &middot;
                                     Std dev: {{ c.std_dev }}s &middot;
-                                    Avg: {{ c.avg_pace_s }}s &middot;
+                                    Avg: {{ c.avg_pace_s|lapfmt }} &middot;
                                     {{ c.num_laps }} laps
                                 </div>
                             </div>
@@ -1245,12 +1245,12 @@
                                     <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ tb.team }}</span>
                                 </div>
                                 <div class="item-detail">
-                                    Theoretical: <span style="color:var(--accent-purple);font-weight:600;">{{ tb.theoretical_s }}s</span>
-                                    &middot; Actual: {{ tb.actual_best_s }}s
+                                    Theoretical: <span style="color:var(--accent-purple);font-weight:600;">{{ tb.theoretical_s|lapfmt }}</span>
+                                    &middot; Actual: {{ tb.actual_best_s|lapfmt }}
                                     &middot; Left on table: <span class="item-highlight">{{ tb.time_left_on_table }}s</span>
                                 </div>
                                 <div class="item-detail">
-                                    Best sectors: S1 {{ tb.s1 }}s &middot; S2 {{ tb.s2 }}s &middot; S3 {{ tb.s3 }}s
+                                    Best sectors: S1 {{ tb.s1|lapfmt }} &middot; S2 {{ tb.s2|lapfmt }} &middot; S3 {{ tb.s3|lapfmt }}
                                 </div>
                             </div>
                         </div>
@@ -1279,9 +1279,9 @@
                                     <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ s.team }}</span>
                                 </div>
                                 <div class="item-detail">
-                                    S1: <span class="{% if s.s1_class == 'best' %}delta-zero{% elif s.s1_class == 'good' %}delta-small{% else %}delta-positive{% endif %}">{{ s.s1 }}s</span>
-                                    &middot; S2: <span class="{% if s.s2_class == 'best' %}delta-zero{% elif s.s2_class == 'good' %}delta-small{% else %}delta-positive{% endif %}">{{ s.s2 }}s</span>
-                                    &middot; S3: <span class="{% if s.s3_class == 'best' %}delta-zero{% elif s.s3_class == 'good' %}delta-small{% else %}delta-positive{% endif %}">{{ s.s3 }}s</span>
+                                    S1: <span class="{% if s.s1_class == 'best' %}delta-zero{% elif s.s1_class == 'good' %}delta-small{% else %}delta-positive{% endif %}">{{ s.s1|lapfmt }}</span>
+                                    &middot; S2: <span class="{% if s.s2_class == 'best' %}delta-zero{% elif s.s2_class == 'good' %}delta-small{% else %}delta-positive{% endif %}">{{ s.s2|lapfmt }}</span>
+                                    &middot; S3: <span class="{% if s.s3_class == 'best' %}delta-zero{% elif s.s3_class == 'good' %}delta-small{% else %}delta-positive{% endif %}">{{ s.s3|lapfmt }}</span>
                                 </div>
                             </div>
                         </div>
@@ -1306,7 +1306,7 @@
                             </div>
                             <div class="item-content">
                                 <div class="item-title">
-                                    {{ te.fastest_time_s }}s
+                                    {{ te.fastest_time_s|lapfmt }}
                                     <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">{{ te.fastest_driver }}</span>
                                     {% if te.evolution_delta is defined %}
                                         {% if te.evolution_delta < 0 %}
@@ -1317,7 +1317,7 @@
                                     {% endif %}
                                 </div>
                                 <div class="item-detail">
-                                    Avg: {{ te.avg_time_s }}s &middot; {{ te.num_laps }} laps &middot;
+                                    Avg: {{ te.avg_time_s|lapfmt }} &middot; {{ te.num_laps }} laps &middot;
                                     {{ te.num_drivers }} drivers &middot; Laps {{ te.lap_range }}
                                 </div>
                             </div>
@@ -1604,7 +1604,7 @@
                                 </div>
                                 <div class="item-detail">
                                     Lost <span class="item-highlight">{{ alert.delta }}s</span>
-                                    vs avg ({{ alert.rolling_avg }}s &rarr; {{ alert.lap_time_s }}s)
+                                    vs avg ({{ alert.rolling_avg|lapfmt }} &rarr; {{ alert.lap_time_s|lapfmt }})
                                 </div>
                             </div>
                         </div>

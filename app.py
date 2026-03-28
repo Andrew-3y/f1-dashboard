@@ -55,6 +55,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+@app.template_filter("lapfmt")
+def _format_lap_seconds(seconds):
+    """Format float seconds as M:SS.mmm for dashboard display."""
+    if seconds is None:
+        return "—"
+    try:
+        seconds = float(seconds)
+    except (TypeError, ValueError):
+        return "—"
+    if seconds < 0:
+        seconds = abs(seconds)
+    minutes = int(seconds // 60)
+    rem = seconds - (minutes * 60)
+    return f"{minutes}:{rem:06.3f}"
+
+
 @app.errorhandler(Exception)
 def _handle_unexpected_error(exc):
     logger.exception("Unhandled error")
