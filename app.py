@@ -117,7 +117,7 @@ def _start_warmup(year, round_num, session_type):
             if category == "qualifying":
                 analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info")), **_empty_practice()}
             elif category == "practice":
-                analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session_info=data.get("session_info"))}
+                analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
             else:
                 analysis = {**_run_race_analysis(data["laps"]), **_empty_qualifying(), **_empty_practice()}
             with _warm_lock:
@@ -228,7 +228,7 @@ def _load_practice_context(session_info):
     practice_sessions = []
     for session_type in ("Practice 1", "Practice 2", "Practice 3"):
         try:
-            _, practice_laps = load_session(
+            practice_session, practice_laps = load_session(
                 session_info["year"],
                 session_info["round_number"],
                 session_type,
@@ -243,6 +243,7 @@ def _load_practice_context(session_info):
         practice_sessions.append(
             {
                 "session_type": session_type,
+                "session": practice_session,
                 "laps": practice_laps,
             }
         )
@@ -284,7 +285,7 @@ def _run_qualifying_analysis(laps, session=None, session_info=None):
         practice_sessions = []
 
     try:
-        projection = project_race_finish(quali_analysis, practice_sessions=practice_sessions)
+        projection = project_race_finish(quali_analysis, practice_sessions=practice_sessions, session=session)
     except Exception as exc:
         logger.warning("Race projection failed: %s", exc)
         projection = _empty_projection()
@@ -301,20 +302,20 @@ def _run_qualifying_analysis(laps, session=None, session_info=None):
 # ---------------------------------------------------------------------------
 # Helper: run practice analysis
 # ---------------------------------------------------------------------------
-def _run_practice_analysis(laps, session_info=None):
+def _run_practice_analysis(laps, session=None, session_info=None):
     """Run practice-specific analysis modules."""
     try:
         practice_sessions = []
         if session_info and session_info.get("session_type") == "Practice 3":
-            practice_sessions.append({"session_type": "Practice 3", "laps": laps})
+            practice_sessions.append({"session_type": "Practice 3", "session": session, "laps": laps})
             for session_type in ("Practice 1", "Practice 2"):
                 try:
-                    _, earlier_laps = load_session(session_info["year"], session_info["round_number"], session_type)
+                    earlier_session, earlier_laps = load_session(session_info["year"], session_info["round_number"], session_type)
                 except Exception as exc:
                     logger.info("Skipping %s context: %s", session_type, exc)
                     continue
                 if earlier_laps is not None and not earlier_laps.empty:
-                    practice_sessions.append({"session_type": session_type, "laps": earlier_laps})
+                    practice_sessions.append({"session_type": session_type, "session": earlier_session, "laps": earlier_laps})
         practice_analysis = analyze_practice(laps, session_info=session_info, practice_sessions=practice_sessions)
         practice_summary = get_practice_summary(practice_analysis)
     except Exception as exc:
@@ -481,7 +482,7 @@ def index():
     if category == "qualifying":
         analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info")), **_empty_practice()}
     elif category == "practice":
-        analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session_info=data.get("session_info"))}
+        analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
     else:
         analysis = {**_run_race_analysis(data["laps"]), **_empty_qualifying(), **_empty_practice()}
 
@@ -533,7 +534,7 @@ def api_data():
     if category == "qualifying":
         analysis = _run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))
     elif category == "practice":
-        analysis = _run_practice_analysis(data["laps"], session_info=data.get("session_info"))
+        analysis = _run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))
     else:
         analysis = _run_race_analysis(data["laps"])
 

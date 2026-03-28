@@ -21,6 +21,7 @@ it, so you can go into qualifying and the race with full context:
 import pandas as pd
 import numpy as np
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +133,50 @@ def _format_practice_sessions(session_names):
         PRACTICE_SESSION_LABELS.get(name, name)
         for name in _sort_practice_sessions(session_names)
     ]
+
+
+def _driver_display_name(code, full_name=None, broadcast_name=None):
+    """Return a readable surname-style driver label for projection tables."""
+    for raw_value in (full_name, broadcast_name):
+        if isinstance(raw_value, str):
+            value = raw_value.strip()
+            if not value:
+                continue
+            if "," in value:
+                parts = [part.strip() for part in value.split(",") if part.strip()]
+                if parts:
+                    return parts[0].title()
+            parts = re.split(r"\s+", value)
+            if parts:
+                return parts[-1].replace(".", "").title()
+    return str(code).strip() if code is not None else "-"
+
+
+def _projection_driver_display_map(practice_sessions):
+    """Build readable projection labels keyed by driver code."""
+    display_map = {}
+
+    for practice in practice_sessions or []:
+        session = practice.get("session")
+        if session is None:
+            continue
+
+        try:
+            results = session.results.reset_index()
+        except Exception:
+            continue
+
+        for _, row in results.iterrows():
+            code = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
+            if not code:
+                continue
+            display_map[str(code)] = _driver_display_name(
+                code,
+                full_name=row.get("FullName"),
+                broadcast_name=row.get("BroadcastName"),
+            )
+
+    return display_map
 
 
 # ---------------------------------------------------------------------------
@@ -817,6 +862,7 @@ def analyze_qualifying_projection(practice_sessions):
 
     driver_scores = {}
     sessions_used = []
+    driver_display_map = _projection_driver_display_map(practice_sessions)
 
     for practice in practice_sessions:
         session_type = practice.get("session_type")
@@ -850,7 +896,8 @@ def analyze_qualifying_projection(practice_sessions):
 
             entry["sessions"].add(session_type)
             entry["score"] += weight * (row["position"] * 0.60 + row.get("gap_to_best", 0) * 3.5)
-            entry["reasons"].append(f"{session_type} pace P{row['position']}")
+            session_label = PRACTICE_SESSION_LABELS.get(session_type, session_type)
+            entry["reasons"].append(f"{session_label} short-run rank: P{row['position']}")
 
             consistency = row.get("consistency", 0)
             if consistency <= 0.20:
@@ -864,7 +911,7 @@ def analyze_qualifying_projection(practice_sessions):
                 time_left = theory_row.get("time_left_on_table")
                 if time_left is not None and time_left >= 0.15:
                     entry["score"] -= weight * 0.12
-                    entry["reasons"].append(f"{time_left}s still in hand")
+                    entry["reasons"].append(f"Theoretical lap suggests {time_left:.3f}s still available")
 
             sector_row = sector_map.get(driver)
             if sector_row and sector_row.get("position") is not None:
@@ -881,6 +928,7 @@ def analyze_qualifying_projection(practice_sessions):
         projected.append(
             {
                 "driver": driver,
+                "driver_display": driver_display_map.get(driver, driver),
                 "team": data["team"],
                 "projection_score": round(data["score"], 3),
                 "sessions_used": _sort_practice_sessions(data["sessions"]),
@@ -903,7 +951,7 @@ def analyze_qualifying_projection(practice_sessions):
 
     potential_surprise = next(
         (
-            row["driver"]
+            row["driver_display"]
             for row in projected[:10]
             if row.get("fp3_position") is None or row["fp3_position"] > 10
         ),
@@ -913,7 +961,7 @@ def analyze_qualifying_projection(practice_sessions):
     return {
         "projected_order": projected,
         "summary": {
-            "pole_favorite": projected[0]["driver"] if projected else "-",
+            "pole_favorite": projected[0]["driver_display"] if projected else "-",
             "potential_surprise": potential_surprise,
             "confidence": confidence,
             "sessions_used": _format_practice_sessions(sessions_used),

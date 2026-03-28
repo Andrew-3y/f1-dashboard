@@ -499,12 +499,12 @@
                     </div>
                 </div>
                 <table class="leaderboard-table">
-                    <thead><tr><th>Proj</th><th>Driver</th><th>Team</th><th>Start</th><th>Move</th><th>Signals</th></tr></thead>
+                    <thead><tr><th>Proj</th><th>Driver</th><th>Team</th><th>Start</th><th>Move</th><th>Why</th></tr></thead>
                     <tbody>
                         {% for d in quali_analysis.race_projection %}
                         <tr>
                             <td class="pos-cell pos-{{ d.projected_position }}">{{ d.projected_position }}</td>
-                            <td class="driver-name">{{ d.driver }}</td>
+                            <td class="driver-name">{{ d.driver_display|default(d.driver) }}</td>
                             <td class="team-name">{{ d.team }}</td>
                             <td class="laptime">P{{ d.starting_position }}</td>
                             <td class="gap">
@@ -911,12 +911,12 @@
                     </div>
                 </div>
                 <table class="leaderboard-table">
-                    <thead><tr><th>Proj</th><th>Driver</th><th>Team</th><th>FP3</th><th>Move</th><th>Signals</th></tr></thead>
+                    <thead><tr><th>Proj</th><th>Driver</th><th>Team</th><th>FP3</th><th>Move</th><th>Why</th></tr></thead>
                     <tbody>
                         {% for d in practice_analysis.qualifying_projection %}
                         <tr>
                             <td class="pos-cell pos-{{ d.projected_position }}">{{ d.projected_position }}</td>
-                            <td class="driver-name">{{ d.driver }}</td>
+                            <td class="driver-name">{{ d.driver_display|default(d.driver) }}</td>
                             <td class="team-name">{{ d.team }}</td>
                             <td class="laptime">{% if d.fp3_position %}P{{ d.fp3_position }}{% else %}-{% endif %}</td>
                             <td class="gap">

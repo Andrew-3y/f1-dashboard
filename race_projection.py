@@ -12,6 +12,7 @@ The output is intentionally framed as a projection, not a certainty.
 """
 
 import logging
+import re
 
 from practice import analyze_race_pace_prediction
 
@@ -43,6 +44,46 @@ def _format_practice_sessions(session_names):
         PRACTICE_SESSION_LABELS.get(name, name)
         for name in _sort_practice_sessions(session_names)
     ]
+
+
+def _driver_display_name(code, full_name=None, broadcast_name=None):
+    """Return a readable surname-style driver label for projection tables."""
+    for raw_value in (full_name, broadcast_name):
+        if isinstance(raw_value, str):
+            value = raw_value.strip()
+            if not value:
+                continue
+            if "," in value:
+                parts = [part.strip() for part in value.split(",") if part.strip()]
+                if parts:
+                    return parts[0].title()
+            parts = re.split(r"\s+", value)
+            if parts:
+                return parts[-1].replace(".", "").title()
+    return str(code).strip() if code is not None else "-"
+
+
+def _projection_driver_display_map(session):
+    """Build readable projection labels keyed by driver code."""
+    if session is None:
+        return {}
+
+    try:
+        results = session.results.reset_index()
+    except Exception:
+        return {}
+
+    display_map = {}
+    for _, row in results.iterrows():
+        code = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
+        if not code:
+            continue
+        display_map[str(code)] = _driver_display_name(
+            code,
+            full_name=row.get("FullName"),
+            broadcast_name=row.get("BroadcastName"),
+        )
+    return display_map
 
 
 def _aggregate_practice_race_pace(practice_sessions):
@@ -109,7 +150,7 @@ def _build_maps(quali_analysis):
     return theoretical, improvement, tyre_usage
 
 
-def project_race_finish(quali_analysis, practice_sessions=None):
+def project_race_finish(quali_analysis, practice_sessions=None, session=None):
     """
     Build an ordered pre-race finish projection.
 
@@ -131,24 +172,25 @@ def project_race_finish(quali_analysis, practice_sessions=None):
         }
 
     practice_pace = _aggregate_practice_race_pace(practice_sessions or [])
+    driver_display_map = _projection_driver_display_map(session)
     theoretical_map, improvement_map, tyre_usage_map = _build_maps(quali_analysis)
 
     projected = []
     for grid_row in sectors:
         driver = grid_row["driver"]
         score = grid_row["position"] * 0.55
-        reasons = [f"starts P{grid_row['position']}"]
+        reasons = [f"Qualifying position: P{grid_row['position']}"]
 
         pace_row = practice_pace.get(driver)
         if pace_row:
             score += pace_row["position"] * 0.35
-            reasons.append(f"practice race pace P{pace_row['position']}")
+            reasons.append(f"Weekend race pace rank: P{pace_row['position']}")
             if pace_row["gap_to_best"] <= 0.15:
                 score -= 0.2
             elif pace_row["gap_to_best"] >= 0.6:
                 score += 0.35
         else:
-            reasons.append("no long-run pace signal")
+            reasons.append("No clear long-run pace sample")
             score += grid_row["position"] * 0.10
 
         theory_row = theoretical_map.get(driver)
@@ -156,23 +198,24 @@ def project_race_finish(quali_analysis, practice_sessions=None):
             score += theory_row["theoretical_position"] * 0.10
             if theory_row["time_lost_s"] >= 0.2:
                 score -= 0.15
-                reasons.append(f"{theory_row['time_lost_s']}s left in hand")
+                reasons.append(f"Theoretical qualifying lap left {theory_row['time_lost_s']:.3f}s on the table")
             else:
-                reasons.append(f"theoretical P{theory_row['theoretical_position']}")
+                reasons.append(f"Theoretical qualifying rank: P{theory_row['theoretical_position']}")
 
         improvement_row = improvement_map.get(driver)
         if improvement_row:
             if improvement_row["improvement_s"] >= 0.45:
                 score -= 0.1
-            reasons.append(f"improved {improvement_row['improvement_s']}s through session")
+            reasons.append(f"Built {improvement_row['improvement_s']:.3f}s through qualifying runs")
 
         tyre_row = tyre_usage_map.get(driver)
         if tyre_row and tyre_row.get("best_compound") == "MEDIUM":
-            reasons.append("showed speed on medium tyre")
+            reasons.append("Best qualifying lap came on medium tyres")
 
         projected.append(
             {
                 "driver": driver,
+                "driver_display": driver_display_map.get(driver, driver),
                 "team": grid_row["team"],
                 "starting_position": grid_row["position"],
                 "qualifying_lap_s": grid_row["best_lap_s"],
@@ -208,10 +251,14 @@ def project_race_finish(quali_analysis, practice_sessions=None):
 
     risers = [row for row in projected if row["position_change"] > 0]
     biggest_riser = max(risers, key=lambda x: x["position_change"])["driver"] if risers else None
+    biggest_riser_display = next(
+        (row["driver_display"] for row in projected if row["driver"] == biggest_riser),
+        "-",
+    ) if biggest_riser else "-"
 
     summary = {
-        "predicted_winner": projected[0]["driver"] if projected else "-",
-        "biggest_riser": biggest_riser or "-",
+        "predicted_winner": projected[0]["driver_display"] if projected else "-",
+        "biggest_riser": biggest_riser_display,
         "confidence": confidence,
         "practice_sessions_used": _format_practice_sessions(practice_sessions_used),
         "has_practice_pace": bool(practice_sessions_used),
