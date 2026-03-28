@@ -21,6 +21,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Full results with sector breakdown** â€” S1, S2, S3 times color-coded (purple = best in session, green = within 0.1s, yellow = within 0.3s, orange = off pace)
 - **Tyre compound per driver** on their best lap
 - **Projected race finish** â€” qualifying-page pre-race forecast that blends grid position with available practice long-run pace and qualifying-form signals
+- **Projection accuracy tracking** â€” compares FP3 qualifying projections with actual qualifying and pre-race finish projections with the official race result using exact-match rate, average position error, and top-10 overlap
 - **Q1 / Q2 / Q3 elimination tracker** â€” who got knocked out, gap to the cutoff line
 - **Close calls** â€” exact margin between last-safe and first-eliminated at each cutoff
 - **Teammate head-to-head** â€” who beat who within each team, gap in seconds and percentage
@@ -70,6 +71,7 @@ f1-dashboard/
 â”œâ”€â”€ qualifying.py         # Qualifying-specific analysis (9 modules)
 â”œâ”€â”€ practice.py           # Practice-specific analysis (11 modules)
 â”œâ”€â”€ race_projection.py    # Pre-race finish projection for the qualifying page
+â”œâ”€â”€ prediction_accuracy.py # Projection-vs-result comparison metrics
 â”œâ”€â”€ requirements.txt      # Python dependencies
 â”œâ”€â”€ render.yaml           # Render deployment blueprint
 â”œâ”€â”€ .gitignore
@@ -145,6 +147,11 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Module | Algorithm |
 |--------|-----------|
 | Projected Race Finish | Aggregates available practice race-pace rankings, blends them with qualifying grid position, theoretical-best underperformance, session improvement, and tyre usage hints to estimate a projected finishing order for the race |
+
+### `prediction_accuracy.py` â€” Projection Accuracy
+| Module | Algorithm |
+|--------|-----------|
+| Prediction Accuracy | Compares projected and official ordered results driver-by-driver, reporting exact-match rate, mean absolute position error, top-3/top-10 overlap, and pole/winner hit rate using only shared drivers present in both lists |
 
 ### `practice.py` â€” Practice Intelligence (12 modules)
 | Module | Algorithm |
@@ -246,11 +253,12 @@ git push origin main
 ### Catching Up on Qualifying You Missed
 1. Navigate to the qualifying session via the Weekend bar or session selector
 2. Start with **Projected Race Finish** for the pre-race outlook built from the full weekend context
-3. Check the **Elimination Tracker** to see who got knocked out and where
-4. Look at **Teammate Battles** to see which driver had the edge in each team
-5. Check **Close Calls** for the most dramatic cutoff margins
-6. Review **Theoretical Best** to see who had untapped pace
-7. Look at **Track Evolution** to understand session conditions
+3. Use **FP3 Projection Accuracy** to see how the practice-based qualifying forecast compared with the official qualifying result
+4. Check the **Elimination Tracker** to see who got knocked out and where
+5. Look at **Teammate Battles** to see which driver had the edge in each team
+6. Check **Close Calls** for the most dramatic cutoff margins
+7. Review **Theoretical Best** to see who had untapped pace
+8. Look at **Track Evolution** to understand session conditions
 
 ### Scouting Practice Before the Race
 1. Load the practice session (FP1/FP2/FP3)
@@ -260,6 +268,11 @@ git push origin main
 5. **Long Run Pace** reveals who ran race simulations and how they compared
 6. **Driver Programmes** shows who did the most running and on which tyres
 7. **Compound Comparison** helps predict optimal race strategy
+
+### Reviewing Race Accuracy
+1. Open the finished race session
+2. Check **Race Projection Accuracy** beneath the official classification
+3. Use exact matches, average position error, and top-10 overlap together instead of relying on a single percentage
 
 ---
 
@@ -319,5 +332,5 @@ git push origin main
 
 ## Portfolio Description
 
-> **F1 Strategy Intelligence Dashboard** â€” A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 27+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, race pace prediction from fuel-corrected long run data, and tyre degradation curves per compound. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
+> **F1 Strategy Intelligence Dashboard** â€” A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 28+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, projection accuracy benchmarking against official results, race pace prediction from fuel-corrected long run data, and tyre degradation curves per compound. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
 

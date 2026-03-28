@@ -530,6 +530,52 @@
             </div>
         </div>
 
+        <div class="card full-width" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>
+                    FP3 Projection Accuracy
+                    <span class="badge badge-cyan">{{ quali_summary.qualifying_projection_accuracy.compared_drivers|default(0) }}</span>
+                    <span class="badge {% if quali_summary.qualifying_projection_accuracy.rating == 'STRONG' %}badge-green{% elif quali_summary.qualifying_projection_accuracy.rating == 'SOLID' %}badge-yellow{% else %}badge-orange{% endif %}">
+                        {{ quali_summary.qualifying_projection_accuracy.rating|default('N/A') }}
+                    </span>
+                </h2>
+            </div>
+            <div class="card-body" style="max-height:340px;">
+                {% if quali_summary.qualifying_projection_accuracy.available %}
+                <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+                    <div class="tag tag-HIGH">Pole Call: {{ 'HIT' if quali_summary.qualifying_projection_accuracy.leader_hit else 'MISS' }}</div>
+                    <div class="tag tag-MEDIUM">Exact: {{ quali_summary.qualifying_projection_accuracy.exact_matches }}/{{ quali_summary.qualifying_projection_accuracy.compared_drivers }} ({{ quali_summary.qualifying_projection_accuracy.exact_match_pct }}%)</div>
+                    <div class="tag tag-INFO">Avg Error: {{ quali_summary.qualifying_projection_accuracy.mean_abs_error }} places</div>
+                    <div class="tag tag-INFO">Top 10: {{ quali_summary.qualifying_projection_accuracy.top_10_hits }}/{{ quali_summary.qualifying_projection_accuracy.top_10_total }}</div>
+                </div>
+                <table class="leaderboard-table">
+                    <thead><tr><th>Pred</th><th>Actual</th><th>Driver</th><th>Error</th></tr></thead>
+                    <tbody>
+                        {% for row in quali_summary.qualifying_projection_accuracy.rows %}
+                        <tr>
+                            <td class="laptime">P{{ row.predicted_position }}</td>
+                            <td class="laptime">P{{ row.actual_position }}</td>
+                            <td class="driver-name">{{ row.driver_display }}</td>
+                            <td class="gap">
+                                {% if row.exact_match %}
+                                    <span style="color:var(--accent-green);">Exact</span>
+                                {% else %}
+                                    <span style="color:var(--accent-orange);">{{ row.position_error }} place{{ 's' if row.position_error != 1 else '' }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="item-detail" style="margin-top:0.8rem;">
+                    Compared against the official qualifying classification for this session. Only drivers present in both the FP3 projection and the final qualifying result are scored.
+                </div>
+                {% else %}
+                <div class="empty-state"><div class="icon">&#128202;</div><p>No qualifying accuracy comparison available yet</p></div>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- QUALIFYING LEADERBOARD WITH SECTORS -->
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
@@ -1420,6 +1466,52 @@
                 </table>
                 {% else %}
                 <div class="empty-state"><div class="icon">&#127937;</div><p>No leaderboard data</p></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card full-width" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>
+                    Race Projection Accuracy
+                    <span class="badge badge-cyan">{{ race_projection_accuracy.compared_drivers|default(0) }}</span>
+                    <span class="badge {% if race_projection_accuracy.rating == 'STRONG' %}badge-green{% elif race_projection_accuracy.rating == 'SOLID' %}badge-yellow{% else %}badge-orange{% endif %}">
+                        {{ race_projection_accuracy.rating|default('N/A') }}
+                    </span>
+                </h2>
+            </div>
+            <div class="card-body" style="max-height:340px;">
+                {% if race_projection_accuracy.available %}
+                <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+                    <div class="tag tag-HIGH">Winner Call: {{ 'HIT' if race_projection_accuracy.leader_hit else 'MISS' }}</div>
+                    <div class="tag tag-MEDIUM">Exact: {{ race_projection_accuracy.exact_matches }}/{{ race_projection_accuracy.compared_drivers }} ({{ race_projection_accuracy.exact_match_pct }}%)</div>
+                    <div class="tag tag-INFO">Avg Error: {{ race_projection_accuracy.mean_abs_error }} places</div>
+                    <div class="tag tag-INFO">Top 10: {{ race_projection_accuracy.top_10_hits }}/{{ race_projection_accuracy.top_10_total }}</div>
+                </div>
+                <table class="leaderboard-table">
+                    <thead><tr><th>Pred</th><th>Actual</th><th>Driver</th><th>Error</th></tr></thead>
+                    <tbody>
+                        {% for row in race_projection_accuracy.rows %}
+                        <tr>
+                            <td class="laptime">P{{ row.predicted_position }}</td>
+                            <td class="laptime">P{{ row.actual_position }}</td>
+                            <td class="driver-name">{{ row.driver_display }}</td>
+                            <td class="gap">
+                                {% if row.exact_match %}
+                                    <span style="color:var(--accent-green);">Exact</span>
+                                {% else %}
+                                    <span style="color:var(--accent-orange);">{{ row.position_error }} place{{ 's' if row.position_error != 1 else '' }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="item-detail" style="margin-top:0.8rem;">
+                    Compared against the official race classification using the pre-race projection built from qualifying and available weekend practice data.
+                </div>
+                {% else %}
+                <div class="empty-state"><div class="icon">&#128202;</div><p>No race accuracy comparison available yet</p></div>
                 {% endif %}
             </div>
         </div>

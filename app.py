@@ -29,6 +29,7 @@ import os
 import time
 import threading
 import logging
+import pandas as pd
 from flask import Flask, render_template, request, jsonify
 
 # Our custom modules
@@ -39,8 +40,9 @@ from degradation import analyze_degradation, get_degradation_summary
 from strategy import simulate_strategies, get_strategy_summary
 from battle_detector import detect_battles, get_battle_summary
 from qualifying import analyze_qualifying, get_qualifying_summary
-from practice import analyze_practice, get_practice_summary
+from practice import analyze_practice, get_practice_summary, analyze_qualifying_projection
 from race_projection import project_race_finish
+from prediction_accuracy import compare_predictions, empty_accuracy
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -115,11 +117,11 @@ def _start_warmup(year, round_num, session_type):
             actual_type = data.get("session_info", {}).get("session_type", session_type) if data.get("session_info") else session_type
             category = _session_category(actual_type)
             if category == "qualifying":
-                analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info")), **_empty_practice()}
+                analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_practice()}
             elif category == "practice":
                 analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
             else:
-                analysis = {**_run_race_analysis(data["laps"]), **_empty_qualifying(), **_empty_practice()}
+                analysis = {**_run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_qualifying(), **_empty_practice()}
             with _warm_lock:
                 _warm_cache.update(
                     {
@@ -161,7 +163,7 @@ def _session_category(session_type):
 # ---------------------------------------------------------------------------
 # Helper: run race analysis modules
 # ---------------------------------------------------------------------------
-def _run_race_analysis(laps):
+def _run_race_analysis(laps, session=None, session_info=None, leaderboard=None):
     """Run race-specific analysis modules."""
     # 1. Anomaly detection
     try:
@@ -203,6 +205,16 @@ def _run_race_analysis(laps):
         logger.warning("Battle detection failed: %s", exc)
         battles, battle_summary = [], {}
 
+    try:
+        race_projection_accuracy = _build_race_projection_accuracy(
+            session_info,
+            session,
+            _leaderboard_accuracy_rows(leaderboard),
+        )
+    except Exception as exc:
+        logger.warning("Race projection accuracy failed: %s", exc)
+        race_projection_accuracy = empty_accuracy()
+
     return {
         "alerts": alerts,
         "alert_summary": alert_summary,
@@ -214,6 +226,7 @@ def _run_race_analysis(laps):
         "strategy_summary": strategy_summary,
         "battles": battles,
         "battle_summary": battle_summary,
+        "race_projection_accuracy": race_projection_accuracy,
     }
 
 
@@ -251,6 +264,125 @@ def _load_practice_context(session_info):
     return practice_sessions
 
 
+def _leaderboard_accuracy_rows(leaderboard):
+    """Normalize leaderboard rows for prediction-accuracy comparisons."""
+    normalized = []
+    for row in leaderboard or []:
+        position = row.get("position")
+        driver = row.get("driver")
+        if position is None or not driver:
+            continue
+        normalized.append(
+            {
+                "driver": driver,
+                "driver_display": driver,
+                "position": position,
+                "team": row.get("team", "Unknown"),
+            }
+        )
+    return normalized
+
+
+def _official_session_accuracy_rows(session, session_type):
+    """Build official position rows directly from FastF1 session results."""
+    if session is None:
+        return []
+
+    try:
+        results = session.results
+    except Exception:
+        return []
+
+    if results is None or getattr(results, "empty", True):
+        return []
+
+    rows = results.reset_index()
+    if "Position" not in rows.columns:
+        return []
+
+    rows = rows.dropna(subset=["Position"]).copy()
+    if rows.empty:
+        return []
+
+    normalized = []
+    for _, row in rows.iterrows():
+        driver = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
+        if not driver:
+            continue
+
+        position = row.get("Position")
+        if pd.isna(position):
+            continue
+
+        normalized.append(
+            {
+                "driver": str(driver),
+                "driver_display": str(driver),
+                "position": int(position),
+                "team": row.get("TeamName", "Unknown"),
+            }
+        )
+
+    return sorted(normalized, key=lambda row: row["position"])
+
+
+def _build_quali_projection_accuracy(session_info, session):
+    """Compare the FP3 qualifying projection with actual qualifying results."""
+    if not session_info or session_info.get("session_type") != "Qualifying":
+        return empty_accuracy()
+
+    actual_rows = _official_session_accuracy_rows(session, "Qualifying")
+    if not actual_rows:
+        return empty_accuracy()
+
+    practice_sessions = _load_practice_context(session_info)
+    if not practice_sessions:
+        return empty_accuracy()
+
+    projection = analyze_qualifying_projection(practice_sessions)
+    return compare_predictions(
+        projection.get("projected_order", []),
+        actual_rows,
+    )
+
+
+def _build_race_projection_accuracy(session_info, session, actual_rows):
+    """Compare the qualifying-page race projection with the official race result."""
+    if not session_info or session_info.get("session_type") != "Race":
+        return empty_accuracy()
+
+    actual_rows = _official_session_accuracy_rows(session, "Race") or actual_rows
+    if not actual_rows:
+        return empty_accuracy()
+
+    qualifying_session, qualifying_laps = load_session(
+        session_info["year"],
+        session_info["round_number"],
+        "Qualifying",
+    )
+    if qualifying_laps is None or qualifying_laps.empty:
+        return empty_accuracy()
+
+    qualifying_analysis = analyze_qualifying(qualifying_laps, session=qualifying_session)
+    practice_sessions = _load_practice_context(
+        {
+            "year": session_info["year"],
+            "round_number": session_info["round_number"],
+            "session_type": "Qualifying",
+        }
+    )
+    projection = project_race_finish(
+        qualifying_analysis,
+        practice_sessions=practice_sessions,
+        session=qualifying_session,
+    )
+
+    return compare_predictions(
+        projection.get("projected_finish", []),
+        actual_rows,
+    )
+
+
 def _empty_projection():
     return {
         "projected_finish": [],
@@ -264,7 +396,7 @@ def _empty_projection():
     }
 
 
-def _run_qualifying_analysis(laps, session=None, session_info=None):
+def _run_qualifying_analysis(laps, session=None, session_info=None, leaderboard=None):
     """Run qualifying-specific analysis modules."""
     try:
         quali_analysis = analyze_qualifying(laps, session=session)
@@ -272,7 +404,10 @@ def _run_qualifying_analysis(laps, session=None, session_info=None):
     except Exception as exc:
         logger.warning("Qualifying analysis failed: %s", exc)
         quali_analysis = {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": [], "race_projection": []}
-        quali_summary = {"race_projection": _empty_projection()["summary"]}
+        quali_summary = {
+            "race_projection": _empty_projection()["summary"],
+            "qualifying_projection_accuracy": empty_accuracy(),
+        }
         return {
             "quali_analysis": quali_analysis,
             "quali_summary": quali_summary,
@@ -290,8 +425,18 @@ def _run_qualifying_analysis(laps, session=None, session_info=None):
         logger.warning("Race projection failed: %s", exc)
         projection = _empty_projection()
 
+    try:
+        qualifying_projection_accuracy = _build_quali_projection_accuracy(
+            session_info,
+            session,
+        )
+    except Exception as exc:
+        logger.warning("Qualifying projection accuracy failed: %s", exc)
+        qualifying_projection_accuracy = empty_accuracy()
+
     quali_analysis["race_projection"] = projection["projected_finish"]
     quali_summary["race_projection"] = projection["summary"]
+    quali_summary["qualifying_projection_accuracy"] = qualifying_projection_accuracy
 
     return {
         "quali_analysis": quali_analysis,
@@ -339,12 +484,16 @@ def _empty_race():
         "degradation": [], "degradation_summary": {},
         "strategies": [], "strategy_summary": {},
         "battles": [], "battle_summary": {},
+        "race_projection_accuracy": empty_accuracy(),
     }
 
 def _empty_qualifying():
     return {
         "quali_analysis": {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": [], "race_projection": []},
-        "quali_summary": {"race_projection": _empty_projection()["summary"]},
+        "quali_summary": {
+            "race_projection": _empty_projection()["summary"],
+            "qualifying_projection_accuracy": empty_accuracy(),
+        },
     }
 
 def _empty_practice():
@@ -480,11 +629,11 @@ def index():
 
     # Run session-specific analysis
     if category == "qualifying":
-        analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info")), **_empty_practice()}
+        analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_practice()}
     elif category == "practice":
         analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
     else:
-        analysis = {**_run_race_analysis(data["laps"]), **_empty_qualifying(), **_empty_practice()}
+        analysis = {**_run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_qualifying(), **_empty_practice()}
 
     elapsed = round(time.time() - start_time, 2)
     logger.info("Dashboard rendered in %.2fs", elapsed)
@@ -532,11 +681,11 @@ def api_data():
     category = _session_category(actual_type)
 
     if category == "qualifying":
-        analysis = _run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))
+        analysis = _run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard"))
     elif category == "practice":
         analysis = _run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))
     else:
-        analysis = _run_race_analysis(data["laps"])
+        analysis = _run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard"))
 
     elapsed = round(time.time() - start_time, 2)
 
