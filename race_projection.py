@@ -17,6 +17,33 @@ from practice import analyze_race_pace_prediction
 
 logger = logging.getLogger(__name__)
 
+PRACTICE_SESSION_ORDER = {
+    "Practice 1": 1,
+    "Practice 2": 2,
+    "Practice 3": 3,
+}
+PRACTICE_SESSION_LABELS = {
+    "Practice 1": "FP1",
+    "Practice 2": "FP2",
+    "Practice 3": "FP3",
+}
+
+
+def _sort_practice_sessions(session_names):
+    """Return practice session labels in weekend order."""
+    return sorted(
+        set(session_names),
+        key=lambda name: (PRACTICE_SESSION_ORDER.get(name, 99), name),
+    )
+
+
+def _format_practice_sessions(session_names):
+    """Return ordered practice sessions with compact display labels."""
+    return [
+        PRACTICE_SESSION_LABELS.get(name, name)
+        for name in _sort_practice_sessions(session_names)
+    ]
+
 
 def _aggregate_practice_race_pace(practice_sessions):
     """Combine practice race-pace rankings across available sessions."""
@@ -61,7 +88,7 @@ def _aggregate_practice_race_pace(practice_sessions):
                 "team": data["team"],
                 "avg_pace": round(avg_pace, 3),
                 "avg_gap": round(avg_gap, 3),
-                "sessions_used": sorted(set(data["sessions"])),
+                "sessions_used": _sort_practice_sessions(data["sessions"]),
             }
         )
 
@@ -172,12 +199,10 @@ def project_race_finish(quali_analysis, practice_sessions=None):
         else:
             row["trend"] = "steady"
 
-    practice_sessions_used = sorted(
-        {
-            session_name
-            for row in projected
-            for session_name in row.get("practice_sessions_used", [])
-        }
+    practice_sessions_used = _sort_practice_sessions(
+        session_name
+        for row in projected
+        for session_name in row.get("practice_sessions_used", [])
     )
     confidence = "MEDIUM" if practice_sessions_used else "LOW"
 
@@ -188,7 +213,7 @@ def project_race_finish(quali_analysis, practice_sessions=None):
         "predicted_winner": projected[0]["driver"] if projected else "-",
         "biggest_riser": biggest_riser or "-",
         "confidence": confidence,
-        "practice_sessions_used": practice_sessions_used,
+        "practice_sessions_used": _format_practice_sessions(practice_sessions_used),
         "has_practice_pace": bool(practice_sessions_used),
     }
 

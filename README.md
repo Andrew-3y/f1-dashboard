@@ -49,6 +49,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Session selector** â€” manual year/round/session picker for historical data (supports all session types)
 - **Auto-refresh** â€” configurable: OFF / Live (30s) / Session (60s) / Casual (5min), persists across reloads
 - **F1-style lap-time formatting** â€” lap and pace times are shown as `M:SS.mmm` instead of raw seconds
+- **Ordered projection inputs** â€” projection cards list sessions in weekend order (FP1 â†’ FP2 â†’ FP3, then Qualifying where applicable)
 - **Mobile-friendly layout** â€” responsive tweaks on small screens without changing desktop layout
 - **Dark F1-themed interface** â€” color-coded compound badges, sector classifications, strategy tags, intensity indicators
 

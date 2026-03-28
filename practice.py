@@ -35,6 +35,16 @@ PRACTICE_QUALI_WEIGHTS = {
     "Practice 2": 0.30,
     "Practice 3": 0.50,
 }
+PRACTICE_SESSION_ORDER = {
+    "Practice 1": 1,
+    "Practice 2": 2,
+    "Practice 3": 3,
+}
+PRACTICE_SESSION_LABELS = {
+    "Practice 1": "FP1",
+    "Practice 2": "FP2",
+    "Practice 3": "FP3",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +116,22 @@ def _clean_lap_times(lap_times_s):
         return lap_times_s
     median = np.median(lap_times_s)
     return [t for t in lap_times_s if abs(t - median) <= OUTLIER_THRESHOLD_S]
+
+
+def _sort_practice_sessions(session_names):
+    """Return practice session labels in weekend order."""
+    return sorted(
+        set(session_names),
+        key=lambda name: (PRACTICE_SESSION_ORDER.get(name, 99), name),
+    )
+
+
+def _format_practice_sessions(session_names):
+    """Return ordered practice sessions with compact display labels."""
+    return [
+        PRACTICE_SESSION_LABELS.get(name, name)
+        for name in _sort_practice_sessions(session_names)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -857,7 +883,7 @@ def analyze_qualifying_projection(practice_sessions):
                 "driver": driver,
                 "team": data["team"],
                 "projection_score": round(data["score"], 3),
-                "sessions_used": sorted(data["sessions"]),
+                "sessions_used": _sort_practice_sessions(data["sessions"]),
                 "fp3_position": data["fp3_position"],
                 "reasons": data["reasons"][:3],
             }
@@ -890,7 +916,7 @@ def analyze_qualifying_projection(practice_sessions):
             "pole_favorite": projected[0]["driver"] if projected else "-",
             "potential_surprise": potential_surprise,
             "confidence": confidence,
-            "sessions_used": sessions_used,
+            "sessions_used": _format_practice_sessions(sessions_used),
         },
     }
 

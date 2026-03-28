@@ -488,8 +488,8 @@
             <div class="card-body" style="max-height:420px;">
                 {% if quali_analysis.race_projection %}
                 <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-                    <div class="tag tag-HIGH">Winner: {{ quali_summary.race_projection.predicted_winner|default('â€”') }}</div>
-                    <div class="tag tag-MEDIUM">Biggest Riser: {{ quali_summary.race_projection.biggest_riser|default('â€”') }}</div>
+                    <div class="tag tag-HIGH">Winner: {{ quali_summary.race_projection.predicted_winner|default('-') }}</div>
+                    <div class="tag tag-MEDIUM">Biggest Riser: {{ quali_summary.race_projection.biggest_riser|default('-') }}</div>
                     <div class="tag tag-INFO">
                         {% if quali_summary.race_projection.practice_sessions_used %}
                             Inputs: {{ quali_summary.race_projection.practice_sessions_used|join(', ') }} + Qualifying
@@ -904,8 +904,8 @@
             <div class="card-body" style="max-height:420px;">
                 {% if practice_analysis.qualifying_projection %}
                 <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-                    <div class="tag tag-HIGH">Pole Favorite: {{ practice_analysis.qualifying_projection_summary.pole_favorite|default('â€”') }}</div>
-                    <div class="tag tag-MEDIUM">Potential Surprise: {{ practice_analysis.qualifying_projection_summary.potential_surprise|default('â€”') }}</div>
+                    <div class="tag tag-HIGH">Pole Favorite: {{ practice_analysis.qualifying_projection_summary.pole_favorite|default('-') }}</div>
+                    <div class="tag tag-MEDIUM">Potential Surprise: {{ practice_analysis.qualifying_projection_summary.potential_surprise|default('-') }}</div>
                     <div class="tag tag-INFO">
                         Inputs: {{ practice_analysis.qualifying_projection_summary.sessions_used|join(', ') if practice_analysis.qualifying_projection_summary.sessions_used else 'Practice 3 only' }}
                     </div>
@@ -918,10 +918,10 @@
                             <td class="pos-cell pos-{{ d.projected_position }}">{{ d.projected_position }}</td>
                             <td class="driver-name">{{ d.driver }}</td>
                             <td class="team-name">{{ d.team }}</td>
-                            <td class="laptime">{% if d.fp3_position %}P{{ d.fp3_position }}{% else %}â€”{% endif %}</td>
+                            <td class="laptime">{% if d.fp3_position %}P{{ d.fp3_position }}{% else %}-{% endif %}</td>
                             <td class="gap">
                                 {% if d.movement_vs_fp3 is none %}
-                                    <span style="color:var(--text-muted);">â€”</span>
+                                    <span style="color:var(--text-muted);">-</span>
                                 {% elif d.movement_vs_fp3 > 0 %}
                                     <span style="color:var(--accent-green);">+{{ d.movement_vs_fp3 }}</span>
                                 {% elif d.movement_vs_fp3 < 0 %}
