@@ -30,6 +30,11 @@ logger = logging.getLogger(__name__)
 LONG_RUN_MIN_LAPS = 5          # Minimum laps to count as a long run
 OUTLIER_THRESHOLD_S = 2.5      # Laps this much slower than median are outliers
 FUEL_EFFECT_S_PER_LAP = 0.06   # Typical fuel burn-off pace improvement
+PRACTICE_QUALI_WEIGHTS = {
+    "Practice 1": 0.20,
+    "Practice 2": 0.30,
+    "Practice 3": 0.50,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -779,10 +784,121 @@ def analyze_race_pace_prediction(laps):
     return results
 
 
+def analyze_qualifying_projection(practice_sessions):
+    """Estimate the likely qualifying order from FP1/FP2/FP3 practice data."""
+    if not practice_sessions:
+        return {"projected_order": [], "summary": {}}
+
+    driver_scores = {}
+    sessions_used = []
+
+    for practice in practice_sessions:
+        session_type = practice.get("session_type")
+        laps = practice.get("laps")
+        weight = PRACTICE_QUALI_WEIGHTS.get(session_type, 0.0)
+        if weight == 0 or laps is None or getattr(laps, "empty", True):
+            continue
+
+        short_runs = analyze_short_runs(laps)
+        if not short_runs:
+            continue
+
+        sessions_used.append(session_type)
+        theoretical = analyze_theoretical_best(laps)
+        sectors = analyze_sectors(laps)
+        theoretical_map = {row["driver"]: row for row in theoretical}
+        sector_map = {row["driver"]: row for row in sectors}
+
+        for row in short_runs:
+            driver = row["driver"]
+            entry = driver_scores.setdefault(
+                driver,
+                {
+                    "team": row["team"],
+                    "score": 0.0,
+                    "reasons": [],
+                    "sessions": set(),
+                    "fp3_position": None,
+                },
+            )
+
+            entry["sessions"].add(session_type)
+            entry["score"] += weight * (row["position"] * 0.60 + row.get("gap_to_best", 0) * 3.5)
+            entry["reasons"].append(f"{session_type} pace P{row['position']}")
+
+            consistency = row.get("consistency", 0)
+            if consistency <= 0.20:
+                entry["score"] -= weight * 0.25
+            elif consistency >= 0.55:
+                entry["score"] += weight * 0.20
+
+            theory_row = theoretical_map.get(driver)
+            if theory_row and theory_row.get("position") is not None:
+                entry["score"] += weight * (theory_row["position"] * 0.20)
+                time_left = theory_row.get("time_left_on_table")
+                if time_left is not None and time_left >= 0.15:
+                    entry["score"] -= weight * 0.12
+                    entry["reasons"].append(f"{time_left}s still in hand")
+
+            sector_row = sector_map.get(driver)
+            if sector_row and sector_row.get("position") is not None:
+                entry["score"] += weight * (sector_row["position"] * 0.12)
+
+            if session_type == "Practice 3":
+                entry["fp3_position"] = row["position"]
+
+    if not driver_scores:
+        return {"projected_order": [], "summary": {}}
+
+    projected = []
+    for driver, data in driver_scores.items():
+        projected.append(
+            {
+                "driver": driver,
+                "team": data["team"],
+                "projection_score": round(data["score"], 3),
+                "sessions_used": sorted(data["sessions"]),
+                "fp3_position": data["fp3_position"],
+                "reasons": data["reasons"][:3],
+            }
+        )
+
+    projected.sort(key=lambda x: x["projection_score"])
+    for i, row in enumerate(projected, 1):
+        row["projected_position"] = i
+        fp3_position = row.get("fp3_position")
+        row["movement_vs_fp3"] = fp3_position - i if fp3_position is not None else None
+
+    confidence = "LOW"
+    if len(sessions_used) == 3:
+        confidence = "HIGH"
+    elif len(sessions_used) == 2:
+        confidence = "MEDIUM"
+
+    potential_surprise = next(
+        (
+            row["driver"]
+            for row in projected[:10]
+            if row.get("fp3_position") is None or row["fp3_position"] > 10
+        ),
+        "-",
+    )
+
+    return {
+        "projected_order": projected,
+        "summary": {
+            "pole_favorite": projected[0]["driver"] if projected else "-",
+            "potential_surprise": potential_surprise,
+            "confidence": confidence,
+            "sessions_used": sessions_used,
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
-def analyze_practice(laps):
+def analyze_practice(laps, session_info=None, practice_sessions=None):
     """Run all practice analysis modules."""
     modules = {
         "long_runs": (analyze_long_runs, []),
@@ -806,6 +922,16 @@ def analyze_practice(laps):
             logger.warning("%s analysis failed: %s", key, exc)
             results[key] = default
 
+    results["qualifying_projection"] = []
+    results["qualifying_projection_summary"] = {}
+    if session_info and session_info.get("session_type") == "Practice 3":
+        try:
+            projection = analyze_qualifying_projection(practice_sessions or [])
+            results["qualifying_projection"] = projection["projected_order"]
+            results["qualifying_projection_summary"] = projection["summary"]
+        except Exception as exc:
+            logger.warning("qualifying projection analysis failed: %s", exc)
+
     return results
 
 
@@ -818,6 +944,8 @@ def get_practice_summary(analysis):
     consistency = analysis.get("consistency", [])
     programmes = analysis.get("programmes", [])
     race_pred = analysis.get("race_pace_prediction", [])
+    quali_proj = analysis.get("qualifying_projection", [])
+    quali_proj_summary = analysis.get("qualifying_projection_summary", {})
 
     fastest_driver = short_runs[0]["driver"] if short_runs else "—"
     fastest_time = short_runs[0]["best_lap_s"] if short_runs else 0
@@ -834,6 +962,7 @@ def get_practice_summary(analysis):
     most_laps = programmes[0]["total_laps"] if programmes else 0
 
     race_pace_leader = race_pred[0]["driver"] if race_pred else "—"
+    qualifying_favorite = quali_proj_summary.get("pole_favorite", "—") if quali_proj else "—"
 
     return {
         "fastest_driver": fastest_driver,
@@ -847,4 +976,5 @@ def get_practice_summary(analysis):
         "most_laps_driver": most_laps_driver,
         "most_laps": most_laps,
         "race_pace_leader": race_pace_leader,
+        "qualifying_favorite": qualifying_favorite,
     }

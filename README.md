@@ -33,6 +33,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 ### Practice Session Analysis
 - **Single-lap pace ranking** â€” qualifying simulation with best lap, top-3 average, compound, consistency (std dev), and gap to fastest
 - **Long run pace** â€” sustained stints (5+ laps) ranked by fuel-corrected average, with first-to-last-lap trend and degradation rate
+- **Projected qualifying order (FP3)** â€” final pre-quali forecast using weighted FP1/FP2/FP3 short-run pace, theoretical best, and sector strength
 - **Race pace prediction** â€” estimated race-day order from fuel-corrected long run aggregation
 - **Compound comparison** â€” best/avg/median pace per tyre type, driver and lap counts
 - **Tyre degradation curves** â€” per-compound degradation slope aggregated across stints (STABLE / LOW / MODERATE / HIGH)
@@ -142,11 +143,12 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 |--------|-----------|
 | Projected Race Finish | Aggregates available practice race-pace rankings, blends them with qualifying grid position, theoretical-best underperformance, session improvement, and tyre usage hints to estimate a projected finishing order for the race |
 
-### `practice.py` â€” Practice Intelligence (11 modules)
+### `practice.py` â€” Practice Intelligence (12 modules)
 | Module | Algorithm |
 |--------|-----------|
 | Short Run Pace | Best lap per driver with top-3 average, consistency (std dev), compound |
 | Long Run Pace | Stints of 5+ clean laps with pit-in/pit-out laps excluded, fuel-corrected average (0.06s/lap fuel effect), linear regression for degradation slope |
+| Projected Qualifying Order | FP3-only projection that blends weighted FP1/FP2/FP3 short-run positions, gap-to-best, consistency, theoretical-best ranking, and sector ranking to estimate the likely qualifying order |
 | Race Pace Prediction | Aggregates fuel-corrected long run data per driver from clean stints only to predict race-day pace order |
 | Compound Comparison | Best/avg/median pace per tyre type across all drivers |
 | Tyre Deg Curves | Per-compound degradation slope aggregated across multiple stints, classified STABLE/LOW/MODERATE/HIGH |
@@ -249,11 +251,12 @@ git push origin main
 
 ### Scouting Practice Before the Race
 1. Load the practice session (FP1/FP2/FP3)
-2. **Race Pace Prediction** gives you the expected race-day pecking order
-3. **Tyre Deg Curves** shows which compound will struggle and which will last
-4. **Long Run Pace** reveals who ran race simulations and how they compared
-5. **Driver Programmes** shows who did the most running and on which tyres
-6. **Compound Comparison** helps predict optimal race strategy
+2. In **FP3**, check **Projected Qualifying Order** for the final practice-based quali forecast
+3. **Race Pace Prediction** gives you the expected race-day pecking order
+4. **Tyre Deg Curves** shows which compound will struggle and which will last
+5. **Long Run Pace** reveals who ran race simulations and how they compared
+6. **Driver Programmes** shows who did the most running and on which tyres
+7. **Compound Comparison** helps predict optimal race strategy
 
 ---
 
@@ -313,5 +316,5 @@ git push origin main
 
 ## Portfolio Description
 
-> **F1 Strategy Intelligence Dashboard** â€” A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 26+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, race pace prediction from fuel-corrected long run data, and tyre degradation curves per compound. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
+> **F1 Strategy Intelligence Dashboard** â€” A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 27+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, race pace prediction from fuel-corrected long run data, and tyre degradation curves per compound. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
 

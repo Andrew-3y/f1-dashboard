@@ -890,6 +890,61 @@
             </div>
         </div>
 
+        {% if session_info and session_info.session_type == 'Practice 3' %}
+        <div class="card full-width" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>
+                    Projected Qualifying Order
+                    <span class="badge badge-cyan">{{ practice_analysis.qualifying_projection|length }}</span>
+                    <span class="badge {% if practice_analysis.qualifying_projection_summary.confidence == 'HIGH' %}badge-green{% elif practice_analysis.qualifying_projection_summary.confidence == 'MEDIUM' %}badge-yellow{% else %}badge-orange{% endif %}">
+                        {{ practice_analysis.qualifying_projection_summary.confidence|default('LOW') }}
+                    </span>
+                </h2>
+            </div>
+            <div class="card-body" style="max-height:420px;">
+                {% if practice_analysis.qualifying_projection %}
+                <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+                    <div class="tag tag-HIGH">Pole Favorite: {{ practice_analysis.qualifying_projection_summary.pole_favorite|default('â€”') }}</div>
+                    <div class="tag tag-MEDIUM">Potential Surprise: {{ practice_analysis.qualifying_projection_summary.potential_surprise|default('â€”') }}</div>
+                    <div class="tag tag-INFO">
+                        Inputs: {{ practice_analysis.qualifying_projection_summary.sessions_used|join(', ') if practice_analysis.qualifying_projection_summary.sessions_used else 'Practice 3 only' }}
+                    </div>
+                </div>
+                <table class="leaderboard-table">
+                    <thead><tr><th>Proj</th><th>Driver</th><th>Team</th><th>FP3</th><th>Move</th><th>Signals</th></tr></thead>
+                    <tbody>
+                        {% for d in practice_analysis.qualifying_projection %}
+                        <tr>
+                            <td class="pos-cell pos-{{ d.projected_position }}">{{ d.projected_position }}</td>
+                            <td class="driver-name">{{ d.driver }}</td>
+                            <td class="team-name">{{ d.team }}</td>
+                            <td class="laptime">{% if d.fp3_position %}P{{ d.fp3_position }}{% else %}â€”{% endif %}</td>
+                            <td class="gap">
+                                {% if d.movement_vs_fp3 is none %}
+                                    <span style="color:var(--text-muted);">â€”</span>
+                                {% elif d.movement_vs_fp3 > 0 %}
+                                    <span style="color:var(--accent-green);">+{{ d.movement_vs_fp3 }}</span>
+                                {% elif d.movement_vs_fp3 < 0 %}
+                                    <span style="color:var(--accent-orange);">{{ d.movement_vs_fp3 }}</span>
+                                {% else %}
+                                    <span style="color:var(--text-muted);">0</span>
+                                {% endif %}
+                            </td>
+                            <td class="item-detail">{{ d.reasons|join(' &middot; ')|safe }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="item-detail" style="margin-top:0.8rem;">
+                    Projection weights FP3 most heavily, then FP2, then FP1, using short-run pace, theoretical best, and sector strength.
+                </div>
+                {% else %}
+                <div class="empty-state"><div class="icon">&#127937;</div><p>No qualifying projection available from practice data</p></div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- OFFICIAL PRACTICE CLASSIFICATION -->
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
