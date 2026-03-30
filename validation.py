@@ -151,7 +151,16 @@ def validate_session(session_category, leaderboard, analysis, session_info=None)
     if session_category == "race":
         checks.extend(_check_leaderboard(leaderboard, "Race"))
         checks.extend(_check_anomalies(analysis.get("alerts", [])))
-        checks.extend(_check_accuracy_block(analysis.get("race_projection_accuracy", {}), "Race projection accuracy"))
+        if session_type == "Sprint":
+            checks.append(
+                _make_check(
+                    "Race projection accuracy",
+                    "PASS",
+                    "Main-race projection accuracy is only evaluated for the grand prix, not the sprint",
+                )
+            )
+        else:
+            checks.extend(_check_accuracy_block(analysis.get("race_projection_accuracy", {}), "Race projection accuracy"))
     elif session_category == "qualifying":
         sectors = analysis.get("quali_analysis", {}).get("sectors", [])
         if sectors:
