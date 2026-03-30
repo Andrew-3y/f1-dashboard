@@ -143,9 +143,10 @@ def _check_accuracy_block(block, label):
     return [_make_check(label, "PASS", f"Compared {compared} shared driver(s) against official results")]
 
 
-def validate_session(session_category, leaderboard, analysis):
+def validate_session(session_category, leaderboard, analysis, session_info=None):
     """Build a lightweight audit report for the current dashboard session."""
     checks = []
+    session_type = (session_info or {}).get("session_type")
 
     if session_category == "race":
         checks.extend(_check_leaderboard(leaderboard, "Race"))
@@ -153,22 +154,36 @@ def validate_session(session_category, leaderboard, analysis):
         checks.extend(_check_accuracy_block(analysis.get("race_projection_accuracy", {}), "Race projection accuracy"))
     elif session_category == "qualifying":
         sectors = analysis.get("quali_analysis", {}).get("sectors", [])
-        checks.extend(_check_leaderboard(sectors, "Qualifying"))
-        checks.append(_check_sorted_times(sectors, "best_lap_s", "Qualifying lap order"))
+        if sectors:
+            if _is_sequential_positions(sectors):
+                checks.append(_make_check("Qualifying positions", "PASS", "Positions are sequential"))
+            else:
+                checks.append(_make_check("Qualifying positions", "FAIL", "Positions are not sequential"))
+
+            lap_values = [row.get("best_lap_s") for row in sectors]
+            if lap_values and all(value is not None and value > 0 for value in lap_values):
+                checks.append(_make_check("Qualifying lap values", "PASS", "Official best-lap values look valid"))
+            else:
+                checks.append(_make_check("Qualifying lap values", "WARN", "One or more official best-lap values are missing"))
+        else:
+            checks.append(_make_check("Qualifying leaderboard", "FAIL", "No rows available"))
         checks.extend(_check_accuracy_block(analysis.get("quali_summary", {}).get("qualifying_projection_accuracy", {}), "FP3 projection accuracy"))
     elif session_category == "practice":
         checks.extend(_check_leaderboard(leaderboard, "Practice"))
         short_runs = analysis.get("practice_analysis", {}).get("short_runs", [])
         checks.append(_check_sorted_times(short_runs, "best_lap_s", "Practice short-run order"))
         projection = analysis.get("practice_analysis", {}).get("qualifying_projection", [])
-        if projection:
-            fp3_positions = [row.get("fp3_position") for row in projection if row.get("fp3_position") is not None]
-            if fp3_positions and any(position <= 0 for position in fp3_positions):
-                checks.append(_make_check("FP3 reference positions", "FAIL", "Projection contains invalid FP3 positions"))
+        if session_type == "Practice 3":
+            if projection:
+                fp3_positions = [row.get("fp3_position") for row in projection if row.get("fp3_position") is not None]
+                if fp3_positions and any(position <= 0 for position in fp3_positions):
+                    checks.append(_make_check("FP3 reference positions", "FAIL", "Projection contains invalid FP3 positions"))
+                else:
+                    checks.append(_make_check("FP3 reference positions", "PASS", "Projection positions look valid"))
             else:
-                checks.append(_make_check("FP3 reference positions", "PASS", "Projection positions look valid"))
+                checks.append(_make_check("FP3 projection", "WARN", "No FP3 qualifying projection available"))
         else:
-            checks.append(_make_check("FP3 projection", "WARN", "No FP3 qualifying projection available"))
+            checks.append(_make_check("FP3 projection", "PASS", "FP3-only projection is not expected on this session"))
     else:
         return empty_validation()
 

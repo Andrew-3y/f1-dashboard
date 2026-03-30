@@ -123,7 +123,7 @@ def _start_warmup(year, round_num, session_type):
                 analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
             else:
                 analysis = {**_run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_qualifying(), **_empty_practice()}
-            analysis = _attach_validation(category, data.get("leaderboard", []), analysis)
+            analysis = _attach_validation(category, data.get("leaderboard", []), analysis, session_info=data.get("session_info"))
             with _warm_lock:
                 _warm_cache.update(
                     {
@@ -385,11 +385,11 @@ def _build_race_projection_accuracy(session_info, session, actual_rows):
     )
 
 
-def _attach_validation(session_category, leaderboard, analysis):
+def _attach_validation(session_category, leaderboard, analysis, session_info=None):
     """Attach a validation report without mutating upstream inputs."""
     analysis = {**analysis}
     try:
-        analysis["validation_report"] = validate_session(session_category, leaderboard, analysis)
+        analysis["validation_report"] = validate_session(session_category, leaderboard, analysis, session_info=session_info)
     except Exception as exc:
         logger.warning("Validation audit failed: %s", exc)
         analysis["validation_report"] = empty_validation()
@@ -647,7 +647,7 @@ def index():
         analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
     else:
         analysis = {**_run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_qualifying(), **_empty_practice()}
-    analysis = _attach_validation(category, data.get("leaderboard", []), analysis)
+    analysis = _attach_validation(category, data.get("leaderboard", []), analysis, session_info=data.get("session_info"))
 
     elapsed = round(time.time() - start_time, 2)
     logger.info("Dashboard rendered in %.2fs", elapsed)
@@ -700,7 +700,7 @@ def api_data():
         analysis = _run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))
     else:
         analysis = _run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard"))
-    analysis = _attach_validation(category, data.get("leaderboard", []), analysis)
+    analysis = _attach_validation(category, data.get("leaderboard", []), analysis, session_info=data.get("session_info"))
 
     elapsed = round(time.time() - start_time, 2)
 

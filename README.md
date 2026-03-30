@@ -158,7 +158,7 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 ### `validation.py` â€” Session Audit
 | Module | Algorithm |
 |--------|-----------|
-| Session Data Quality | Runs pass/warn/fail sanity checks over leaderboard ordering, gap values, anomaly math, timing sort order, and accuracy-block integrity so suspicious values are surfaced instead of trusted silently |
+| Session Data Quality | Runs context-aware pass/warn/fail sanity checks over leaderboard ordering, gap values, anomaly math, and accuracy-block integrity so suspicious values are surfaced instead of trusted silently without flagging expected session-specific behavior |
 
 ### `practice.py` â€” Practice Intelligence (12 modules)
 | Module | Algorithm |
