@@ -128,7 +128,7 @@ Each analysis module is wrapped in try/except â€” a failure in one never cr
 Routes requests to the correct analysis pipeline based on session type. Classifies sessions into three categories (race, qualifying, practice) and runs only the relevant modules. Serves three endpoints: `/` (dashboard), `/api/data` (JSON), `/health` (Render health check). Includes cold-start warmup to avoid timeouts on initial loads.
 
 ### `data_handler.py` â€” Data Layer
-All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for the most recent completed session using FastF1's actual named session slots and UTC timestamps, so sprint weekends and timezone boundaries are handled correctly. `load_session()` downloads and caches lap data in memory. `build_leaderboard()` uses finishing positions for races and fastest lap for qualifying/practice.
+All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for the most recent completed session using FastF1's actual named session slots and UTC timestamps, so sprint weekends and timezone boundaries are handled correctly. `load_session()` downloads and caches lap data in memory. `build_leaderboard()` uses finishing positions for races and fastest lap for qualifying/practice, and normalizes official race-result gaps so direct gap-to-winner values are not misread as full elapsed race times.
 
 ### `qualifying.py` â€” Qualifying Intelligence (9 modules)
 | Module | Algorithm |

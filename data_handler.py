@@ -263,6 +263,44 @@ def _session_results_rows(session):
     return rows.sort_values("Position").reset_index(drop=True)
 
 
+def _official_race_gap(row, leader_time):
+    """Return a reliable race gap from FastF1 session results.
+
+    FastF1 race result rows can expose `Time` in two different ways:
+      - winner: total elapsed race time
+      - finishers behind: often already the gap to the winner
+
+    If a non-winning driver's `Time` is smaller than the winner's total race
+    time, treat it as a direct gap. Otherwise, treat it as an elapsed finish
+    time and subtract the leader's elapsed time.
+    """
+    if int(row["Position"]) == 1:
+        return 0.0, "LEADER"
+
+    result_time = row.get("Time")
+    if pd.isna(result_time):
+        status = row.get("Status")
+        classified = row.get("ClassifiedPosition")
+        display = status if pd.notna(status) and status else (classified if pd.notna(classified) else "N/A")
+        return None, display
+
+    result_seconds = result_time.total_seconds()
+    if pd.isna(leader_time):
+        return round(result_seconds, 3), format_gap(result_seconds)
+
+    leader_seconds = leader_time.total_seconds()
+    if 0 <= result_seconds < leader_seconds:
+        gap_seconds = result_seconds
+    else:
+        gap_seconds = result_seconds - leader_seconds
+
+    if gap_seconds < 0:
+        gap_seconds = abs(gap_seconds)
+
+    gap_seconds = round(gap_seconds, 3)
+    return gap_seconds, format_gap(gap_seconds)
+
+
 def build_leaderboard(laps, session_type="Race", session=None):
     """
     Build a sorted leaderboard.
@@ -320,18 +358,7 @@ def _build_race_leaderboard(session, laps):
         driver = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
         driver_laps = valid_laps[valid_laps["Driver"] == driver]
         best_lap = driver_laps["LapTime"].min()
-        if pd.notna(row.get("Time")) and pd.notna(leader_time):
-            gap = row["Time"].total_seconds() - leader_time.total_seconds()
-            gap_display = "LEADER" if row["Position"] == 1 else format_gap(gap)
-            gap_seconds = round(gap, 3)
-        elif row["Position"] == 1:
-            gap_display = "LEADER"
-            gap_seconds = 0.0
-        else:
-            status = row.get("Status")
-            classified = row.get("ClassifiedPosition")
-            gap_display = status if pd.notna(status) and status else (classified if pd.notna(classified) else "N/A")
-            gap_seconds = None
+        gap_seconds, gap_display = _official_race_gap(row, leader_time)
 
         leaderboard.append(
             {
