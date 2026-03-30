@@ -27,6 +27,7 @@ so it runs fast on Render's limited CPU.
 
 import pandas as pd
 import logging
+from collections import Counter
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,10 @@ PACE_LOSS_THRESHOLD = 1.0
 
 # Maximum number of alerts to return (keep the dashboard readable).
 MAX_ALERTS = 20
+
+# If too many drivers spike on the same lap, treat it as a session-wide
+# slowdown (SC/VSC/red flag/weather shift) instead of a personal anomaly.
+GLOBAL_EVENT_DRIVER_THRESHOLD = 3
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +159,19 @@ def detect_anomalies(laps, window=ROLLING_WINDOW, threshold=PACE_LOSS_THRESHOLD)
                     ),
                 }
             )
+
+    if alerts:
+        lap_counts = Counter(alert["lap_number"] for alert in alerts)
+        global_event_laps = {
+            lap_number
+            for lap_number, count in lap_counts.items()
+            if count >= GLOBAL_EVENT_DRIVER_THRESHOLD
+        }
+        if global_event_laps:
+            alerts = [
+                alert for alert in alerts
+                if alert["lap_number"] not in global_event_laps
+            ]
 
     # Sort by delta descending (most severe first), then limit
     alerts.sort(key=lambda a: a["delta"], reverse=True)

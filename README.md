@@ -181,7 +181,7 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 ### Race Analysis Modules
 | Module | File | Algorithm |
 |--------|------|-----------|
-| Anomaly Detection | `anomaly.py` | 5-lap rolling average, flags laps >1s slower. Severity: CRITICAL (>3s) / HIGH (>2s) / MEDIUM (>1.5s) / LOW (>1s) |
+| Anomaly Detection | `anomaly.py` | 5-lap rolling average, flags laps >1s slower, and suppresses same-lap field-wide slowdowns so safety-car or neutralized periods are less likely to appear as personal anomalies. Severity: CRITICAL (>3s) / HIGH (>2s) / MEDIUM (>1.5s) / LOW (>1s) |
 | Overtake Prediction | `predictor.py` | Gap-closing rate over last 8 laps, estimates laps to DRS range (<1s) |
 | Tire Degradation | `degradation.py` | Linear regression on clean stint laps (excludes pits, outliers >3s from median). Pit window = cumulative loss vs. ~23s pit cost |
 | Pit Strategy | `strategy.py` | Simulates pit stop: adds 23s, recalculates rejoin position, checks undercut (1.5s/lap advantage over 3 laps) and traffic risk (within 2s) |
