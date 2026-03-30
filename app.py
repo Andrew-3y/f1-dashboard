@@ -498,7 +498,6 @@ def _empty_race():
         "strategies": [], "strategy_summary": {},
         "battles": [], "battle_summary": {},
         "race_projection_accuracy": empty_accuracy(),
-        "validation_report": empty_validation(),
     }
 
 def _empty_qualifying():
@@ -508,14 +507,12 @@ def _empty_qualifying():
             "race_projection": _empty_projection()["summary"],
             "qualifying_projection_accuracy": empty_accuracy(),
         },
-        "validation_report": empty_validation(),
     }
 
 def _empty_practice():
     return {
         "practice_analysis": {"long_runs": [], "short_runs": [], "compounds": [], "team_ranking": [], "consistency": [], "programmes": [], "theoretical_best": [], "sectors": [], "track_evolution": [], "tyre_deg_curves": [], "race_pace_prediction": [], "qualifying_projection": [], "qualifying_projection_summary": {}},
         "practice_summary": {},
-        "validation_report": empty_validation(),
     }
 
 
