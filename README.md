@@ -52,6 +52,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **F1-style lap-time formatting** â€” lap and pace times are shown as `M:SS.mmm` instead of raw seconds
 - **Ordered projection inputs** â€” projection cards list sessions in weekend order (FP1 â†’ FP2 â†’ FP3, then Qualifying where applicable)
 - **Readable projection explanations** â€” projection cards show plain-language reasons and clearer driver labels instead of raw shorthand where possible
+- **Session data-quality audit** â€” every session now shows pass/warn/fail validation checks over official tables and derived modules
 - **Mobile-friendly layout** â€” responsive tweaks on small screens without changing desktop layout
 - **Dark F1-themed interface** â€” color-coded compound badges, sector classifications, strategy tags, intensity indicators
 
@@ -72,6 +73,7 @@ f1-dashboard/
 â”œâ”€â”€ practice.py           # Practice-specific analysis (11 modules)
 â”œâ”€â”€ race_projection.py    # Pre-race finish projection for the qualifying page
 â”œâ”€â”€ prediction_accuracy.py # Projection-vs-result comparison metrics
+â”œâ”€â”€ validation.py         # Session data quality audit checks
 â”œâ”€â”€ requirements.txt      # Python dependencies
 â”œâ”€â”€ render.yaml           # Render deployment blueprint
 â”œâ”€â”€ .gitignore
@@ -152,6 +154,11 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Module | Algorithm |
 |--------|-----------|
 | Prediction Accuracy | Compares projected and official ordered results driver-by-driver, reporting exact-match rate, mean absolute position error, top-3/top-10 overlap, and pole/winner hit rate using only shared drivers present in both lists |
+
+### `validation.py` â€” Session Audit
+| Module | Algorithm |
+|--------|-----------|
+| Session Data Quality | Runs pass/warn/fail sanity checks over leaderboard ordering, gap values, anomaly math, timing sort order, and accuracy-block integrity so suspicious values are surfaced instead of trusted silently |
 
 ### `practice.py` â€” Practice Intelligence (12 modules)
 | Module | Algorithm |
@@ -296,6 +303,7 @@ git push origin main
 - Latest-session auto-detection reads the actual FastF1 schedule slots (`Session1` to `Session5`) with UTC timestamps instead of assuming every weekend follows the same practice/qualifying/sprint ordering.
 - Qualifying elimination and close-call panels use FastF1's split-session support for Q1, Q2, and Q3 when timing status data is available, which is more accurate than inferring knockout order from the combined final lap table.
 - Practice long-run and race-pace calculations exclude pit-in and pit-out laps from stint construction so in-laps and out-laps do not skew race-simulation pace.
+- A session-level data-quality audit now highlights suspicious leaderboard gaps, ordering issues, and invalid derived metrics instead of silently treating them as trustworthy.
 - The qualifying-page projected race finish is a pre-race forecast, not a simulation of the actual race. It is strongest when practice long-run data is available and falls back to lower-confidence qualifying-led signals when it is not.
 
 ---

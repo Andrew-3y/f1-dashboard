@@ -43,6 +43,7 @@ from qualifying import analyze_qualifying, get_qualifying_summary
 from practice import analyze_practice, get_practice_summary, analyze_qualifying_projection
 from race_projection import project_race_finish
 from prediction_accuracy import compare_predictions, empty_accuracy
+from validation import validate_session, empty_validation
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -122,6 +123,7 @@ def _start_warmup(year, round_num, session_type):
                 analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
             else:
                 analysis = {**_run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_qualifying(), **_empty_practice()}
+            analysis = _attach_validation(category, data.get("leaderboard", []), analysis)
             with _warm_lock:
                 _warm_cache.update(
                     {
@@ -383,6 +385,17 @@ def _build_race_projection_accuracy(session_info, session, actual_rows):
     )
 
 
+def _attach_validation(session_category, leaderboard, analysis):
+    """Attach a validation report without mutating upstream inputs."""
+    analysis = {**analysis}
+    try:
+        analysis["validation_report"] = validate_session(session_category, leaderboard, analysis)
+    except Exception as exc:
+        logger.warning("Validation audit failed: %s", exc)
+        analysis["validation_report"] = empty_validation()
+    return analysis
+
+
 def _empty_projection():
     return {
         "projected_finish": [],
@@ -485,6 +498,7 @@ def _empty_race():
         "strategies": [], "strategy_summary": {},
         "battles": [], "battle_summary": {},
         "race_projection_accuracy": empty_accuracy(),
+        "validation_report": empty_validation(),
     }
 
 def _empty_qualifying():
@@ -494,12 +508,14 @@ def _empty_qualifying():
             "race_projection": _empty_projection()["summary"],
             "qualifying_projection_accuracy": empty_accuracy(),
         },
+        "validation_report": empty_validation(),
     }
 
 def _empty_practice():
     return {
         "practice_analysis": {"long_runs": [], "short_runs": [], "compounds": [], "team_ranking": [], "consistency": [], "programmes": [], "theoretical_best": [], "sectors": [], "track_evolution": [], "tyre_deg_curves": [], "race_pace_prediction": [], "qualifying_projection": [], "qualifying_projection_summary": {}},
         "practice_summary": {},
+        "validation_report": empty_validation(),
     }
 
 
@@ -634,6 +650,7 @@ def index():
         analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
     else:
         analysis = {**_run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_qualifying(), **_empty_practice()}
+    analysis = _attach_validation(category, data.get("leaderboard", []), analysis)
 
     elapsed = round(time.time() - start_time, 2)
     logger.info("Dashboard rendered in %.2fs", elapsed)
@@ -686,6 +703,7 @@ def api_data():
         analysis = _run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))
     else:
         analysis = _run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard"))
+    analysis = _attach_validation(category, data.get("leaderboard", []), analysis)
 
     elapsed = round(time.time() - start_time, 2)
 

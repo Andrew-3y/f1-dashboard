@@ -345,6 +345,9 @@
         /* Degradation trend tags for practice */
         .tag-LOW { background: rgba(0,200,83,0.12); color: var(--accent-green); border: 1px solid rgba(0,200,83,0.2); }
         .tag-HIGH { background: rgba(255,109,0,0.15); color: var(--accent-orange); border: 1px solid rgba(255,109,0,0.3); }
+        .audit-PASS { color: var(--accent-green); }
+        .audit-WARN { color: var(--accent-yellow); }
+        .audit-FAIL { color: var(--accent-red); }
     </style>
 </head>
 
@@ -440,6 +443,40 @@
     <!-- MAIN CONTENT                                                   -->
     <!-- ============================================================= -->
     <div class="container">
+
+        <div class="card full-width" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>
+                    Data Quality
+                    <span class="badge {% if validation_report.overall_status == 'PASS' %}badge-green{% elif validation_report.overall_status == 'WARN' %}badge-yellow{% else %}badge-orange{% endif %}">
+                        {{ validation_report.overall_status|default('WARN') }}
+                    </span>
+                </h2>
+            </div>
+            <div class="card-body">
+                <div style="padding:0.9rem 1.1rem;border-bottom:1px solid rgba(255,255,255,0.03);">
+                    <div class="item-title">{{ validation_report.summary|default('No validation run') }}</div>
+                    <div class="item-detail">
+                        Pass: <span class="audit-PASS">{{ validation_report.pass_count|default(0) }}</span>
+                        &middot; Warn: <span class="audit-WARN">{{ validation_report.warn_count|default(0) }}</span>
+                        &middot; Fail: <span class="audit-FAIL">{{ validation_report.fail_count|default(0) }}</span>
+                    </div>
+                </div>
+                {% if validation_report.checks %}
+                    {% for check in validation_report.checks %}
+                    <div class="list-item">
+                        <div class="tag tag-{{ check.status }}">{{ check.status }}</div>
+                        <div class="item-content">
+                            <div class="item-title">{{ check.name }}</div>
+                            <div class="item-detail">{{ check.detail }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="empty-state"><div class="icon">&#128269;</div><p>No validation checks available</p></div>
+                {% endif %}
+            </div>
+        </div>
 
         <!-- ################################################################ -->
         <!-- QUALIFYING VIEW                                                  -->
