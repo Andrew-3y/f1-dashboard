@@ -185,7 +185,7 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Overtake Prediction | `predictor.py` | Gap-closing rate over last 8 laps, estimates laps to DRS range (<1s) |
 | Tire Degradation | `degradation.py` | Linear regression on clean stint laps (excludes pits, outliers >3s from median). Pit window = cumulative loss vs. ~23s pit cost |
 | Pit Strategy | `strategy.py` | Simulates pit stop: adds 23s, recalculates rejoin position, checks undercut (1.5s/lap advantage over 3 laps) and traffic risk (within 2s) |
-| Battle Detection | `battle_detector.py` | Scans consecutive pairs <2s apart, calculates closing rate from last 5 laps. INTENSE (<1s) / CLOSE (<1.5s) / WATCHING (<2s) |
+| Battle Detection | `battle_detector.py` | Scans consecutive classified pairs using same-lap cumulative times only, ignores mismatched or negative-gap rows, and calculates closing rate from the last 5 shared laps. INTENSE (<1s) / CLOSE (<1.5s) / WATCHING (<2s) |
 
 ---
 

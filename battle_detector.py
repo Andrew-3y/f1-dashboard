@@ -141,15 +141,19 @@ def _get_current_standings(laps):
         return pd.DataFrame()
 
     last_idx = valid.groupby("Driver")["LapNumber"].idxmax()
-    state = valid.loc[last_idx, ["Driver", "Team", "Position"]].copy()
+    state = valid.loc[last_idx, ["Driver", "Team", "Position", "LapNumber"]].copy()
 
     if "Time" in valid.columns:
         time_valid = valid.dropna(subset=["Time"])
         if not time_valid.empty:
             time_idx = time_valid.groupby("Driver")["LapNumber"].idxmax()
-            times = time_valid.loc[time_idx, ["Driver", "Time"]].copy()
+            times = time_valid.loc[time_idx, ["Driver", "LapNumber", "Time"]].copy()
             times["CumTime"] = times["Time"].dt.total_seconds()
-            state = state.merge(times[["Driver", "CumTime"]], on="Driver", how="left")
+            state = state.merge(
+                times[["Driver", "LapNumber", "CumTime"]],
+                on=["Driver", "LapNumber"],
+                how="left",
+            )
 
     if "CumTime" not in state.columns:
         state["CumTime"] = np.nan
@@ -173,7 +177,16 @@ def _calculate_gap(ahead_row, behind_row):
     if pd.isna(ahead_row["CumTime"]) or pd.isna(behind_row["CumTime"]):
         return None
 
-    return behind_row["CumTime"] - ahead_row["CumTime"]
+    ahead_lap = ahead_row.get("LapNumber")
+    behind_lap = behind_row.get("LapNumber")
+    if pd.isna(ahead_lap) or pd.isna(behind_lap) or int(ahead_lap) != int(behind_lap):
+        return None
+
+    gap = behind_row["CumTime"] - ahead_row["CumTime"]
+    if gap < 0:
+        return None
+
+    return gap
 
 
 # ---------------------------------------------------------------------------
