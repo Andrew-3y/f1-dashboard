@@ -263,7 +263,18 @@ def _session_results_rows(session):
     return rows.sort_values("Position").reset_index(drop=True)
 
 
-def _official_race_gap(row, leader_time):
+def _final_elapsed_time(driver_laps):
+    """Return a driver's final classified elapsed race time from lap data."""
+    if driver_laps is None or driver_laps.empty or "Time" not in driver_laps.columns:
+        return pd.NaT
+
+    timed = driver_laps.dropna(subset=["Time"]).sort_values("LapNumber")
+    if timed.empty:
+        return pd.NaT
+    return timed.iloc[-1]["Time"]
+
+
+def _official_race_gap(row, leader_time, leader_laps, driver_laps_count, final_elapsed_time, leader_elapsed_time):
     """Return a reliable race gap from FastF1 session results.
 
     FastF1 race result rows can expose `Time` in two different ways:
@@ -276,6 +287,22 @@ def _official_race_gap(row, leader_time):
     """
     if int(row["Position"]) == 1:
         return 0.0, "LEADER"
+
+    if (
+        pd.notna(leader_laps)
+        and pd.notna(driver_laps_count)
+        and driver_laps_count < leader_laps
+    ):
+        lap_deficit = int(leader_laps - driver_laps_count)
+        if lap_deficit > 0:
+            suffix = "Lap" if lap_deficit == 1 else "Laps"
+            return None, f"+{lap_deficit} {suffix}"
+
+    if pd.notna(final_elapsed_time) and pd.notna(leader_elapsed_time):
+        elapsed_gap = final_elapsed_time.total_seconds() - leader_elapsed_time.total_seconds()
+        if elapsed_gap >= 0:
+            elapsed_gap = round(elapsed_gap, 3)
+            return elapsed_gap, format_gap(elapsed_gap)
 
     result_time = row.get("Time")
     if pd.isna(result_time):
@@ -352,13 +379,29 @@ def _build_race_leaderboard(session, laps):
 
     leader_time = result_rows.iloc[0]["Time"] if "Time" in result_rows.columns else pd.NaT
     valid_laps = _valid_laps(laps)
+    classified_laps = laps.dropna(subset=["LapNumber"]).copy() if not laps.empty else pd.DataFrame()
+    leader_row = result_rows.iloc[0]
+    leader_driver = leader_row.get("Abbreviation") or leader_row.get("BroadcastName") or leader_row.get("DriverNumber")
+    leader_driver_laps = classified_laps[classified_laps["Driver"] == leader_driver]
+    leader_elapsed_time = _final_elapsed_time(leader_driver_laps)
+    leader_laps = int(leader_row["Laps"]) if pd.notna(leader_row.get("Laps")) else int(leader_driver_laps["LapNumber"].max()) if not leader_driver_laps.empty else None
 
     leaderboard = []
     for _, row in result_rows.iterrows():
         driver = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
         driver_laps = valid_laps[valid_laps["Driver"] == driver]
+        classified_driver_laps = classified_laps[classified_laps["Driver"] == driver]
         best_lap = driver_laps["LapTime"].min()
-        gap_seconds, gap_display = _official_race_gap(row, leader_time)
+        driver_laps_count = int(row["Laps"]) if pd.notna(row.get("Laps")) else int(classified_driver_laps["LapNumber"].max()) if not classified_driver_laps.empty else None
+        final_elapsed_time = _final_elapsed_time(classified_driver_laps)
+        gap_seconds, gap_display = _official_race_gap(
+            row,
+            leader_time,
+            leader_laps,
+            driver_laps_count,
+            final_elapsed_time,
+            leader_elapsed_time,
+        )
 
         leaderboard.append(
             {
