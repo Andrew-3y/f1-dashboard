@@ -191,11 +191,30 @@ _warm_cache = {
 _warm_lock = threading.Lock()
 
 
-def _start_warmup(year, round_num, session_type):
-    """Warm up the latest session in a background thread."""
+def _read_warm_cache():
+    """Return a snapshot of the warm cache."""
     with _warm_lock:
-        if _warm_cache["in_progress"]:
+        return {
+            "key": _warm_cache["key"],
+            "data": _warm_cache["data"],
+            "analysis": _warm_cache["analysis"],
+            "session_category": _warm_cache["session_category"],
+            "error": _warm_cache["error"],
+            "in_progress": _warm_cache["in_progress"],
+            "updated_at": _warm_cache["updated_at"],
+        }
+
+
+def _start_warmup(year, round_num, session_type):
+    """Warm up a requested session in a background thread."""
+    with _warm_lock:
+        requested_key = (year, round_num, session_type)
+        if _warm_cache["in_progress"] and _warm_cache["key"] == requested_key:
             return
+        _warm_cache["key"] = requested_key
+        _warm_cache["data"] = None
+        _warm_cache["analysis"] = None
+        _warm_cache["session_category"] = _session_category(session_type)
         _warm_cache["in_progress"] = True
         _warm_cache["error"] = None
 
@@ -204,13 +223,16 @@ def _start_warmup(year, round_num, session_type):
             data = get_dashboard_data(year, round_num, session_type)
             actual_type = data.get("session_info", {}).get("session_type", session_type) if data.get("session_info") else session_type
             category = _session_category(actual_type)
-            if category == "qualifying":
+            if data.get("error"):
+                analysis = _base_dashboard_context()
+            elif category == "qualifying":
                 analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_practice()}
             elif category == "practice":
                 analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
             else:
                 analysis = {**_run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_qualifying(), **_empty_practice()}
-            analysis = _attach_validation(category, data.get("leaderboard", []), analysis, session_info=data.get("session_info"))
+            if not data.get("error"):
+                analysis = _attach_validation(category, data.get("leaderboard", []), analysis, session_info=data.get("session_info"))
             with _warm_lock:
                 _warm_cache.update(
                     {
@@ -230,6 +252,15 @@ def _start_warmup(year, round_num, session_type):
                 _warm_cache["in_progress"] = False
 
     threading.Thread(target=_worker, daemon=True).start()
+
+
+def _render_warmup(session_type=None):
+    """Render the warmup state for a requested session."""
+    category = _session_category(session_type)
+    return _render_dashboard(
+        session_category=category,
+        error="WARMUP: Loading the requested session data. This can take ~30s on a cold start. The page will refresh automatically.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -635,81 +666,37 @@ def index():
             error="Qualifying data for 2026 Round 1 is intermittently unavailable from the upstream feed. Please try again later or select another session.",
         )
 
-    # Cold-start warmup path for auto-detected sessions.
-    if not (year and round_num and session_type):
-        with _warm_lock:
-            cache_key = _warm_cache["key"]
-            cached = _warm_cache["data"]
-            cached_analysis = _warm_cache["analysis"]
-            cached_category = _warm_cache["session_category"]
-            cached_error = _warm_cache["error"]
-            in_progress = _warm_cache["in_progress"]
+    requested_key = (year, round_num, session_type)
+    warm_state = _read_warm_cache()
 
-        if cached and cached_analysis and cache_key == (year, round_num, session_type):
-            if cached_error:
-                return _render_dashboard(
-                    error=cached_error,
-                )
+    if warm_state["key"] == requested_key and warm_state["data"] and warm_state["analysis"]:
+        if warm_state["error"]:
             return _render_dashboard(
-                error=None,
-                session_info=cached["session_info"],
-                session_category=cached_category,
-                leaderboard=cached["leaderboard"],
-                load_time=0,
-                **cached_analysis,
+                session_category=warm_state["session_category"],
+                error=warm_state["error"],
             )
+        return _render_dashboard(
+            error=None,
+            session_info=warm_state["data"]["session_info"],
+            session_category=warm_state["session_category"],
+            leaderboard=warm_state["data"]["leaderboard"],
+            load_time=0,
+            **warm_state["analysis"],
+        )
 
-        if not in_progress:
+    # Cold-start warmup path for both auto-detected and explicit requests.
+    if warm_state["in_progress"] and warm_state["key"] == requested_key:
+        return _render_warmup(session_type)
+
+    if not (year and round_num and session_type):
+        if not warm_state["in_progress"]:
             _start_warmup(year, round_num, session_type)
+        return _render_warmup(session_type)
 
-        return _render_dashboard(
-            error="WARMUP: Loading the latest session data. This can take ~30s on a cold start. The page will refresh automatically.",
-        )
-
-    try:
-        # Fetch data (on-demand!)
-        logger.info("Dashboard request: year=%s round=%s type=%s", year, round_num, session_type)
-        data = get_dashboard_data(year, round_num, session_type)
-    except Exception as exc:
-        logger.exception("Dashboard request failed")
-        return _render_dashboard(
-            500,
-            error=str(exc),
-        )
-
-    # Determine session category
-    actual_type = data.get("session_info", {}).get("session_type", session_type) if data.get("session_info") else session_type
-    category = _session_category(actual_type)
-
-    # If there was an error, render error page with empty data for all sections
-    if data["error"]:
-        elapsed = round(time.time() - start_time, 2)
-        return _render_dashboard(
-            error=data["error"],
-            session_category=category,
-            load_time=elapsed,
-        )
-
-    # Run session-specific analysis
-    if category == "qualifying":
-        analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_practice()}
-    elif category == "practice":
-        analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
-    else:
-        analysis = {**_run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_qualifying(), **_empty_practice()}
-    analysis = _attach_validation(category, data.get("leaderboard", []), analysis, session_info=data.get("session_info"))
-
-    elapsed = round(time.time() - start_time, 2)
-    logger.info("Dashboard rendered in %.2fs", elapsed)
-
-    return _render_dashboard(
-        error=None,
-        session_info=data["session_info"],
-        session_category=category,
-        leaderboard=data["leaderboard"],
-        load_time=elapsed,
-        **analysis,
-    )
+    # Explicit session requests now warm in the background first so a slow
+    # FastF1 load cannot dump users onto a raw 500 page on Render.
+    _start_warmup(year, round_num, session_type)
+    return _render_warmup(session_type)
 
 
 # ---------------------------------------------------------------------------

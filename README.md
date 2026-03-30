@@ -52,6 +52,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **F1-style lap-time formatting** â€” lap and pace times are shown as `M:SS.mmm` instead of raw seconds
 - **Ordered projection inputs** â€” projection cards list sessions in weekend order (FP1 â†’ FP2 â†’ FP3, then Qualifying where applicable)
 - **Readable projection explanations** â€” projection cards show plain-language reasons and clearer driver labels instead of raw shorthand where possible
+- **Background warmup for manual round loads** â€” explicit year/round/session searches warm in the background first so cold session fetches are less likely to fail on first load
 - **Session data-quality audit** â€” every session now shows pass/warn/fail validation checks over official tables and derived modules
 - **Mobile-friendly layout** â€” responsive tweaks on small screens without changing desktop layout
 - **Dark F1-themed interface** â€” color-coded compound badges, sector classifications, strategy tags, intensity indicators
