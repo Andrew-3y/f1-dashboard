@@ -29,6 +29,7 @@ import os
 import time
 import threading
 import logging
+import html
 import pandas as pd
 from flask import Flask, render_template, request, jsonify
 
@@ -74,20 +75,106 @@ def _format_lap_seconds(seconds):
     return f"{minutes}:{rem:06.3f}"
 
 
-@app.errorhandler(Exception)
-def _handle_unexpected_error(exc):
-    logger.exception("Unhandled error")
-    return render_template(
-        "dashboard.html",
-        error=str(exc),
-        session_info=None,
-        session_category="race",
-        leaderboard=[],
+def _base_dashboard_context():
+    """Return a stable context for all dashboard renders."""
+    return {
+        "error": None,
+        "session_info": None,
+        "session_category": "race",
+        "leaderboard": [],
+        "load_time": 0,
+        "validation_report": empty_validation(),
         **_empty_race(),
         **_empty_qualifying(),
         **_empty_practice(),
-        load_time=0,
-    ), 500
+    }
+
+
+def _render_plain_error(message, status_code=500):
+    """Final fallback if the dashboard template itself cannot render."""
+    safe_message = html.escape(str(message or "Unknown error"))
+    return (
+        f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>F1 Strategy Intelligence</title>
+  <style>
+    body {{
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: #0a0a0f;
+      color: #e8e8f0;
+      display: flex;
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }}
+    .card {{
+      width: min(680px, 100%);
+      background: #1a1a2e;
+      border: 1px solid #2a2a40;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+    }}
+    h1 {{
+      margin: 0 0 12px;
+      color: #e10600;
+      font-size: 28px;
+    }}
+    p {{
+      margin: 0 0 16px;
+      color: #b6b6ca;
+      line-height: 1.6;
+    }}
+    .detail {{
+      background: #12121a;
+      border: 1px solid #2a2a40;
+      border-radius: 10px;
+      color: #ff6d00;
+      padding: 14px;
+      font-family: Consolas, monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }}
+    a {{
+      color: #ffffff;
+    }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>F1 Strategy Intelligence</h1>
+    <p>We hit a load problem for this session, but the app stayed up. Try reloading or choosing a different round, then come back.</p>
+    <div class="detail">{safe_message}</div>
+    <p style="margin-top:16px;"><a href="/">Return to dashboard</a></p>
+  </div>
+</body>
+</html>""",
+        status_code,
+    )
+
+
+def _render_dashboard(status_code=200, **context):
+    """Render the dashboard safely and never fall through to a raw browser 500."""
+    payload = _base_dashboard_context()
+    payload.update(context)
+    try:
+        return render_template("dashboard.html", **payload), status_code
+    except Exception as exc:
+        logger.exception("Dashboard template render failed")
+        fallback_message = payload.get("error") or str(exc)
+        return _render_plain_error(fallback_message, status_code=status_code)
+
+
+@app.errorhandler(Exception)
+def _handle_unexpected_error(exc):
+    logger.exception("Unhandled error")
+    return _render_dashboard(500, error=str(exc))
 
 # ---------------------------------------------------------------------------
 # Warmup cache (avoid cold-start timeouts)
@@ -543,16 +630,9 @@ def index():
 
     # Known problematic session: avoid hard 500s and show a friendly message.
     if year == 2026 and round_num == 1 and (session_type or "").lower() == "qualifying":
-        return render_template(
-            "dashboard.html",
-            error="Qualifying data for 2026 Round 1 is intermittently unavailable from the upstream feed. Please try again later or select another session.",
-            session_info=None,
+        return _render_dashboard(
             session_category="qualifying",
-            leaderboard=[],
-            **_empty_race(),
-            **_empty_qualifying(),
-            **_empty_practice(),
-            load_time=0,
+            error="Qualifying data for 2026 Round 1 is intermittently unavailable from the upstream feed. Please try again later or select another session.",
         )
 
     # Cold-start warmup path for auto-detected sessions.
@@ -567,19 +647,10 @@ def index():
 
         if cached and cached_analysis and cache_key == (year, round_num, session_type):
             if cached_error:
-                return render_template(
-                    "dashboard.html",
+                return _render_dashboard(
                     error=cached_error,
-                    session_info=None,
-                    session_category="race",
-                    leaderboard=[],
-                    **_empty_race(),
-                    **_empty_qualifying(),
-                    **_empty_practice(),
-                    load_time=0,
                 )
-            return render_template(
-                "dashboard.html",
+            return _render_dashboard(
                 error=None,
                 session_info=cached["session_info"],
                 session_category=cached_category,
@@ -591,16 +662,8 @@ def index():
         if not in_progress:
             _start_warmup(year, round_num, session_type)
 
-        return render_template(
-            "dashboard.html",
+        return _render_dashboard(
             error="WARMUP: Loading the latest session data. This can take ~30s on a cold start. The page will refresh automatically.",
-            session_info=None,
-            session_category="race",
-            leaderboard=[],
-            **_empty_race(),
-            **_empty_qualifying(),
-            **_empty_practice(),
-            load_time=0,
         )
 
     try:
@@ -609,16 +672,9 @@ def index():
         data = get_dashboard_data(year, round_num, session_type)
     except Exception as exc:
         logger.exception("Dashboard request failed")
-        return render_template(
-            "dashboard.html",
+        return _render_dashboard(
+            500,
             error=str(exc),
-            session_info=None,
-            session_category="race",
-            leaderboard=[],
-            **_empty_race(),
-            **_empty_qualifying(),
-            **_empty_practice(),
-            load_time=0,
         )
 
     # Determine session category
@@ -628,15 +684,9 @@ def index():
     # If there was an error, render error page with empty data for all sections
     if data["error"]:
         elapsed = round(time.time() - start_time, 2)
-        return render_template(
-            "dashboard.html",
+        return _render_dashboard(
             error=data["error"],
-            session_info=None,
             session_category=category,
-            leaderboard=[],
-            **_empty_race(),
-            **_empty_qualifying(),
-            **_empty_practice(),
             load_time=elapsed,
         )
 
@@ -652,8 +702,7 @@ def index():
     elapsed = round(time.time() - start_time, 2)
     logger.info("Dashboard rendered in %.2fs", elapsed)
 
-    return render_template(
-        "dashboard.html",
+    return _render_dashboard(
         error=None,
         session_info=data["session_info"],
         session_category=category,

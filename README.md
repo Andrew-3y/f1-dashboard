@@ -290,7 +290,7 @@ git push origin main
 | "No completed session found" | Off-season. Use manual selector (e.g. year=2024, round=24, Race) |
 | First load is slow (30-60s) | Normal â€” FastF1 downloads data on first request, cached after |
 | Cold start shows warming message | Expected â€” wait a few seconds and the page will auto-refresh |
-| Raw browser "Internal Server Error" page | Indicates a runtime/deploy failure rather than a normal dashboard error state; latest builds are wired to fall back to the dashboard error screen instead |
+| Raw browser "Internal Server Error" page | Latest builds are wired to fall back to the dashboard error screen, and if that template render also fails the app now returns a minimal branded error page instead of the raw browser 500 screen |
 | Degradation shows N/A | Stint too short (<4 clean laps). Common early in a race |
 | Strategy shows no data | Requires cumulative race time â€” only available in Race sessions |
 | Practice panels empty | Ensure you selected the correct session type (Practice 1/2/3) |
