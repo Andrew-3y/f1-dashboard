@@ -344,11 +344,11 @@ def _build_strategy_message(driver, current_pos, rejoin_pos, positions_lost,
     """
     pos_change = f"P{rejoin_pos}"
     if positions_lost > 0:
-        pos_change += f" (-{positions_lost} pos)"
+        pos_change += f" (-{positions_lost} places)"
     elif positions_lost == 0:
         pos_change += " (no loss)"
     else:
-        pos_change += f" (+{abs(positions_lost)} pos)"
+        pos_change += f" (+{abs(positions_lost)} places)"
 
     parts = [f"{driver}: Pit now → rejoin {pos_change}"]
 

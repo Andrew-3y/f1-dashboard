@@ -1066,7 +1066,7 @@
             <div class="card-body" style="max-height:380px;">
                 {% if practice_analysis.short_runs %}
                 <table class="leaderboard-table">
-                    <thead><tr><th>P</th><th>Driver</th><th>Team</th><th>Best Lap</th><th>Top 3 Avg</th><th>Compound</th><th>Gap</th><th>Consistency</th><th>Clean Laps</th></tr></thead>
+                    <thead><tr><th>P</th><th>Driver</th><th>Team</th><th>Best Lap</th><th>Top 3 Avg</th><th>Compound</th><th>Gap</th><th>Consistency</th><th>Representative Laps</th></tr></thead>
                     <tbody>
                         {% for d in practice_analysis.short_runs %}
                         <tr>
@@ -1482,7 +1482,7 @@
         <!-- LEADERBOARD -->
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
-                <h2>Official Race Classification <span class="badge">{{ leaderboard|length }}</span></h2>
+                <h2>Official {{ 'Sprint' if session_info.session_type == 'Sprint' else 'Race' }} Classification <span class="badge">{{ leaderboard|length }}</span></h2>
             </div>
             <div class="card-body" style="max-height:380px;">
                 {% if leaderboard %}
@@ -1510,7 +1510,7 @@
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
                 <h2>
-                    Race Projection Accuracy
+                    {{ 'Sprint' if session_info.session_type == 'Sprint' else 'Race' }} Projection Accuracy
                     <span class="badge badge-cyan">{{ race_projection_accuracy.compared_drivers|default(0) }}</span>
                     <span class="badge {% if race_projection_accuracy.rating == 'STRONG' %}badge-green{% elif race_projection_accuracy.rating == 'SOLID' %}badge-yellow{% else %}badge-orange{% endif %}">
                         {{ race_projection_accuracy.rating|default('N/A') }}
@@ -1548,7 +1548,7 @@
                     Compared against the official race classification using the pre-race projection built from qualifying and available weekend practice data.
                 </div>
                 {% else %}
-                <div class="empty-state"><div class="icon">&#128202;</div><p>No race accuracy comparison available yet</p></div>
+                    <div class="empty-state"><div class="icon">&#128202;</div><p>No {{ 'sprint' if session_info.session_type == 'Sprint' else 'race' }} accuracy comparison available yet</p></div>
                 {% endif %}
             </div>
         </div>
@@ -1614,7 +1614,7 @@
                                 </div>
                                 <div class="item-detail">
                                     {% if s.positions_lost > 0 %}
-                                        Loses {{ s.positions_lost }} pos{{ 's' if s.positions_lost > 1 else '' }}
+                                        Drops {{ s.positions_lost }} place{{ 's' if s.positions_lost > 1 else '' }} after stopping
                                     {% elif s.positions_lost == 0 %}
                                         No positions lost
                                     {% endif %}

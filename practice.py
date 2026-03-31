@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 LONG_RUN_MIN_LAPS = 5          # Minimum laps to count as a long run
 OUTLIER_THRESHOLD_S = 2.5      # Laps this much slower than median are outliers
 FUEL_EFFECT_S_PER_LAP = 0.06   # Typical fuel burn-off pace improvement
+SHORT_RUN_WINDOW_S = 1.5       # Max delta from a driver's best lap to count as short-run pace
 PRACTICE_QUALI_WEIGHTS = {
     "Practice 1": 0.20,
     "Practice 2": 0.30,
@@ -179,6 +180,80 @@ def _projection_driver_display_map(practice_sessions):
     return display_map
 
 
+def _session_result_driver_codes(session):
+    """Return driver codes present in a session's official result table."""
+    if session is None:
+        return []
+
+    try:
+        results = session.results.reset_index()
+    except Exception:
+        return []
+
+    driver_codes = []
+    for _, row in results.iterrows():
+        code = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
+        if code:
+            driver_codes.append(str(code))
+    return driver_codes
+
+
+def _projection_eligible_drivers(practice_sessions):
+    """
+    Prefer the latest available practice field for qualifying projections.
+
+    This avoids overcounting reserve/substitute drivers who appeared in an
+    earlier session but are not part of the current qualifying field.
+    """
+    ordered_sessions = sorted(
+        practice_sessions or [],
+        key=lambda item: PRACTICE_SESSION_ORDER.get(item.get("session_type"), 99),
+        reverse=True,
+    )
+
+    for practice in ordered_sessions:
+        session_drivers = _session_result_driver_codes(practice.get("session"))
+        if session_drivers:
+            return set(session_drivers)
+
+        laps = practice.get("laps")
+        if laps is not None and not getattr(laps, "empty", True) and "Driver" in laps.columns:
+            lap_drivers = [str(driver) for driver in laps["Driver"].dropna().unique()]
+            if lap_drivers:
+                return set(lap_drivers)
+
+    return set()
+
+
+def _select_short_run_laps(driver_laps):
+    """
+    Return representative short-run laps for single-lap metrics.
+
+    Practice sessions contain race sims, cooldowns, and setup work; using all
+    valid laps can distort "Top 3 Avg" and consistency. Keep laps near the
+    driver's quickest effort, preferring the best-lap compound when possible.
+    """
+    valid = _drop_pit_laps(driver_laps.dropna(subset=["LapTime"]).copy())
+    if valid.empty:
+        return valid
+
+    valid["LapTimeS"] = valid["LapTime"].apply(lambda lap: lap.total_seconds())
+    best_idx = valid["LapTimeS"].idxmin()
+    best_time = valid.loc[best_idx, "LapTimeS"]
+    best_compound = valid.loc[best_idx, "Compound"] if "Compound" in valid.columns else None
+
+    candidates = valid[valid["LapTimeS"] <= best_time + SHORT_RUN_WINDOW_S].copy()
+    if candidates.empty:
+        candidates = valid.copy()
+
+    if best_compound is not None and "Compound" in candidates.columns and pd.notna(best_compound):
+        same_compound = candidates[candidates["Compound"] == best_compound]
+        if not same_compound.empty:
+            candidates = same_compound.copy()
+
+    return candidates.sort_values("LapTimeS")
+
+
 # ---------------------------------------------------------------------------
 # Long Run Analysis
 # ---------------------------------------------------------------------------
@@ -260,13 +335,13 @@ def analyze_short_runs(laps):
 
     results = []
     for driver, dlaps in laps.groupby("Driver"):
-        valid = _drop_pit_laps(dlaps.dropna(subset=["LapTime"]).copy())
+        valid = _select_short_run_laps(dlaps)
         if valid.empty:
             continue
 
         team = valid["Team"].iloc[0] if "Team" in valid.columns and pd.notna(valid["Team"].iloc[0]) else "Unknown"
 
-        lap_times = [lt.total_seconds() for lt in valid["LapTime"]]
+        lap_times = valid["LapTimeS"].tolist() if "LapTimeS" in valid.columns else [lt.total_seconds() for lt in valid["LapTime"]]
         cleaned = _clean_lap_times(lap_times)
         if not cleaned:
             continue
@@ -863,6 +938,7 @@ def analyze_qualifying_projection(practice_sessions):
     driver_scores = {}
     sessions_used = []
     driver_display_map = _projection_driver_display_map(practice_sessions)
+    eligible_drivers = _projection_eligible_drivers(practice_sessions)
 
     for practice in practice_sessions:
         session_type = practice.get("session_type")
@@ -925,6 +1001,8 @@ def analyze_qualifying_projection(practice_sessions):
 
     projected = []
     for driver, data in driver_scores.items():
+        if eligible_drivers and driver not in eligible_drivers:
+            continue
         projected.append(
             {
                 "driver": driver,

@@ -82,12 +82,12 @@ def _check_leaderboard(rows, label):
     else:
         checks.append(_make_check(f"{label} gaps", "PASS", "Gap ordering looks sane"))
 
-    if label == "Race":
+    if label in ("Race", "Sprint"):
         absurd_gaps = [gap for gap in numeric_gaps if gap > 1500]
         if absurd_gaps:
-            checks.append(_make_check("Race gap scale", "FAIL", "One or more race gaps are implausibly large"))
+            checks.append(_make_check(f"{label} gap scale", "FAIL", f"One or more {label.lower()} gaps are implausibly large"))
         else:
-            checks.append(_make_check("Race gap scale", "PASS", "Race gaps are within a plausible range"))
+            checks.append(_make_check(f"{label} gap scale", "PASS", f"{label} gaps are within a plausible range"))
 
     laps = [row.get("total_laps") for row in rows if row.get("total_laps") is not None]
     if laps and all(isinstance(lap, int) and lap >= 0 for lap in laps):
@@ -149,12 +149,13 @@ def validate_session(session_category, leaderboard, analysis, session_info=None)
     session_type = (session_info or {}).get("session_type")
 
     if session_category == "race":
-        checks.extend(_check_leaderboard(leaderboard, "Race"))
+        leaderboard_label = "Sprint" if session_type == "Sprint" else "Race"
+        checks.extend(_check_leaderboard(leaderboard, leaderboard_label))
         checks.extend(_check_anomalies(analysis.get("alerts", [])))
         if session_type == "Sprint":
             checks.append(
                 _make_check(
-                    "Race projection accuracy",
+                    "Sprint projection accuracy",
                     "PASS",
                     "Main-race projection accuracy is only evaluated for the grand prix, not the sprint",
                 )

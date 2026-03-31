@@ -12,7 +12,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Live leaderboard** with finishing positions, best laps, and gaps
 - **Tire degradation modeling** â€” linear regression on clean stint laps, classified IMPROVING / STABLE / MODERATE / HIGH / CRITICAL
 - **Pit window prediction** â€” estimates when cumulative tire loss exceeds pit stop cost (OPEN / APPROACHING / CLOSED)
-- **Pit strategy simulator** â€” simulates "what if this driver pits now?", predicts rejoin position, traffic risk, and undercut feasibility (PIT NOW / CONSIDER PIT / STAY OUT / HOLD)
+- **Pit strategy simulator** â€” simulates "what if this driver pits now?", predicts rejoin position, clearer place-loss wording, traffic risk, and undercut feasibility (PIT NOW / CONSIDER PIT / STAY OUT / HOLD)
 - **Battle detection** â€” identifies drivers within 2s, tracks closing rates, classifies intensity (INTENSE / CLOSE / WATCHING) with DRS flags
 - **Overtake predictions** â€” gap-closing rate analysis with estimated laps to DRS range
 - **Anomaly detection** â€” rolling-average pace analysis, severity levels CRITICAL / HIGH / MEDIUM / LOW
@@ -32,9 +32,9 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Tyre strategy breakdown** â€” compounds used per driver, lap counts per compound, best time on each
 
 ### Practice Session Analysis
-- **Single-lap pace ranking** â€” qualifying simulation with best lap, top-3 average, compound, consistency (std dev), and gap to fastest
+- **Single-lap pace ranking** â€” qualifying simulation with best lap, top-3 average from representative short-run laps, compound, consistency (std dev), and gap to fastest
 - **Long run pace** â€” sustained stints (5+ laps) ranked by fuel-corrected average, with first-to-last-lap trend and degradation rate
-- **Projected qualifying order (FP3)** â€” final pre-quali forecast using weighted FP1/FP2/FP3 short-run pace, theoretical best, and sector strength
+- **Projected qualifying order (FP3)** â€” final pre-quali forecast using weighted FP1/FP2/FP3 short-run pace, theoretical best, and sector strength, while filtering to the latest active practice field so reserve-driver sessions do not inflate counts
 - **Race pace prediction** â€” estimated race-day order from fuel-corrected long run aggregation
 - **Compound comparison** â€” best/avg/median pace per tyre type, driver and lap counts
 - **Tyre degradation curves** â€” per-compound degradation slope aggregated across stints (STABLE / LOW / MODERATE / HIGH)
@@ -52,6 +52,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **F1-style lap-time formatting** â€” lap and pace times are shown as `M:SS.mmm` instead of raw seconds
 - **Ordered projection inputs** â€” projection cards list sessions in weekend order (FP1 â†’ FP2 â†’ FP3, then Qualifying where applicable)
 - **Readable projection explanations** â€” projection cards show plain-language reasons and clearer driver labels instead of raw shorthand where possible
+- **Session-aware wording** â€” sprint-specific panels and validation checks now say "Sprint" where appropriate instead of reusing race labels
 - **Background warmup for manual round loads** â€” explicit year/round/session searches warm in the background first so cold session fetches are less likely to fail on first load
 - **Session data-quality audit** â€” every session now shows pass/warn/fail validation checks over official tables and derived modules
   Main-race projection accuracy is treated as race-only, so sprint sessions no longer show a misleading warning for that check.
@@ -165,9 +166,9 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 ### `practice.py` â€” Practice Intelligence (12 modules)
 | Module | Algorithm |
 |--------|-----------|
-| Short Run Pace | Best lap per driver with top-3 average, consistency (std dev), compound |
+| Short Run Pace | Best lap per driver with top-3 average and consistency calculated from representative short-run laps near each driver's quickest effort, plus compound |
 | Long Run Pace | Stints of 5+ clean laps with pit-in/pit-out laps excluded, fuel-corrected average (0.06s/lap fuel effect), linear regression for degradation slope |
-| Projected Qualifying Order | FP3-only projection that blends weighted FP1/FP2/FP3 short-run positions, gap-to-best, consistency, theoretical-best ranking, and sector ranking to estimate the likely qualifying order |
+| Projected Qualifying Order | FP3-only projection that blends weighted FP1/FP2/FP3 short-run positions, gap-to-best, consistency, theoretical-best ranking, and sector ranking to estimate the likely qualifying order, limited to the latest active practice field so earlier reserve-driver appearances do not overcount the grid |
 | Race Pace Prediction | Aggregates fuel-corrected long run data per driver from clean stints only to predict race-day pace order |
 | Compound Comparison | Best/avg/median pace per tyre type across all drivers |
 | Tyre Deg Curves | Per-compound degradation slope aggregated across multiple stints, classified STABLE/LOW/MODERATE/HIGH |
