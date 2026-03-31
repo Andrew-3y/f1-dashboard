@@ -163,21 +163,23 @@ def validate_session(session_category, leaderboard, analysis, session_info=None)
         else:
             checks.extend(_check_accuracy_block(analysis.get("race_projection_accuracy", {}), "Race projection accuracy"))
     elif session_category == "qualifying":
+        label = "Sprint Shootout" if session_type == "Sprint Shootout" else "Qualifying"
         sectors = analysis.get("quali_analysis", {}).get("sectors", [])
         if sectors:
             if _is_sequential_positions(sectors):
-                checks.append(_make_check("Qualifying positions", "PASS", "Positions are sequential"))
+                checks.append(_make_check(f"{label} positions", "PASS", "Positions are sequential"))
             else:
-                checks.append(_make_check("Qualifying positions", "FAIL", "Positions are not sequential"))
+                checks.append(_make_check(f"{label} positions", "FAIL", "Positions are not sequential"))
 
             lap_values = [row.get("best_lap_s") for row in sectors]
             if lap_values and all(value is not None and value > 0 for value in lap_values):
-                checks.append(_make_check("Qualifying lap values", "PASS", "Official best-lap values look valid"))
+                checks.append(_make_check(f"{label} lap values", "PASS", "Official best-lap values look valid"))
             else:
-                checks.append(_make_check("Qualifying lap values", "WARN", "One or more official best-lap values are missing"))
+                checks.append(_make_check(f"{label} lap values", "WARN", "One or more official best-lap values are missing"))
         else:
-            checks.append(_make_check("Qualifying leaderboard", "FAIL", "No rows available"))
-        checks.extend(_check_accuracy_block(analysis.get("quali_summary", {}).get("qualifying_projection_accuracy", {}), "FP3 projection accuracy"))
+            checks.append(_make_check(f"{label} leaderboard", "FAIL", "No rows available"))
+        accuracy_label = "Sprint projection accuracy" if session_type == "Sprint Shootout" else "FP3 projection accuracy"
+        checks.extend(_check_accuracy_block(analysis.get("quali_summary", {}).get("qualifying_projection_accuracy", {}), accuracy_label))
     elif session_category == "practice":
         checks.extend(_check_leaderboard(leaderboard, "Practice"))
         short_runs = analysis.get("practice_analysis", {}).get("short_runs", [])

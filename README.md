@@ -1,6 +1,6 @@
 ﻿# F1 Strategy Intelligence Dashboard
 
-A comprehensive, free Formula 1 analytics platform that delivers session-specific intelligence for **races**, **qualifying**, and **practice sessions**. Fetches real timing data via FastF1 and transforms it into actionable insights â€” whether you're watching live or catching up on a session you missed.
+A comprehensive, free Formula 1 analytics platform that delivers session-specific intelligence for **races**, **qualifying**, **sprint qualifying**, and **practice sessions**. Fetches real timing data via FastF1 and transforms it into actionable insights â€” whether you're watching live or catching up on a session you missed.
 
 **Architecture:** On-demand, zero-cost. The app sleeps on Render's free tier and wakes on request. No always-running server, no paid services, no database.
 
@@ -31,6 +31,13 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Track evolution** â€” how the circuit got faster through the session in 4 phases (Early / Mid-Early / Mid-Late / Late)
 - **Tyre strategy breakdown** â€” compounds used per driver, lap counts per compound, best time on each
 
+### Sprint Qualifying Analysis
+- **Dedicated Sprint Shootout page** â€” sprint weekends now have their own qualifying-style page instead of jumping straight from FP1 to the sprint race
+- **Full sprint shootout classification** â€” official SQ result with sector breakdown and compound on the best lap
+- **SQ1 / SQ2 / SQ3 elimination tracking** â€” same qualifying detail, but labeled correctly for sprint weekends
+- **Projected sprint finish** â€” sprint-specific forecast weighted more heavily toward shootout position, with available practice pace as supporting context
+- **Sprint projection accuracy** â€” once the sprint is complete, compares the sprint-shootout-page projection against the official sprint result
+
 ### Practice Session Analysis
 - **Single-lap pace ranking** â€” qualifying simulation with best lap, top-3 average from representative short-run laps, compound, consistency (std dev), and gap to fastest
 - **Long run pace** â€” sustained stints (5+ laps) ranked by fuel-corrected average, with first-to-last-lap trend and degradation rate
@@ -46,8 +53,8 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Driver programme summary** â€” total laps, stint count, long-run vs short-run split, time on track, compounds used
 
 ### Navigation & UI
-- **Weekend navigation bar** â€” one-click switching between FP1, FP2, FP3, Qualifying, Sprint, and Race for the current round
-- **Session selector** â€” manual year/round/session picker for historical data (supports all session types)
+- **Weekend navigation bar** â€” one-click switching between FP1, FP2, FP3, Qualifying, Sprint Qualifying, Sprint, and Race for the current round
+- **Session selector** â€” manual year/round/session picker for historical data (supports all session types, including Sprint Shootout)
 - **Auto-refresh** â€” configurable: OFF / Live (30s) / Session (60s) / Casual (5min), persists across reloads
 - **F1-style lap-time formatting** â€” lap and pace times are shown as `M:SS.mmm` instead of raw seconds
 - **Ordered projection inputs** â€” projection cards list sessions in weekend order (FP1 â†’ FP2 â†’ FP3, then Qualifying where applicable)
@@ -152,6 +159,7 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Module | Algorithm |
 |--------|-----------|
 | Projected Race Finish | Aggregates available practice race-pace rankings, blends them with qualifying grid position, theoretical-best underperformance, session improvement, and tyre usage hints to estimate a projected finishing order for the race |
+| Projected Sprint Finish | Uses sprint-shootout position as the strongest signal, then blends in available practice pace and qualifying-form clues to estimate the sprint finishing order |
 
 ### `prediction_accuracy.py` â€” Projection Accuracy
 | Module | Algorithm |
@@ -219,6 +227,7 @@ Open `http://localhost:5000`. The dashboard auto-detects the latest completed F1
 http://localhost:5000/?year=2024&round=24&session_type=Race
 http://localhost:5000/?year=2024&round=24&session_type=Qualifying
 http://localhost:5000/?year=2024&round=24&session_type=Practice+1
+http://localhost:5000/?year=2024&round=21&session_type=Sprint+Shootout
 ```
 
 Or use the **Weekend Navigation Bar** to switch between sessions with one click.
@@ -346,3 +355,8 @@ git push origin main
 
 > **F1 Strategy Intelligence Dashboard** â€” A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 28+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, projection accuracy benchmarking against official results, race pace prediction from fuel-corrected long run data, and tyre degradation curves per compound. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
 
+### Sprint Shootout Workflow
+1. Open the **Sprint Shootout** session on a sprint weekend
+2. Start with **Projected Sprint Finish** for the pre-sprint outlook
+3. Use the **Elimination Tracker** and **Close Calls** for SQ1/SQ2/SQ3 context
+4. After the sprint is complete, check **Sprint Projection Accuracy**

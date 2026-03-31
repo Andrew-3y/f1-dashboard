@@ -150,54 +150,53 @@ def _build_maps(quali_analysis):
     return theoretical, improvement, tyre_usage
 
 
-def project_race_finish(quali_analysis, practice_sessions=None, session=None):
-    """
-    Build an ordered pre-race finish projection.
+def _empty_finish_projection():
+    return {
+        "projected_finish": [],
+        "summary": {
+            "predicted_winner": "-",
+            "biggest_riser": "-",
+            "confidence": "LOW",
+            "practice_sessions_used": [],
+            "has_practice_pace": False,
+        },
+    }
 
-    Returns a dict with:
-      projected_finish: ordered list of projected results
-      summary: header-level stats about the projection
-    """
+
+def _project_finish(quali_analysis, practice_sessions=None, session=None, *, target_session="Race"):
+    """Build an ordered projected finish for either the race or the sprint."""
     sectors = quali_analysis.get("sectors", [])
     if not sectors:
-        return {
-            "projected_finish": [],
-            "summary": {
-                "predicted_winner": "-",
-                "biggest_riser": "-",
-                "confidence": "LOW",
-                "practice_sessions_used": [],
-                "has_practice_pace": False,
-            },
-        }
+        return _empty_finish_projection()
 
     practice_pace = _aggregate_practice_race_pace(practice_sessions or [])
     driver_display_map = _projection_driver_display_map(session)
     theoretical_map, improvement_map, tyre_usage_map = _build_maps(quali_analysis)
+    is_sprint = str(target_session).lower() == "sprint"
 
     projected = []
     for grid_row in sectors:
         driver = grid_row["driver"]
-        score = grid_row["position"] * 0.55
+        score = grid_row["position"] * (0.72 if is_sprint else 0.55)
         reasons = [f"Qualifying position: P{grid_row['position']}"]
 
         pace_row = practice_pace.get(driver)
         if pace_row:
-            score += pace_row["position"] * 0.35
+            score += pace_row["position"] * (0.18 if is_sprint else 0.35)
             reasons.append(f"Weekend race pace rank: P{pace_row['position']}")
             if pace_row["gap_to_best"] <= 0.15:
-                score -= 0.2
+                score -= 0.12 if is_sprint else 0.2
             elif pace_row["gap_to_best"] >= 0.6:
-                score += 0.35
+                score += 0.18 if is_sprint else 0.35
         else:
             reasons.append("No clear long-run pace sample")
-            score += grid_row["position"] * 0.10
+            score += grid_row["position"] * (0.04 if is_sprint else 0.10)
 
         theory_row = theoretical_map.get(driver)
         if theory_row:
-            score += theory_row["theoretical_position"] * 0.10
+            score += theory_row["theoretical_position"] * (0.07 if is_sprint else 0.10)
             if theory_row["time_lost_s"] >= 0.2:
-                score -= 0.15
+                score -= 0.08 if is_sprint else 0.15
                 reasons.append(f"Theoretical qualifying lap left {theory_row['time_lost_s']:.3f}s on the table")
             else:
                 reasons.append(f"Theoretical qualifying rank: P{theory_row['theoretical_position']}")
@@ -205,11 +204,11 @@ def project_race_finish(quali_analysis, practice_sessions=None, session=None):
         improvement_row = improvement_map.get(driver)
         if improvement_row:
             if improvement_row["improvement_s"] >= 0.45:
-                score -= 0.1
+                score -= 0.04 if is_sprint else 0.1
             reasons.append(f"Built {improvement_row['improvement_s']:.3f}s through qualifying runs")
 
         tyre_row = tyre_usage_map.get(driver)
-        if tyre_row and tyre_row.get("best_compound") == "MEDIUM":
+        if not is_sprint and tyre_row and tyre_row.get("best_compound") == "MEDIUM":
             reasons.append("Best qualifying lap came on medium tyres")
 
         projected.append(
@@ -247,7 +246,7 @@ def project_race_finish(quali_analysis, practice_sessions=None, session=None):
         for row in projected
         for session_name in row.get("practice_sessions_used", [])
     )
-    confidence = "MEDIUM" if practice_sessions_used else "LOW"
+    confidence = "MEDIUM" if practice_sessions_used else ("MEDIUM" if is_sprint else "LOW")
 
     risers = [row for row in projected if row["position_change"] > 0]
     biggest_riser = max(risers, key=lambda x: x["position_change"])["driver"] if risers else None
@@ -264,7 +263,14 @@ def project_race_finish(quali_analysis, practice_sessions=None, session=None):
         "has_practice_pace": bool(practice_sessions_used),
     }
 
-    return {
-        "projected_finish": projected,
-        "summary": summary,
-    }
+    return {"projected_finish": projected, "summary": summary}
+
+
+def project_race_finish(quali_analysis, practice_sessions=None, session=None):
+    """Build an ordered pre-race finish projection."""
+    return _project_finish(quali_analysis, practice_sessions=practice_sessions, session=session, target_session="Race")
+
+
+def project_sprint_finish(quali_analysis, practice_sessions=None, session=None):
+    """Build an ordered pre-sprint finish projection from sprint-shootout context."""
+    return _project_finish(quali_analysis, practice_sessions=practice_sessions, session=session, target_session="Sprint")

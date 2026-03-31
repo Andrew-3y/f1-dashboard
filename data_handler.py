@@ -195,6 +195,7 @@ def load_session(year, round_number, session_type):
     session_map = {
         "Race": "R",
         "Qualifying": "Q",
+        "Sprint Shootout": "SQ",
         "Sprint": "S",
         "Practice": "FP1",
         "Practice 1": "FP1",
@@ -363,7 +364,7 @@ def build_leaderboard(laps, session_type="Race", session=None):
 
     if is_race:
         return _build_race_leaderboard(session, laps)
-    elif session_type.lower() == "qualifying":
+    elif session_type.lower() in ("qualifying", "sprint shootout"):
         return _build_quali_leaderboard(session, laps)
     else:
         return _build_practice_leaderboard(laps)

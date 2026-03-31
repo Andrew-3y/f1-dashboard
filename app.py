@@ -42,7 +42,7 @@ from strategy import simulate_strategies, get_strategy_summary
 from battle_detector import detect_battles, get_battle_summary
 from qualifying import analyze_qualifying, get_qualifying_summary
 from practice import analyze_practice, get_practice_summary, analyze_qualifying_projection
-from race_projection import project_race_finish
+from race_projection import project_race_finish, project_sprint_finish
 from prediction_accuracy import compare_predictions, empty_accuracy
 from validation import validate_session, empty_validation
 
@@ -273,7 +273,7 @@ def _session_category(session_type):
     st = session_type.lower()
     if st in ("race", "sprint"):
         return "race"
-    elif st in ("qualifying",):
+    elif st in ("qualifying", "sprint shootout"):
         return "qualifying"
     elif st.startswith("practice") or st.startswith("fp") or st in ("practice 1", "practice 2", "practice 3"):
         return "practice"
@@ -466,6 +466,53 @@ def _build_quali_projection_accuracy(session_info, session):
     )
 
 
+def _build_sprint_projection_accuracy(session_info):
+    """Compare the sprint-shootout page projection against the official sprint result."""
+    if not session_info or session_info.get("session_type") != "Sprint Shootout":
+        return empty_accuracy()
+
+    try:
+        shootout_session, shootout_laps = load_session(
+            session_info["year"],
+            session_info["round_number"],
+            "Sprint Shootout",
+        )
+        sprint_session, _ = load_session(
+            session_info["year"],
+            session_info["round_number"],
+            "Sprint",
+        )
+    except Exception as exc:
+        logger.info("Skipping sprint projection accuracy: %s", exc)
+        return empty_accuracy()
+
+    if shootout_laps is None or shootout_laps.empty:
+        return empty_accuracy()
+
+    actual_rows = _official_session_accuracy_rows(sprint_session, "Sprint")
+    if not actual_rows:
+        return empty_accuracy()
+
+    shootout_analysis = analyze_qualifying(shootout_laps, session=shootout_session)
+    practice_sessions = _load_practice_context(
+        {
+            "year": session_info["year"],
+            "round_number": session_info["round_number"],
+            "session_type": "Sprint Shootout",
+        }
+    )
+    projection = project_sprint_finish(
+        shootout_analysis,
+        practice_sessions=practice_sessions,
+        session=shootout_session,
+    )
+
+    return compare_predictions(
+        projection.get("projected_finish", []),
+        actual_rows,
+    )
+
+
 def _build_race_projection_accuracy(session_info, session, actual_rows):
     """Compare the qualifying-page race projection with the official race result."""
     if not session_info or session_info.get("session_type") != "Race":
@@ -529,6 +576,8 @@ def _empty_projection():
 
 def _run_qualifying_analysis(laps, session=None, session_info=None, leaderboard=None):
     """Run qualifying-specific analysis modules."""
+    session_type = (session_info or {}).get("session_type")
+    is_sprint_shootout = session_type == "Sprint Shootout"
     try:
         quali_analysis = analyze_qualifying(laps, session=session)
         quali_summary = get_qualifying_summary(quali_analysis)
@@ -551,18 +600,24 @@ def _run_qualifying_analysis(laps, session=None, session_info=None, leaderboard=
         practice_sessions = []
 
     try:
-        projection = project_race_finish(quali_analysis, practice_sessions=practice_sessions, session=session)
+        if is_sprint_shootout:
+            projection = project_sprint_finish(quali_analysis, practice_sessions=practice_sessions, session=session)
+        else:
+            projection = project_race_finish(quali_analysis, practice_sessions=practice_sessions, session=session)
     except Exception as exc:
-        logger.warning("Race projection failed: %s", exc)
+        logger.warning("%s projection failed: %s", "Sprint" if is_sprint_shootout else "Race", exc)
         projection = _empty_projection()
 
     try:
-        qualifying_projection_accuracy = _build_quali_projection_accuracy(
-            session_info,
-            session,
-        )
+        if is_sprint_shootout:
+            qualifying_projection_accuracy = _build_sprint_projection_accuracy(session_info)
+        else:
+            qualifying_projection_accuracy = _build_quali_projection_accuracy(
+                session_info,
+                session,
+            )
     except Exception as exc:
-        logger.warning("Qualifying projection accuracy failed: %s", exc)
+        logger.warning("%s projection accuracy failed: %s", "Sprint" if is_sprint_shootout else "Qualifying", exc)
         qualifying_projection_accuracy = empty_accuracy()
 
     quali_analysis["race_projection"] = projection["projected_finish"]

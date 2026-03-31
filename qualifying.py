@@ -23,6 +23,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+QUALI_PHASES = (
+    ("Q1", "SQ1"),
+    ("Q2", "SQ2"),
+    ("Q3", "SQ3"),
+)
+
 
 def _valid_quali_laps(laps):
     """Return laps that are safe to use for qualifying timing analysis."""
@@ -63,10 +69,19 @@ def _session_results_rows(session):
 
 def _official_best_td(result_row):
     """Return the driver's official best lap from the relevant qualifying phase."""
-    for col in ("Q3", "Q2", "Q1"):
-        if col in result_row and pd.notna(result_row[col]):
-            return result_row[col]
+    for aliases in reversed(QUALI_PHASES):
+        for col in aliases:
+            if col in result_row and pd.notna(result_row[col]):
+                return result_row[col]
     return pd.NaT
+
+
+def _phase_column(official_rows, *aliases):
+    """Return the first matching phase column present in official results."""
+    for alias in aliases:
+        if alias in official_rows.columns:
+            return alias
+    return None
 
 
 def _lap_count_map(laps):
@@ -261,33 +276,37 @@ def analyze_elimination(laps, session=None):
     official_rows = _session_results_rows(session)
     lap_counts = _lap_count_map(laps)
 
-    if not official_rows.empty and "Q1" in official_rows.columns:
+    q1_col = _phase_column(official_rows, "Q1", "SQ1") if not official_rows.empty else None
+    q2_col = _phase_column(official_rows, "Q2", "SQ2") if not official_rows.empty else None
+    q3_col = _phase_column(official_rows, "Q3", "SQ3") if not official_rows.empty else None
+
+    if not official_rows.empty and q1_col:
         q1_bests = [
             {
                 "driver": row["Abbreviation"],
                 "team": row["TeamName"],
-                "best_lap_s": round(row["Q1"].total_seconds(), 3),
+                "best_lap_s": round(row[q1_col].total_seconds(), 3),
                 "total_laps": lap_counts.get(row["Abbreviation"], 0),
             }
-            for _, row in official_rows.iterrows() if pd.notna(row.get("Q1"))
+            for _, row in official_rows.iterrows() if pd.notna(row.get(q1_col))
         ]
         q2_bests = [
             {
                 "driver": row["Abbreviation"],
                 "team": row["TeamName"],
-                "best_lap_s": round(row["Q2"].total_seconds(), 3),
+                "best_lap_s": round(row[q2_col].total_seconds(), 3),
                 "total_laps": lap_counts.get(row["Abbreviation"], 0),
             }
-            for _, row in official_rows.iterrows() if pd.notna(row.get("Q2"))
+            for _, row in official_rows.iterrows() if q2_col and pd.notna(row.get(q2_col))
         ]
         q3_bests = [
             {
                 "driver": row["Abbreviation"],
                 "team": row["TeamName"],
-                "best_lap_s": round(row["Q3"].total_seconds(), 3),
+                "best_lap_s": round(row[q3_col].total_seconds(), 3),
                 "total_laps": lap_counts.get(row["Abbreviation"], 0),
             }
-            for _, row in official_rows.iterrows() if pd.notna(row.get("Q3"))
+            for _, row in official_rows.iterrows() if q3_col and pd.notna(row.get(q3_col))
         ]
     else:
         split = _split_quali_sessions(laps)
@@ -654,18 +673,21 @@ def analyze_close_calls(laps, session=None):
         return []
 
     official_rows = _session_results_rows(session)
-    if not official_rows.empty and "Q1" in official_rows.columns:
+    q1_col = _phase_column(official_rows, "Q1", "SQ1") if not official_rows.empty else None
+    q2_col = _phase_column(official_rows, "Q2", "SQ2") if not official_rows.empty else None
+
+    if not official_rows.empty and q1_col:
         q1_bests = sorted(
             [
-                {"driver": row["Abbreviation"], "team": row["TeamName"], "best_lap_s": round(row["Q1"].total_seconds(), 3)}
-                for _, row in official_rows.iterrows() if pd.notna(row.get("Q1"))
+                {"driver": row["Abbreviation"], "team": row["TeamName"], "best_lap_s": round(row[q1_col].total_seconds(), 3)}
+                for _, row in official_rows.iterrows() if pd.notna(row.get(q1_col))
             ],
             key=lambda x: x["best_lap_s"]
         )
         q2_bests = sorted(
             [
-                {"driver": row["Abbreviation"], "team": row["TeamName"], "best_lap_s": round(row["Q2"].total_seconds(), 3)}
-                for _, row in official_rows.iterrows() if pd.notna(row.get("Q2"))
+                {"driver": row["Abbreviation"], "team": row["TeamName"], "best_lap_s": round(row[q2_col].total_seconds(), 3)}
+                for _, row in official_rows.iterrows() if q2_col and pd.notna(row.get(q2_col))
             ],
             key=lambda x: x["best_lap_s"]
         )

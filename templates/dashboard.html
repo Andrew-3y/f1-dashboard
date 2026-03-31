@@ -383,6 +383,8 @@
            href="/?year={{ y }}&round={{ r }}&session_type=Practice+3">FP3</a>
         <a class="weekend-nav-btn {% if current == 'Qualifying' %}active{% endif %}"
            href="/?year={{ y }}&round={{ r }}&session_type=Qualifying">Qualifying</a>
+        <a class="weekend-nav-btn {% if current == 'Sprint Shootout' %}active{% endif %}"
+           href="/?year={{ y }}&round={{ r }}&session_type=Sprint+Shootout">Sprint Qualifying</a>
         <a class="weekend-nav-btn {% if current == 'Sprint' %}active{% endif %}"
            href="/?year={{ y }}&round={{ r }}&session_type=Sprint">Sprint</a>
         <a class="weekend-nav-btn {% if current == 'Race' %}active{% endif %}"
@@ -400,6 +402,7 @@
         <select id="sessionType">
             <option value="Race" {% if session_info and session_info.session_type == 'Race' %}selected{% endif %}>Race</option>
             <option value="Qualifying" {% if session_info and session_info.session_type == 'Qualifying' %}selected{% endif %}>Qualifying</option>
+            <option value="Sprint Shootout" {% if session_info and session_info.session_type == 'Sprint Shootout' %}selected{% endif %}>Sprint Qualifying</option>
             <option value="Sprint" {% if session_info and session_info.session_type == 'Sprint' %}selected{% endif %}>Sprint</option>
             <option value="Practice 1" {% if session_info and session_info.session_type in ('Practice 1', 'Practice') %}selected{% endif %}>Practice 1</option>
             <option value="Practice 2" {% if session_info and session_info.session_type == 'Practice 2' %}selected{% endif %}>Practice 2</option>
@@ -482,16 +485,22 @@
         <!-- QUALIFYING VIEW                                                  -->
         <!-- ################################################################ -->
         {% if session_category == 'qualifying' %}
+        {% set is_sprint_shootout = session_info and session_info.session_type == 'Sprint Shootout' %}
+        {% set session_label = 'Sprint Shootout' if is_sprint_shootout else 'Qualifying' %}
+        {% set finish_label = 'Sprint' if is_sprint_shootout else 'Race' %}
+        {% set stage_1 = 'SQ1' if is_sprint_shootout else 'Q1' %}
+        {% set stage_2 = 'SQ2' if is_sprint_shootout else 'Q2' %}
+        {% set stage_3 = 'SQ3' if is_sprint_shootout else 'Q3' %}
 
         <!-- QUALIFYING STATS ROW -->
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-value">{{ quali_summary.pole_driver|default('—') }}</div>
-                <div class="stat-label">Pole Position</div>
+                <div class="stat-label">{{ 'Sprint Pole' if is_sprint_shootout else 'Pole Position' }}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-green);">{% if quali_summary.pole_time %}{{ quali_summary.pole_time|lapfmt }}{% else %}—{% endif %}</div>
-                <div class="stat-label">Pole Time</div>
+                <div class="stat-label">{{ 'Sprint Pole Time' if is_sprint_shootout else 'Pole Time' }}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-orange);">{% if quali_summary.closest_margin %}+{{ quali_summary.closest_margin }}s{% else %}—{% endif %}</div>
@@ -507,15 +516,15 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-purple);">{% if quali_summary.theoretical_pole_delta %}+{{ quali_summary.theoretical_pole_delta }}s{% else %}—{% endif %}</div>
-                <div class="stat-label">Pole vs Theoretical</div>
+                <div class="stat-label">{{ 'Sprint Pole vs Theoretical' if is_sprint_shootout else 'Pole vs Theoretical' }}</div>
             </div>
         </div>
 
-        <!-- PROJECTED RACE FINISH -->
+        <!-- PROJECTED FINISH -->
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
                 <h2>
-                    Projected Race Finish
+                    Projected {{ finish_label }} Finish
                     <span class="badge badge-cyan">{{ quali_analysis.race_projection|length }}</span>
                     <span class="badge {% if quali_summary.race_projection.confidence == 'MEDIUM' %}badge-green{% else %}badge-orange{% endif %}">
                         {{ quali_summary.race_projection.confidence|default('LOW') }}
@@ -525,13 +534,13 @@
             <div class="card-body" style="max-height:420px;">
                 {% if quali_analysis.race_projection %}
                 <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-                    <div class="tag tag-HIGH">Winner: {{ quali_summary.race_projection.predicted_winner|default('-') }}</div>
+                    <div class="tag tag-HIGH">{{ finish_label }} Winner: {{ quali_summary.race_projection.predicted_winner|default('-') }}</div>
                     <div class="tag tag-MEDIUM">Biggest Riser: {{ quali_summary.race_projection.biggest_riser|default('-') }}</div>
                     <div class="tag tag-INFO">
                         {% if quali_summary.race_projection.practice_sessions_used %}
-                            Inputs: {{ quali_summary.race_projection.practice_sessions_used|join(', ') }} + Qualifying
+                            Inputs: {{ quali_summary.race_projection.practice_sessions_used|join(', ') }} + {{ session_label }}
                         {% else %}
-                            Inputs: Qualifying only
+                            Inputs: {{ session_label }} only
                         {% endif %}
                     </div>
                 </div>
@@ -559,10 +568,10 @@
                     </tbody>
                 </table>
                 <div class="item-detail" style="margin-top:0.8rem;">
-                    Projection is weighted toward starting position and practice long-run pace when available. It is a pre-race forecast, not a final result.
+                    Projection is weighted toward starting position and available practice pace. It is a pre-{{ finish_label|lower }} forecast, not a final result.
                 </div>
                 {% else %}
-                <div class="empty-state"><div class="icon">&#128200;</div><p>No pre-race projection available</p></div>
+                <div class="empty-state"><div class="icon">&#128200;</div><p>No pre-{{ finish_label|lower }} projection available</p></div>
                 {% endif %}
             </div>
         </div>
@@ -570,7 +579,7 @@
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
                 <h2>
-                    FP3 Projection Accuracy
+                    {{ 'Sprint Projection Accuracy' if is_sprint_shootout else 'FP3 Projection Accuracy' }}
                     <span class="badge badge-cyan">{{ quali_summary.qualifying_projection_accuracy.compared_drivers|default(0) }}</span>
                     <span class="badge {% if quali_summary.qualifying_projection_accuracy.rating == 'STRONG' %}badge-green{% elif quali_summary.qualifying_projection_accuracy.rating == 'SOLID' %}badge-yellow{% else %}badge-orange{% endif %}">
                         {{ quali_summary.qualifying_projection_accuracy.rating|default('N/A') }}
@@ -580,7 +589,7 @@
             <div class="card-body" style="max-height:340px;">
                 {% if quali_summary.qualifying_projection_accuracy.available %}
                 <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-                    <div class="tag tag-HIGH">Pole Call: {{ 'HIT' if quali_summary.qualifying_projection_accuracy.leader_hit else 'MISS' }}</div>
+                    <div class="tag tag-HIGH">{{ 'Sprint Pole Call' if is_sprint_shootout else 'Pole Call' }}: {{ 'HIT' if quali_summary.qualifying_projection_accuracy.leader_hit else 'MISS' }}</div>
                     <div class="tag tag-MEDIUM">Exact: {{ quali_summary.qualifying_projection_accuracy.exact_matches }}/{{ quali_summary.qualifying_projection_accuracy.compared_drivers }} ({{ quali_summary.qualifying_projection_accuracy.exact_match_pct }}%)</div>
                     <div class="tag tag-INFO">Avg Error: {{ quali_summary.qualifying_projection_accuracy.mean_abs_error }} places</div>
                     <div class="tag tag-INFO">Top 10: {{ quali_summary.qualifying_projection_accuracy.top_10_hits }}/{{ quali_summary.qualifying_projection_accuracy.top_10_total }}</div>
@@ -605,10 +614,14 @@
                     </tbody>
                 </table>
                 <div class="item-detail" style="margin-top:0.8rem;">
+                    {% if is_sprint_shootout %}
+                    Compared against the official sprint classification using the pre-sprint projection built from sprint shootout plus available practice context.
+                    {% else %}
                     Compared against the official qualifying classification for this session. Only drivers present in both the FP3 projection and the final qualifying result are scored.
+                    {% endif %}
                 </div>
                 {% else %}
-                <div class="empty-state"><div class="icon">&#128202;</div><p>No qualifying accuracy comparison available yet</p></div>
+                <div class="empty-state"><div class="icon">&#128202;</div><p>No {{ 'sprint' if is_sprint_shootout else 'qualifying' }} accuracy comparison available yet</p></div>
                 {% endif %}
             </div>
         </div>
@@ -616,7 +629,7 @@
         <!-- QUALIFYING LEADERBOARD WITH SECTORS -->
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
-                <h2>Official Qualifying Classification <span class="badge">{{ quali_analysis.sectors|length }}</span></h2>
+                <h2>Official {{ session_label }} Classification <span class="badge">{{ quali_analysis.sectors|length }}</span></h2>
             </div>
             <div class="card-body" style="max-height:480px;">
                 {% if quali_analysis.sectors %}
@@ -647,7 +660,7 @@
                     </tbody>
                 </table>
                 {% else %}
-                <div class="empty-state"><div class="icon">&#127937;</div><p>No qualifying data</p></div>
+                <div class="empty-state"><div class="icon">&#127937;</div><p>No {{ session_label|lower }} data</p></div>
                 {% endif %}
             </div>
         </div>
@@ -660,15 +673,15 @@
             <div class="card">
                 <div class="card-header">
                     <h2>Elimination Tracker
-                        <span class="badge badge-green">Q3: {{ quali_analysis.elimination.q3_drivers|length }}</span>
-                        <span class="badge badge-orange">Q2: {{ quali_analysis.elimination.q2_eliminated|length }}</span>
-                        <span class="badge">Q1: {{ quali_analysis.elimination.q1_eliminated|length }}</span>
+                        <span class="badge badge-green">{{ stage_3 }}: {{ quali_analysis.elimination.q3_drivers|length }}</span>
+                        <span class="badge badge-orange">{{ stage_2 }}: {{ quali_analysis.elimination.q2_eliminated|length }}</span>
+                        <span class="badge">{{ stage_1 }}: {{ quali_analysis.elimination.q1_eliminated|length }}</span>
                     </h2>
                 </div>
                 <div class="card-body">
                     {% for d in quali_analysis.elimination.q3_drivers %}
                     <div class="list-item">
-                        <div class="tag tag-Q3">Q3</div>
+                        <div class="tag tag-Q3">{{ stage_3 }}</div>
                         <div class="item-content">
                             <div class="item-title">P{{ loop.index }} {{ d.driver }}</div>
                             <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s|lapfmt }} &middot; {{ d.total_laps }} laps</div>
@@ -677,19 +690,19 @@
                     {% endfor %}
                     {% for d in quali_analysis.elimination.q2_eliminated %}
                     <div class="list-item">
-                        <div class="tag tag-Q2">Q2</div>
+                        <div class="tag tag-Q2">{{ stage_2 }}</div>
                         <div class="item-content">
                             <div class="item-title">{{ d.driver }} <span style="color:var(--accent-orange);font-size:0.75rem;">eliminated</span></div>
-                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s|lapfmt }} &middot; +{{ d.gap_to_cutoff }}s from Q3</div>
+                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s|lapfmt }} &middot; +{{ d.gap_to_cutoff }}s from {{ stage_3 }}</div>
                         </div>
                     </div>
                     {% endfor %}
                     {% for d in quali_analysis.elimination.q1_eliminated %}
                     <div class="list-item">
-                        <div class="tag tag-Q1">Q1</div>
+                        <div class="tag tag-Q1">{{ stage_1 }}</div>
                         <div class="item-content">
                             <div class="item-title">{{ d.driver }} <span style="color:var(--accent-red);font-size:0.75rem;">eliminated</span></div>
-                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s|lapfmt }} &middot; +{{ d.gap_to_cutoff }}s from Q2</div>
+                            <div class="item-detail">{{ d.team }} &middot; {{ d.best_lap_s|lapfmt }} &middot; +{{ d.gap_to_cutoff }}s from {{ stage_2 }}</div>
                         </div>
                     </div>
                     {% endfor %}
@@ -708,7 +721,7 @@
                     {% if quali_analysis.close_calls %}
                         {% for cc in quali_analysis.close_calls %}
                         <div class="list-item">
-                            <div class="tag tag-HIGH" style="min-width:68px;">{{ cc.cutoff }}</div>
+                            <div class="tag tag-HIGH" style="min-width:68px;">{{ cc.cutoff|replace('Q1', stage_1)|replace('Q2', stage_2)|replace('Q3', stage_3) }}</div>
                             <div class="item-content">
                                 <div class="item-title">
                                     {{ cc.last_safe }} <span style="color:var(--accent-green);font-size:0.75rem;">SAFE</span>
