@@ -405,8 +405,8 @@
             <option value="Practice 3" {% if session_info and session_info.session_type == 'Practice 3' %}selected{% endif %}>Practice 3</option>
             <option value="Sprint Shootout" {% if session_info and session_info.session_type == 'Sprint Shootout' %}selected{% endif %}>Sprint Qualifying</option>
             <option value="Sprint" {% if session_info and session_info.session_type == 'Sprint' %}selected{% endif %}>Sprint</option>
-            <option value="Race" {% if session_info and session_info.session_type == 'Race' %}selected{% endif %}>Race</option>
             <option value="Qualifying" {% if session_info and session_info.session_type == 'Qualifying' %}selected{% endif %}>Qualifying</option>
+            <option value="Race" {% if session_info and session_info.session_type == 'Race' %}selected{% endif %}>Race</option>
         </select>
         <button onclick="loadCustomSession()">Load</button>
         <button onclick="window.location.href='/'" style="background:var(--bg-card);border-color:var(--border-color);color:var(--text-primary);">Latest</button>
