@@ -164,7 +164,7 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 ### `prediction_accuracy.py` â€” Projection Accuracy
 | Module | Algorithm |
 |--------|-----------|
-| Prediction Accuracy | Compares projected and official ordered results driver-by-driver, reporting exact-match rate, mean absolute position error, top-3/top-10 overlap, and pole/winner hit rate using only shared drivers present in both lists |
+| Prediction Accuracy | Compares projected and official ordered results driver-by-driver, reporting exact-match rate, mean absolute position error, top-3/top-10 overlap, and pole/winner hit rate using only shared drivers present in both lists, while showing whether each driver finished higher or lower than predicted |
 
 ### `validation.py` â€” Session Audit
 | Module | Algorithm |
