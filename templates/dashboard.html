@@ -607,7 +607,7 @@
                                 {% if row.exact_match %}
                                     <span style="color:var(--accent-green);">Exact</span>
                                 {% elif row.delta > 0 %}
-                                    <span style="color:var(--accent-green);">Finished {{ row.delta }} place{{ 's' if row.delta != 1 else '' }} higher</span>
+                                    <span style="color:var(--accent-cyan);">Finished {{ row.delta }} place{{ 's' if row.delta != 1 else '' }} higher</span>
                                 {% elif row.delta < 0 %}
                                     <span style="color:var(--accent-orange);">Finished {{ row.delta|abs }} place{{ 's' if row.delta|abs != 1 else '' }} lower</span>
                                 {% else %}
@@ -1552,7 +1552,7 @@
                                 {% if row.exact_match %}
                                     <span style="color:var(--accent-green);">Exact</span>
                                 {% elif row.delta > 0 %}
-                                    <span style="color:var(--accent-green);">Finished {{ row.delta }} place{{ 's' if row.delta != 1 else '' }} higher</span>
+                                    <span style="color:var(--accent-cyan);">Finished {{ row.delta }} place{{ 's' if row.delta != 1 else '' }} higher</span>
                                 {% elif row.delta < 0 %}
                                     <span style="color:var(--accent-orange);">Finished {{ row.delta|abs }} place{{ 's' if row.delta|abs != 1 else '' }} lower</span>
                                 {% else %}
