@@ -576,10 +576,11 @@
             </div>
         </div>
 
+        {% if not is_sprint_shootout %}
         <div class="card full-width" style="margin-bottom:1.2rem;">
             <div class="card-header">
                 <h2>
-                    {{ 'Sprint Projection Accuracy' if is_sprint_shootout else 'FP3 Projection Accuracy' }}
+                    FP3 Projection Accuracy
                     <span class="badge badge-cyan">{{ quali_summary.qualifying_projection_accuracy.compared_drivers|default(0) }}</span>
                     <span class="badge {% if quali_summary.qualifying_projection_accuracy.rating == 'STRONG' %}badge-green{% elif quali_summary.qualifying_projection_accuracy.rating == 'SOLID' %}badge-yellow{% else %}badge-orange{% endif %}">
                         {{ quali_summary.qualifying_projection_accuracy.rating|default('N/A') }}
@@ -589,7 +590,7 @@
             <div class="card-body" style="max-height:340px;">
                 {% if quali_summary.qualifying_projection_accuracy.available %}
                 <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-                    <div class="tag tag-HIGH">{{ 'Sprint Pole Call' if is_sprint_shootout else 'Pole Call' }}: {{ 'HIT' if quali_summary.qualifying_projection_accuracy.leader_hit else 'MISS' }}</div>
+                    <div class="tag tag-HIGH">Pole Call: {{ 'HIT' if quali_summary.qualifying_projection_accuracy.leader_hit else 'MISS' }}</div>
                     <div class="tag tag-MEDIUM">Exact: {{ quali_summary.qualifying_projection_accuracy.exact_matches }}/{{ quali_summary.qualifying_projection_accuracy.compared_drivers }} ({{ quali_summary.qualifying_projection_accuracy.exact_match_pct }}%)</div>
                     <div class="tag tag-INFO">Avg Error: {{ quali_summary.qualifying_projection_accuracy.mean_abs_error }} places</div>
                     <div class="tag tag-INFO">Top 10: {{ quali_summary.qualifying_projection_accuracy.top_10_hits }}/{{ quali_summary.qualifying_projection_accuracy.top_10_total }}</div>
@@ -614,17 +615,14 @@
                     </tbody>
                 </table>
                 <div class="item-detail" style="margin-top:0.8rem;">
-                    {% if is_sprint_shootout %}
-                    Compared against the official sprint classification using the pre-sprint projection built from sprint shootout plus available practice context.
-                    {% else %}
                     Compared against the official qualifying classification for this session. Only drivers present in both the FP3 projection and the final qualifying result are scored.
-                    {% endif %}
                 </div>
                 {% else %}
-                <div class="empty-state"><div class="icon">&#128202;</div><p>No {{ 'sprint' if is_sprint_shootout else 'qualifying' }} accuracy comparison available yet</p></div>
+                <div class="empty-state"><div class="icon">&#128202;</div><p>No qualifying accuracy comparison available yet</p></div>
                 {% endif %}
             </div>
         </div>
+        {% endif %}
 
         <!-- QUALIFYING LEADERBOARD WITH SECTORS -->
         <div class="card full-width" style="margin-bottom:1.2rem;">
@@ -1533,7 +1531,7 @@
             <div class="card-body" style="max-height:340px;">
                 {% if race_projection_accuracy.available %}
                 <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-                    <div class="tag tag-HIGH">Winner Call: {{ 'HIT' if race_projection_accuracy.leader_hit else 'MISS' }}</div>
+                    <div class="tag tag-HIGH">{{ 'Sprint Winner Call' if session_info.session_type == 'Sprint' else 'Winner Call' }}: {{ 'HIT' if race_projection_accuracy.leader_hit else 'MISS' }}</div>
                     <div class="tag tag-MEDIUM">Exact: {{ race_projection_accuracy.exact_matches }}/{{ race_projection_accuracy.compared_drivers }} ({{ race_projection_accuracy.exact_match_pct }}%)</div>
                     <div class="tag tag-INFO">Avg Error: {{ race_projection_accuracy.mean_abs_error }} places</div>
                     <div class="tag tag-INFO">Top 10: {{ race_projection_accuracy.top_10_hits }}/{{ race_projection_accuracy.top_10_total }}</div>
@@ -1558,7 +1556,11 @@
                     </tbody>
                 </table>
                 <div class="item-detail" style="margin-top:0.8rem;">
+                    {% if session_info.session_type == 'Sprint' %}
+                    Compared against the official sprint classification using the pre-sprint projection built from sprint shootout and available weekend practice data.
+                    {% else %}
                     Compared against the official race classification using the pre-race projection built from qualifying and available weekend practice data.
+                    {% endif %}
                 </div>
                 {% else %}
                     <div class="empty-state"><div class="icon">&#128202;</div><p>No {{ 'sprint' if session_info.session_type == 'Sprint' else 'race' }} accuracy comparison available yet</p></div>

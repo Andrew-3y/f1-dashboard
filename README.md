@@ -36,7 +36,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Full sprint shootout classification** â€” official SQ result with sector breakdown and compound on the best lap
 - **SQ1 / SQ2 / SQ3 elimination tracking** â€” same qualifying detail, but labeled correctly for sprint weekends
 - **Projected sprint finish** â€” sprint-specific forecast weighted more heavily toward shootout position, with available practice pace as supporting context
-- **Sprint projection accuracy** â€” once the sprint is complete, compares the sprint-shootout-page projection against the official sprint result
+- **Sprint projection accuracy** â€” once the sprint is complete, the Sprint page compares the sprint-shootout projection against the official sprint result
 
 ### Practice Session Analysis
 - **Single-lap pace ranking** â€” qualifying simulation with best lap, top-3 average from representative short-run laps, compound, consistency (std dev), and gap to fastest
@@ -151,7 +151,7 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Teammate Battles | Groups drivers by team, compares best laps, computes gap in seconds and percentage |
 | Team Pace | Ranks teams by best driver's time, shows intra-team gap |
 | Theoretical Best | Combines each driver's personal best S1 + S2 + S3 from any lap, compares to actual best |
-| Improvement | Tracks delta from first flying lap to best lap per driver |
+| Improvement | Tracks delta from each driver's first competitive lap to best lap so setup or traffic-affected early laps do not exaggerate the gain |
 | Track Evolution | Splits session into 4 time phases, shows fastest lap and average per phase |
 | Tyre Strategy | Maps compound usage per driver with lap counts and best times per compound |
 
@@ -359,4 +359,4 @@ git push origin main
 1. Open the **Sprint Shootout** session on a sprint weekend
 2. Start with **Projected Sprint Finish** for the pre-sprint outlook
 3. Use the **Elimination Tracker** and **Close Calls** for SQ1/SQ2/SQ3 context
-4. After the sprint is complete, check **Sprint Projection Accuracy**
+4. After the sprint is complete, open the **Sprint** page and check **Sprint Projection Accuracy**

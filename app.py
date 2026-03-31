@@ -515,34 +515,58 @@ def _build_sprint_projection_accuracy(session_info):
 
 def _build_race_projection_accuracy(session_info, session, actual_rows):
     """Compare the qualifying-page race projection with the official race result."""
-    if not session_info or session_info.get("session_type") != "Race":
+    if not session_info or session_info.get("session_type") not in ("Race", "Sprint"):
         return empty_accuracy()
 
-    actual_rows = _official_session_accuracy_rows(session, "Race") or actual_rows
+    session_type = session_info.get("session_type")
+    actual_rows = _official_session_accuracy_rows(session, session_type) or actual_rows
     if not actual_rows:
         return empty_accuracy()
 
-    qualifying_session, qualifying_laps = load_session(
-        session_info["year"],
-        session_info["round_number"],
-        "Qualifying",
-    )
-    if qualifying_laps is None or qualifying_laps.empty:
-        return empty_accuracy()
+    if session_type == "Sprint":
+        shootout_session, shootout_laps = load_session(
+            session_info["year"],
+            session_info["round_number"],
+            "Sprint Shootout",
+        )
+        if shootout_laps is None or shootout_laps.empty:
+            return empty_accuracy()
 
-    qualifying_analysis = analyze_qualifying(qualifying_laps, session=qualifying_session)
-    practice_sessions = _load_practice_context(
-        {
-            "year": session_info["year"],
-            "round_number": session_info["round_number"],
-            "session_type": "Qualifying",
-        }
-    )
-    projection = project_race_finish(
-        qualifying_analysis,
-        practice_sessions=practice_sessions,
-        session=qualifying_session,
-    )
+        shootout_analysis = analyze_qualifying(shootout_laps, session=shootout_session)
+        practice_sessions = _load_practice_context(
+            {
+                "year": session_info["year"],
+                "round_number": session_info["round_number"],
+                "session_type": "Sprint Shootout",
+            }
+        )
+        projection = project_sprint_finish(
+            shootout_analysis,
+            practice_sessions=practice_sessions,
+            session=shootout_session,
+        )
+    else:
+        qualifying_session, qualifying_laps = load_session(
+            session_info["year"],
+            session_info["round_number"],
+            "Qualifying",
+        )
+        if qualifying_laps is None or qualifying_laps.empty:
+            return empty_accuracy()
+
+        qualifying_analysis = analyze_qualifying(qualifying_laps, session=qualifying_session)
+        practice_sessions = _load_practice_context(
+            {
+                "year": session_info["year"],
+                "round_number": session_info["round_number"],
+                "session_type": "Qualifying",
+            }
+        )
+        projection = project_race_finish(
+            qualifying_analysis,
+            practice_sessions=practice_sessions,
+            session=qualifying_session,
+        )
 
     return compare_predictions(
         projection.get("projected_finish", []),
@@ -610,7 +634,7 @@ def _run_qualifying_analysis(laps, session=None, session_info=None, leaderboard=
 
     try:
         if is_sprint_shootout:
-            qualifying_projection_accuracy = _build_sprint_projection_accuracy(session_info)
+            qualifying_projection_accuracy = empty_accuracy()
         else:
             qualifying_projection_accuracy = _build_quali_projection_accuracy(
                 session_info,

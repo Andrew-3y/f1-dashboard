@@ -28,6 +28,7 @@ QUALI_PHASES = (
     ("Q2", "SQ2"),
     ("Q3", "SQ3"),
 )
+IMPROVEMENT_COMPETITIVE_WINDOW_S = 3.0
 
 
 def _valid_quali_laps(laps):
@@ -361,16 +362,22 @@ def analyze_improvement(laps):
 
     results = []
     for driver, dlaps in _valid_quali_laps(laps).groupby("Driver"):
-        valid = dlaps.sort_values("LapNumber")
+        valid = dlaps.sort_values("LapNumber").copy()
         if len(valid) < 2:
             continue
 
         team = valid["Team"].iloc[0] if "Team" in valid.columns and pd.notna(valid["Team"].iloc[0]) else "Unknown"
-        lap_times = [round(lt.total_seconds(), 3) for lt in valid["LapTime"]]
+        valid["LapTimeS"] = valid["LapTime"].apply(lambda lt: round(lt.total_seconds(), 3))
+        best_time = valid["LapTimeS"].min()
+        competitive = valid[valid["LapTimeS"] <= best_time + IMPROVEMENT_COMPETITIVE_WINDOW_S].copy()
+        if len(competitive) < 2:
+            continue
 
+        lap_times = competitive["LapTimeS"].tolist()
         first_time = lap_times[0]
-        best_time = min(lap_times)
         improvement = round(first_time - best_time, 3)
+        if improvement <= 0:
+            continue
 
         results.append({
             "driver": driver,
