@@ -30,11 +30,12 @@ import time
 import threading
 import logging
 import html
+import datetime
 import pandas as pd
 from flask import Flask, render_template, request, jsonify
 
 # Our custom modules
-from data_handler import get_dashboard_data, load_session
+from data_handler import get_dashboard_data, get_latest_session_info, load_session
 from anomaly import detect_anomalies, get_anomaly_summary
 from predictor import predict_overtakes, get_prediction_summary
 from degradation import analyze_degradation, get_degradation_summary
@@ -45,6 +46,7 @@ from practice import analyze_practice, get_practice_summary, analyze_qualifying_
 from race_projection import project_race_finish, project_sprint_finish
 from prediction_accuracy import compare_predictions, empty_accuracy
 from validation import validate_session, empty_validation
+from season_form import build_season_form, empty_season_form
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -831,6 +833,49 @@ def api_data():
             "load_time": elapsed,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# ROUTE: Season Form Tracker
+# ---------------------------------------------------------------------------
+@app.route("/season")
+def season_view():
+    """Render season-level form and momentum analysis."""
+    year = request.args.get("year", type=int)
+    window = request.args.get("window", default=5, type=int)
+
+    if year is None:
+        try:
+            latest = get_latest_session_info()
+            year = latest.get("year")
+        except Exception:
+            year = None
+
+    if year is None:
+        year = datetime.datetime.now().year
+
+    try:
+        season_data = build_season_form(year, window=window)
+        return render_template(
+            "season.html",
+            season_data=season_data,
+            season_meta=season_data.get("meta", empty_season_form()["meta"]),
+            season_summary=season_data.get("summary", empty_season_form()["summary"]),
+            error=None,
+        )
+    except Exception as exc:
+        logger.exception("Season view load failed")
+        empty_payload = empty_season_form()
+        empty_payload["meta"]["year"] = year
+        empty_payload["meta"]["window"] = window
+        empty_payload["meta"]["window_label"] = f"Last {window} rounds"
+        return render_template(
+            "season.html",
+            season_data=empty_payload,
+            season_meta=empty_payload["meta"],
+            season_summary=empty_payload["summary"],
+            error=str(exc),
+        ), 500
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Season Form Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a2e;
+            --bg-card-hover: #22223a;
+            --text-primary: #e8e8f0;
+            --text-secondary: #9595ad;
+            --text-muted: #66667c;
+            --accent-red: #e10600;
+            --accent-blue: #3366ff;
+            --accent-green: #00c853;
+            --accent-yellow: #ffd600;
+            --accent-orange: #ff6d00;
+            --accent-cyan: #00bcd4;
+            --border-color: #2a2a40;
+            --radius: 12px;
+            --shadow: 0 4px 24px rgba(0,0,0,0.35);
+            --transition: all 0.2s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--accent-red) 0%, #8b0000 100%);
+            padding: 1.4rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .header h1 { font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+        .header h1 span { font-weight: 300; opacity: 0.85; }
+        .header-meta { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+        .meta-badge {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            padding: 0.35rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .toolbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.8rem 2rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .toolbar label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+        .toolbar input, .toolbar select, .toolbar button, .toolbar a {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 0.45rem 0.7rem;
+            font-family: inherit;
+            font-size: 0.82rem;
+            text-decoration: none;
+        }
+        .toolbar button {
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .toolbar button:hover { transform: translateY(-1px); }
+        .toolbar .secondary-link {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .container { max-width: 1440px; margin: 0 auto; padding: 1.5rem; }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 0.8rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card, .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .stat-card {
+            padding: 1rem;
+            transition: var(--transition);
+            text-align: center;
+        }
+        .stat-card:hover, .card:hover {
+            background: var(--bg-card-hover);
+            box-shadow: var(--shadow);
+        }
+        .stat-value { font-size: 1.55rem; font-weight: 800; color: var(--accent-red); line-height: 1.2; }
+        .stat-label {
+            margin-top: 0.25rem;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .card-header {
+            padding: 0.85rem 1.1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .card-header h2 { font-size: 0.95rem; font-weight: 700; }
+        .badge {
+            background: var(--accent-red);
+            color: #fff;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 0.15rem 0.55rem;
+        }
+        .badge-blue { background: var(--accent-blue); }
+        .badge-green { background: var(--accent-green); color: #000; }
+        .badge-yellow { background: var(--accent-yellow); color: #000; }
+        .badge-orange { background: var(--accent-orange); }
+
+        .card-body { padding: 0; overflow-x: auto; }
+        .section-title {
+            margin: 1.2rem 0 1rem;
+            padding-bottom: 0.45rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1.35fr 1fr;
+            gap: 1.2rem;
+        }
+        .full-width { grid-column: 1 / -1; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-align: left;
+            padding: 0.65rem 0.8rem;
+        }
+        td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.82rem;
+        }
+        tr:hover td { background: rgba(255,255,255,0.03); }
+        .rank { font-weight: 800; text-align: center; width: 40px; }
+        .name { font-weight: 700; }
+        .subtle { color: var(--text-secondary); }
+        .metric { font-variant-numeric: tabular-nums; }
+        .pos-good { color: var(--accent-green); font-weight: 700; }
+        .pos-bad { color: var(--accent-orange); font-weight: 700; }
+
+        .trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            border-radius: 999px;
+            padding: 0.18rem 0.55rem;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.35px;
+        }
+        .trend-SURGING, .trend-RISING {
+            background: rgba(0,200,83,0.16);
+            color: var(--accent-green);
+            border: 1px solid rgba(0,200,83,0.32);
+        }
+        .trend-STABLE, .trend-NEW {
+            background: rgba(0,188,212,0.12);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(0,188,212,0.28);
+        }
+        .trend-COOLING, .trend-SLIDING {
+            background: rgba(255,109,0,0.15);
+            color: var(--accent-orange);
+            border: 1px solid rgba(255,109,0,0.32);
+        }
+
+        .list-item {
+            padding: 0.8rem 1rem;
+            display: flex;
+            gap: 0.8rem;
+            align-items: flex-start;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .list-item:last-child { border-bottom: none; }
+        .list-tag {
+            min-width: 66px;
+            text-align: center;
+            padding: 0.18rem 0.4rem;
+            border-radius: 6px;
+            background: rgba(51,102,255,0.12);
+            border: 1px solid rgba(51,102,255,0.28);
+            color: var(--accent-blue);
+            font-size: 0.64rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .item-title { font-size: 0.84rem; font-weight: 700; }
+        .item-detail { margin-top: 0.1rem; font-size: 0.76rem; color: var(--text-secondary); }
+
+        .note {
+            padding: 0.95rem 1rem;
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .error-box {
+            background: rgba(225,6,0,0.1);
+            border: 1px solid rgba(225,6,0,0.25);
+            color: #ffd3d1;
+            border-radius: 12px;
+            padding: 1rem 1.1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 980px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 700px) {
+            .header, .toolbar, .container { padding-left: 1rem; padding-right: 1rem; }
+            .toolbar { align-items: stretch; }
+            .toolbar label { width: 100%; }
+            .toolbar input, .toolbar select, .toolbar button, .toolbar a { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>F1 <span>Season Form Tracker</span></h1>
+        <div class="header-meta">
+            <span class="meta-badge">{{ season_meta.year }}</span>
+            <span class="meta-badge">{{ season_meta.window_label }}</span>
+            <span class="meta-badge">{{ season_meta.completed_rounds }} completed rounds</span>
+            <span class="meta-badge">Latest: {{ season_meta.latest_event }}</span>
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <label>Season:</label>
+        <input type="number" id="yearInput" min="2018" max="2030" value="{{ season_meta.year or '' }}" style="width:90px;">
+        <label>Window:</label>
+        <select id="windowInput" style="width:140px;">
+            {% for option in [3,4,5,6,8] %}
+            <option value="{{ option }}" {% if season_meta.window == option %}selected{% endif %}>Last {{ option }} rounds</option>
+            {% endfor %}
+        </select>
+        <button onclick="loadSeason()">Load Season Form</button>
+        <a class="secondary-link" href="/">Return to Dashboard</a>
+    </div>
+
+    <div class="container">
+        {% if error %}
+        <div class="error-box">
+            Season form could not be built for {{ season_meta.year }}. This view loads multiple official session results, so a temporary upstream timeout can happen on a cold start. Try reloading or reducing the round window.
+            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+        </div>
+        {% endif %}
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value">{{ season_summary.hottest_driver }}</div>
+                <div class="stat-label">Hottest Driver</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-green);">{{ season_summary.hottest_team }}</div>
+                <div class="stat-label">Hottest Team</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-cyan);">{{ season_summary.qualifying_benchmark }}</div>
+                <div class="stat-label">Qualifying Benchmark</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-orange);">{{ season_summary.positions_gained_leader }}</div>
+                <div class="stat-label">Best Position Gainer</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom:1.2rem;">
+            <div class="card-header">
+                <h2>Rounds Feeding This View</h2>
+                <span class="badge badge-blue">{{ season_meta.rounds_used|length }}</span>
+            </div>
+            <div class="card-body" style="padding:0.9rem 1rem;">
+                <div class="item-detail" style="margin-top:0;">
+                    {{ season_meta.rounds_used|join(' • ') if season_meta.rounds_used else 'No completed rounds available yet.' }}
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Momentum Tables</div>
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Driver Form</h2>
+                    <span class="badge">{{ season_data.driver_form|length }}</span>
+                </div>
+                <div class="card-body" style="max-height:620px;">
+                    {% if season_data.driver_form %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Driver</th>
+                                <th>Team</th>
+                                <th>Form</th>
+                                <th>Trend</th>
+                                <th>Avg Quali</th>
+                                <th>Avg Race</th>
+                                <th>Gain</th>
+                                <th>Pts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in season_data.driver_form %}
+                            <tr>
+                                <td class="rank">{{ row.rank }}</td>
+                                <td>
+                                    <div class="name">{{ row.driver_display }}</div>
+                                    <div class="subtle">Latest race: {% if row.latest_race_result %}P{{ row.latest_race_result }}{% else %}—{% endif %}</div>
+                                </td>
+                                <td class="subtle">{{ row.team }}</td>
+                                <td class="metric">{{ row.form_index }}</td>
+                                <td>
+                                    <span class="trend trend-{{ row.trend }}">
+                                        {{ row.trend_arrow }} {{ row.trend }}
+                                    </span>
+                                </td>
+                                <td class="metric">
+                                    {% if row.recent_quali_avg is not none %}P{{ row.recent_quali_avg }}{% else %}—{% endif %}
+                                </td>
+                                <td class="metric">
+                                    {% if row.recent_race_avg is not none %}P{{ row.recent_race_avg }}{% else %}—{% endif %}
+                                </td>
+                                <td class="metric">
+                                    {% if row.avg_positions_gained is not none %}
+                                        <span class="{% if row.avg_positions_gained >= 0 %}pos-good{% else %}pos-bad{% endif %}">
+                                            {{ '+' if row.avg_positions_gained >= 0 else '' }}{{ row.avg_positions_gained }}
+                                        </span>
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td class="metric">{{ row.recent_points }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="note">No driver form data is available yet for this season.</div>
+                    {% endif %}
+                </div>
+                <div class="note">
+                    Form index blends recent race finish, qualifying position, positions gained, and points. It is a momentum indicator, not an official championship metric.
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Team Form</h2>
+                    <span class="badge badge-green">{{ season_data.team_form|length }}</span>
+                </div>
+                <div class="card-body" style="max-height:620px;">
+                    {% if season_data.team_form %}
+                    <table style="min-width:640px;">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Team</th>
+                                <th>Form</th>
+                                <th>Trend</th>
+                                <th>Avg Quali</th>
+                                <th>Avg Race</th>
+                                <th>Gain</th>
+                                <th>Pts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in season_data.team_form %}
+                            <tr>
+                                <td class="rank">{{ row.rank }}</td>
+                                <td class="name">{{ row.team }}</td>
+                                <td class="metric">{{ row.form_index }}</td>
+                                <td><span class="trend trend-{{ row.trend }}">{{ row.trend_arrow }} {{ row.trend }}</span></td>
+                                <td class="metric">{% if row.recent_quali_avg is not none %}P{{ row.recent_quali_avg }}{% else %}—{% endif %}</td>
+                                <td class="metric">{% if row.recent_race_avg is not none %}P{{ row.recent_race_avg }}{% else %}—{% endif %}</td>
+                                <td class="metric">
+                                    {% if row.avg_positions_gained is not none %}
+                                        <span class="{% if row.avg_positions_gained >= 0 %}pos-good{% else %}pos-bad{% endif %}">
+                                            {{ '+' if row.avg_positions_gained >= 0 else '' }}{{ row.avg_positions_gained }}
+                                        </span>
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td class="metric">{{ row.recent_points }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="note">No team form data is available yet for this season.</div>
+                    {% endif %}
+                </div>
+                <div class="note">
+                    Team form uses both cars together, so consistent double-points weekends and strong average positions matter more than one-off spikes.
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Garage Battles</div>
+        <div class="grid">
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Teammate Head-to-Head</h2>
+                    <span class="badge badge-orange">{{ season_data.teammate_battles|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if season_data.teammate_battles %}
+                        {% for row in season_data.teammate_battles %}
+                        <div class="list-item">
+                            <div class="list-tag">{{ row.team }}</div>
+                            <div>
+                                <div class="item-title">{{ row.driver_a }} vs {{ row.driver_b }}</div>
+                                <div class="item-detail">
+                                    Qualifying: {{ row.qualifying_score }} for {{ row.qualifying_leader }}
+                                    • Race: {{ row.race_score }} for {{ row.race_leader }}
+                                    • Sample: {{ row.rounds_sampled }} recent rounds
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="note">No teammate battle data is available yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function loadSeason() {
+            const year = document.getElementById('yearInput').value;
+            const windowValue = document.getElementById('windowInput').value;
+            if (!year) {
+                return;
+            }
+            window.location.href = `/season?year=${encodeURIComponent(year)}&window=${encodeURIComponent(windowValue)}`;
+        }
+    </script>
+</body>
+</html>
