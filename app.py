@@ -192,6 +192,15 @@ _warm_cache = {
 }
 _warm_lock = threading.Lock()
 
+_season_warm_cache = {
+    "key": None,
+    "data": None,
+    "error": None,
+    "in_progress": False,
+    "updated_at": None,
+}
+_season_warm_lock = threading.Lock()
+
 
 def _read_warm_cache():
     """Return a snapshot of the warm cache."""
@@ -263,6 +272,69 @@ def _render_warmup(session_type=None):
         session_category=category,
         error="WARMUP: Loading the requested session data. This can take ~30s on a cold start. The page will refresh automatically.",
     )
+
+
+def _read_season_warm_cache():
+    """Return a snapshot of the season warm cache."""
+    with _season_warm_lock:
+        return {
+            "key": _season_warm_cache["key"],
+            "data": _season_warm_cache["data"],
+            "error": _season_warm_cache["error"],
+            "in_progress": _season_warm_cache["in_progress"],
+            "updated_at": _season_warm_cache["updated_at"],
+        }
+
+
+def _start_season_warmup(year, window):
+    """Warm up season analysis in a background thread."""
+    with _season_warm_lock:
+        requested_key = (year, window)
+        if _season_warm_cache["in_progress"] and _season_warm_cache["key"] == requested_key:
+            return
+        _season_warm_cache["key"] = requested_key
+        _season_warm_cache["data"] = None
+        _season_warm_cache["error"] = None
+        _season_warm_cache["in_progress"] = True
+
+    def _worker():
+        try:
+            data = build_season_form(year, window=window)
+            with _season_warm_lock:
+                _season_warm_cache.update(
+                    {
+                        "key": (year, window),
+                        "data": data,
+                        "error": None,
+                        "updated_at": time.time(),
+                    }
+                )
+        except Exception as exc:
+            with _season_warm_lock:
+                _season_warm_cache["error"] = str(exc)
+        finally:
+            with _season_warm_lock:
+                _season_warm_cache["in_progress"] = False
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def _render_season_page(season_data=None, *, year=None, window=5, error=None, loading=False, status_code=200):
+    """Render the season page with stable fallback data."""
+    payload = season_data or empty_season_form()
+    payload_meta = payload.get("meta", empty_season_form()["meta"])
+    payload_summary = payload.get("summary", empty_season_form()["summary"])
+    payload_meta["year"] = year if year is not None else payload_meta.get("year")
+    payload_meta["window"] = window
+    payload_meta["window_label"] = f"Last {window} rounds"
+    return render_template(
+        "season.html",
+        season_data=payload,
+        season_meta=payload_meta,
+        season_summary=payload_summary,
+        error=error,
+        loading=loading,
+    ), status_code
 
 
 # ---------------------------------------------------------------------------
@@ -843,6 +915,8 @@ def season_view():
     """Render season-level form and momentum analysis."""
     year = request.args.get("year", type=int)
     window = request.args.get("window", default=5, type=int)
+    if request.method == "HEAD":
+        return ("", 200)
 
     if year is None:
         try:
@@ -854,28 +928,24 @@ def season_view():
     if year is None:
         year = datetime.datetime.now().year
 
-    try:
-        season_data = build_season_form(year, window=window)
-        return render_template(
-            "season.html",
-            season_data=season_data,
-            season_meta=season_data.get("meta", empty_season_form()["meta"]),
-            season_summary=season_data.get("summary", empty_season_form()["summary"]),
-            error=None,
-        )
-    except Exception as exc:
-        logger.exception("Season view load failed")
-        empty_payload = empty_season_form()
-        empty_payload["meta"]["year"] = year
-        empty_payload["meta"]["window"] = window
-        empty_payload["meta"]["window_label"] = f"Last {window} rounds"
-        return render_template(
-            "season.html",
-            season_data=empty_payload,
-            season_meta=empty_payload["meta"],
-            season_summary=empty_payload["summary"],
-            error=str(exc),
-        ), 500
+    requested_key = (year, window)
+    warm_state = _read_season_warm_cache()
+
+    if warm_state["key"] == requested_key and warm_state["data"] is not None:
+        return _render_season_page(warm_state["data"], year=year, window=window)
+
+    if warm_state["key"] == requested_key and warm_state["error"]:
+        return _render_season_page(year=year, window=window, error=warm_state["error"], status_code=500)
+
+    if not warm_state["in_progress"] or warm_state["key"] != requested_key:
+        _start_season_warmup(year, window)
+
+    return _render_season_page(
+        year=year,
+        window=window,
+        loading=True,
+        error="WARMUP: Building season form data. This can take a little longer on Render while recent qualifying and race results are loaded.",
+    )
 
 
 # ---------------------------------------------------------------------------

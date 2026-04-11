@@ -58,6 +58,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Team form ranking** - aggregates both cars to show which teams are trending strongest across recent rounds
 - **Season teammate head-to-head** - compares qualifying and race results between teammates across the selected recent window
 - **Momentum summary cards** - highlights the hottest driver, hottest team, strongest qualifying benchmark, and best recent position gainer
+- **Season-page background warmup** - first loads now return a friendly loading state while recent qualifying and race results are warmed in the background, reducing Render timeouts on `/season`
 
 ### Navigation & UI
 - **Weekend navigation bar** - one-click switching between FP1, FP2, FP3, Qualifying, Sprint Qualifying, Sprint, and Race for the current round
@@ -311,9 +312,10 @@ git push origin main
 ### Tracking Season Momentum
 1. Open the **Season Form Tracker** from the dashboard or visit `/season`
 2. Choose a year and recent-round window
-3. Use **Driver Form** to see who is trending strongest
-4. Use **Team Form** to understand which teams are improving or fading
-5. Check **Teammate Head-to-Head** for the recent intra-team battle picture
+3. If the page is cold, let the warmup screen refresh automatically once the season data is ready
+4. Use **Driver Form** to see who is trending strongest
+5. Use **Team Form** to understand which teams are improving or fading
+6. Check **Teammate Head-to-Head** for the recent intra-team battle picture
 
 ### Reviewing Race Accuracy
 1. Open the finished race session
@@ -346,6 +348,7 @@ git push origin main
 - A session-level data-quality audit now highlights suspicious leaderboard gaps, ordering issues, and invalid derived metrics instead of silently treating them as trustworthy.
 - The qualifying-page projected race finish is a pre-race forecast, not a simulation of the actual race. It is strongest when practice long-run data is available and falls back to lower-confidence qualifying-led signals when it is not.
 - The season form page is a momentum view built from recent official results, not an official championship standings replacement.
+- The season form route only loads the recent rounds needed for trend analysis and warms heavy requests in the background so the page is more reliable on Render's free tier.
 
 ---
 

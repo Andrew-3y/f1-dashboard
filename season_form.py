@@ -495,8 +495,9 @@ def build_season_form(year, window=5):
     if cache_key in _season_cache:
         return _season_cache[cache_key]
 
+    rounds_to_load = completed_rounds[-(window * 2):]
     snapshots = []
-    for event in completed_rounds:
+    for event in rounds_to_load:
         qualifying_rows = []
         race_rows = []
 
@@ -538,7 +539,7 @@ def build_season_form(year, window=5):
     payload = {
         "meta": {
             "year": year,
-            "completed_rounds": len(snapshots),
+            "completed_rounds": len(completed_rounds),
             "window": window,
             "window_label": f"Last {window} rounds",
             "latest_event": snapshots[-1]["event_name"],

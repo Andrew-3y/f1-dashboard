@@ -306,7 +306,15 @@
     </div>
 
     <div class="container">
-        {% if error %}
+        {% if loading %}
+        <div class="error-box" style="border-color:rgba(51,102,255,0.3);background:rgba(51,102,255,0.12);color:#dbe6ff;">
+            Season form is warming up for {{ season_meta.year }}. Render cold starts and multi-round result loading can take a bit on the first request.
+            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+        </div>
+        <script>
+            setTimeout(function(){ location.reload(); }, 9000);
+        </script>
+        {% elif error %}
         <div class="error-box">
             Season form could not be built for {{ season_meta.year }}. This view loads multiple official session results, so a temporary upstream timeout can happen on a cold start. Try reloading or reducing the round window.
             <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
