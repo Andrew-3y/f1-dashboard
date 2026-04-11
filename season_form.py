@@ -41,6 +41,7 @@ def empty_season_form():
             "hottest_team": "-",
             "qualifying_benchmark": "-",
             "positions_gained_leader": "-",
+            "positions_lost_leader": "-",
         },
         "driver_form": [],
         "team_form": [],
@@ -535,6 +536,9 @@ def build_season_form(year, window=5):
     ]
     gain_rows.sort(key=lambda row: row["avg_positions_gained"], reverse=True)
     positions_gained_leader = gain_rows[0]["driver_display"] if gain_rows else "-"
+    loss_rows = [row for row in gain_rows if row["avg_positions_gained"] < 0]
+    loss_rows.sort(key=lambda row: row["avg_positions_gained"])
+    positions_lost_leader = loss_rows[0]["driver_display"] if loss_rows else "-"
 
     payload = {
         "meta": {
@@ -561,6 +565,7 @@ def build_season_form(year, window=5):
                 "-",
             ),
             "positions_gained_leader": positions_gained_leader,
+            "positions_lost_leader": positions_lost_leader,
         },
         "driver_form": driver_form,
         "team_form": team_form,
