@@ -534,13 +534,14 @@ def _recent_history(year, event_name, limit=3):
     return history
 
 
-def _recent_patterns(history, profile):
+def _recent_patterns(history, profile, meta):
     """Derive plain-language recent circuit patterns."""
+    venue_label = meta.get("circuit_name") or meta.get("event_name") or meta.get("location") or "this circuit"
     if not history:
         return [
             {
                 "title": "History still loading",
-                "detail": "Recent winner and pole history is not available yet, so the page is leaning on the track profile.",
+                "detail": f"Recent winner and pole history is not available yet for {venue_label}, so this page is leaning more on the track profile.",
             }
         ]
 
@@ -564,7 +565,7 @@ def _recent_patterns(history, profile):
         patterns.append(
             {
                 "title": "Recent winner trend",
-                "detail": f"{winner_repeat[0]} has won {winner_repeat[1]} of the last {len(history)} visits in the loaded history.",
+                "detail": f"{winner_repeat[0]} has won {winner_repeat[1]} of the last {len(history)} visits to {venue_label}.",
             }
         )
     else:
@@ -579,7 +580,7 @@ def _recent_patterns(history, profile):
         patterns.append(
             {
                 "title": "Saturday pattern",
-                "detail": f"{pole_repeat[0]} has taken pole {pole_repeat[1]} times in the loaded history, reinforcing the value of qualifying here.",
+                "detail": f"{pole_repeat[0]} has taken pole {pole_repeat[1]} times in the recent {venue_label} sample, reinforcing the value of qualifying here.",
             }
         )
     else:
@@ -623,8 +624,10 @@ def build_circuit_intelligence(year, round_number):
         },
         "profile": profile,
         "recent_history": history,
-        "recent_patterns": _recent_patterns(history, profile),
+        "recent_patterns": [],
     }
+
+    payload["recent_patterns"] = _recent_patterns(history, profile, payload["meta"])
 
     _circuit_cache[cache_key] = payload
     return payload
