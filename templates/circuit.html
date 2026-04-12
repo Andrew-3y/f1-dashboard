@@ -271,6 +271,7 @@
         <label>Round:</label>
         <input type="number" id="roundInput" min="1" max="30" value="{{ circuit_meta.round_number or '' }}" style="width:80px;">
         <button onclick="loadCircuit()">Load Circuit Intel</button>
+        <a class="secondary-link" href="/outlook{% if circuit_meta.year %}?year={{ circuit_meta.year }}&round={{ circuit_meta.round_number }}{% endif %}">Weekend Outlook</a>
         <a class="secondary-link" href="/driver{% if circuit_meta.year %}?year={{ circuit_meta.year }}{% endif %}">Driver Intel</a>
         <a class="secondary-link" href="/season{% if circuit_meta.year %}?year={{ circuit_meta.year }}{% endif %}">Season Form</a>
         <a class="secondary-link" href="/">Return to Dashboard</a>

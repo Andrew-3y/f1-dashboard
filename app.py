@@ -31,6 +31,7 @@ import threading
 import logging
 import html
 import datetime
+import fastf1
 import pandas as pd
 from flask import Flask, render_template, request, jsonify
 
@@ -49,6 +50,7 @@ from validation import validate_session, empty_validation
 from season_form import build_season_form, empty_season_form
 from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence
 from driver_intel import build_driver_intelligence, empty_driver_intelligence
+from weekend_outlook import build_weekend_outlook, empty_weekend_outlook
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -220,6 +222,15 @@ _driver_warm_cache = {
     "updated_at": None,
 }
 _driver_warm_lock = threading.Lock()
+
+_outlook_warm_cache = {
+    "key": None,
+    "data": None,
+    "error": None,
+    "in_progress": False,
+    "updated_at": None,
+}
+_outlook_warm_lock = threading.Lock()
 
 
 def _read_warm_cache():
@@ -485,6 +496,71 @@ def _render_driver_page(driver_data=None, *, year=None, driver=None, window=5, e
     ), status_code
 
 
+def _read_outlook_warm_cache():
+    """Return a snapshot of the weekend outlook warm cache."""
+    with _outlook_warm_lock:
+        return {
+            "key": _outlook_warm_cache["key"],
+            "data": _outlook_warm_cache["data"],
+            "error": _outlook_warm_cache["error"],
+            "in_progress": _outlook_warm_cache["in_progress"],
+            "updated_at": _outlook_warm_cache["updated_at"],
+        }
+
+
+def _start_outlook_warmup(year, round_num, window):
+    """Warm up weekend outlook in a background thread."""
+    with _outlook_warm_lock:
+        requested_key = (year, round_num, window)
+        if _outlook_warm_cache["in_progress"] and _outlook_warm_cache["key"] == requested_key:
+            return
+        _outlook_warm_cache["key"] = requested_key
+        _outlook_warm_cache["data"] = None
+        _outlook_warm_cache["error"] = None
+        _outlook_warm_cache["in_progress"] = True
+
+    def _worker():
+        try:
+            data = build_weekend_outlook(year, round_num, window=window)
+            with _outlook_warm_lock:
+                _outlook_warm_cache.update(
+                    {
+                        "key": (year, round_num, window),
+                        "data": data,
+                        "error": None,
+                        "updated_at": time.time(),
+                    }
+                )
+        except Exception as exc:
+            with _outlook_warm_lock:
+                _outlook_warm_cache["error"] = str(exc)
+        finally:
+            with _outlook_warm_lock:
+                _outlook_warm_cache["in_progress"] = False
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def _render_outlook_page(outlook_data=None, *, year=None, round_num=None, window=5, error=None, loading=False, status_code=200):
+    """Render the weekend outlook page with stable fallback data."""
+    payload = outlook_data or empty_weekend_outlook()
+    empty_payload = empty_weekend_outlook()
+    payload_meta = payload.get("meta", empty_payload["meta"])
+    payload_summary = payload.get("summary", empty_payload["summary"])
+    payload_meta["year"] = year if year is not None else payload_meta.get("year")
+    payload_meta["round_number"] = round_num if round_num is not None else payload_meta.get("round_number")
+    payload_meta["window"] = window
+    payload_meta["window_label"] = f"Last {window} rounds"
+    return render_template(
+        "outlook.html",
+        outlook_data=payload,
+        outlook_meta=payload_meta,
+        outlook_summary=payload_summary,
+        error=error,
+        loading=loading,
+    ), status_code
+
+
 # ---------------------------------------------------------------------------
 # Helper: classify session type
 # ---------------------------------------------------------------------------
@@ -500,6 +576,41 @@ def _session_category(session_type):
     elif st.startswith("practice") or st.startswith("fp") or st in ("practice 1", "practice 2", "practice 3"):
         return "practice"
     return "race"
+
+
+def _default_outlook_target():
+    """Return the next upcoming round when possible, otherwise the latest completed round."""
+    now = pd.Timestamp(datetime.datetime.now(datetime.timezone.utc))
+    for attempt_year in (now.year, now.year + 1):
+        try:
+            schedule = fastf1.get_event_schedule(attempt_year, include_testing=False)
+        except Exception:
+            continue
+        if schedule is None or schedule.empty:
+            continue
+
+        for _, event in schedule.iterrows():
+            round_number = event.get("RoundNumber")
+            if pd.isna(round_number):
+                continue
+
+            session_times = []
+            for idx in range(1, 6):
+                session_date = event.get(f"Session{idx}DateUtc")
+                if pd.isna(session_date):
+                    continue
+                timestamp = pd.Timestamp(session_date)
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.tz_localize("UTC")
+                else:
+                    timestamp = timestamp.tz_convert("UTC")
+                session_times.append(timestamp)
+
+            if session_times and max(session_times) >= now:
+                return attempt_year, int(round_number)
+
+    latest = get_latest_session_info()
+    return latest.get("year"), latest.get("round_number")
 
 
 # ---------------------------------------------------------------------------
@@ -1177,6 +1288,48 @@ def driver_view():
         window=window,
         loading=True,
         error="Building driver intelligence. This can take a little longer on Render while recent qualifying and race results are loaded.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# ROUTE: Weekend Outlook
+# ---------------------------------------------------------------------------
+@app.route("/outlook")
+def outlook_view():
+    """Render the weekend outlook page for a selected round."""
+    year = request.args.get("year", type=int)
+    round_num = request.args.get("round", type=int)
+    window = request.args.get("window", default=5, type=int)
+    if request.method == "HEAD":
+        return ("", 200)
+
+    if year is None or round_num is None:
+        try:
+            default_year, default_round = _default_outlook_target()
+            year = year or default_year
+            round_num = round_num or default_round
+        except Exception:
+            year = year or datetime.datetime.now().year
+            round_num = round_num or 1
+
+    requested_key = (year, round_num, window)
+    warm_state = _read_outlook_warm_cache()
+
+    if warm_state["key"] == requested_key and warm_state["data"] is not None:
+        return _render_outlook_page(warm_state["data"], year=year, round_num=round_num, window=window)
+
+    if warm_state["key"] == requested_key and warm_state["error"]:
+        return _render_outlook_page(year=year, round_num=round_num, window=window, error=warm_state["error"], status_code=500)
+
+    if not warm_state["in_progress"] or warm_state["key"] != requested_key:
+        _start_outlook_warmup(year, round_num, window)
+
+    return _render_outlook_page(
+        year=year,
+        round_num=round_num,
+        window=window,
+        loading=True,
+        error="Building the weekend outlook. This can take a little longer on Render while circuit and recent form context are loaded.",
     )
 
 

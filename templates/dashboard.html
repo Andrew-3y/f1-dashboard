@@ -413,6 +413,7 @@
         <button onclick="window.location.href='/season{% if session_info %}?year={{ session_info.year }}{% endif %}'" style="background:var(--accent-blue);border-color:var(--accent-blue);color:#fff;">Season Form</button>
         <button onclick="window.location.href='/circuit{% if session_info %}?year={{ session_info.year }}&round={{ session_info.round_number }}{% endif %}'" style="background:var(--accent-cyan);border-color:var(--accent-cyan);color:#000;">Circuit Intel</button>
         <button onclick="window.location.href='/driver{% if session_info %}?year={{ session_info.year }}{% endif %}'" style="background:var(--accent-green);border-color:var(--accent-green);color:#000;">Driver Intel</button>
+        <button onclick="window.location.href='/outlook{% if session_info %}?year={{ session_info.year }}&round={{ session_info.round_number }}{% endif %}'" style="background:var(--accent-yellow);border-color:var(--accent-yellow);color:#111;">Weekend Outlook</button>
         <select id="refreshSelect" onchange="setRefreshInterval()" style="margin-left:auto;">
             <option value="0">Auto Refresh: OFF</option>
             <option value="30">Auto Refresh: Live (30s)</option>

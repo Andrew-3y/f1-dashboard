@@ -80,12 +80,23 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Driver-read insights** - plain-language strengths and watchouts built from recent trend, qualifying pace, race execution, consistency, and teammate context
 - **Driver-page background warmup** - first loads return a friendly loading state while recent qualifying and race results are warmed in the background
 
+### Weekend Outlook
+- **Weekend Outlook page** - dedicated `/outlook` view that combines circuit context with recent season form for one selected round
+- **Upcoming-weekend default** - when no round is specified, the page tries to open the next current/upcoming Grand Prix instead of only the latest completed round
+- **Weekend briefing cards** - highlights the likely favorite driver, team to beat, passing outlook, tyre pressure, and expected strategy shape
+- **Main storylines** - turns season and circuit context into a short pre-weekend briefing instead of another raw stats table
+- **Drivers and teams to watch** - spotlights the strongest recent performers with one-line reasons for why they matter this weekend
+- **Midfield picture** - summarizes the current battle outside the front-running teams
+- **Teammate focus** - surfaces one recent intra-team battle worth watching for the selected weekend
+- **Weekend-outlook background warmup** - first loads return a friendly loading state while circuit and recent-form context are warmed in the background
+
 ### Navigation & UI
 - **Weekend navigation bar** - one-click switching between FP1, FP2, FP3, Qualifying, Sprint Qualifying, Sprint, and Race for the current round
 - **Session selector** - manual year/round/session picker for historical data (supports all session types, including Sprint Shootout)
 - **Season Form Tracker shortcut** - direct button from the main dashboard to the dedicated season page
 - **Circuit Intelligence shortcut** - direct button from the main dashboard to the dedicated circuit page for the selected round
 - **Driver Intelligence shortcut** - direct button from the main dashboard, plus cross-links from the season and circuit pages
+- **Weekend Outlook shortcut** - direct button from the main dashboard, plus cross-links from the season, circuit, and driver pages
 - **Auto-refresh** - configurable: OFF / Live (30s) / Session (60s) / Casual (5min), persists across reloads
 - **F1-style lap-time formatting** - lap and pace times are shown as `M:SS.mmm` instead of raw seconds
 - **Ordered projection inputs** - projection cards list sessions in weekend order (FP1 -> FP2 -> FP3, then Qualifying where applicable)
@@ -120,6 +131,7 @@ f1-dashboard/
 |-- season_form.py         # Season-level momentum and teammate trend analysis
 |-- circuit_intel.py       # Circuit profiles and recent event history
 |-- driver_intel.py        # Driver-focused season profile and grid ranking view
+|-- weekend_outlook.py     # Weekly briefing page combining track context and recent form
 |-- requirements.txt       # Python dependencies
 |-- render.yaml            # Render deployment blueprint
 |-- .gitignore
@@ -127,7 +139,8 @@ f1-dashboard/
     |-- dashboard.html     # Full HTML/CSS/JS dashboard
     |-- season.html        # Dedicated season form tracker page
     |-- circuit.html       # Dedicated circuit intelligence page
-    `-- driver.html        # Dedicated driver intelligence page
+    |-- driver.html        # Dedicated driver intelligence page
+    `-- outlook.html       # Dedicated weekend outlook page
 ```
 
 ---
@@ -166,10 +179,12 @@ User visits URL
    |  Circuit -----> circuit_intel.py    |
    |                                     |
    |  Driver ------> driver_intel.py     |
+   |                                     |
+   |  Outlook -----> weekend_outlook.py  |
    +-------------------------------------+
        |
        v
-   Results injected into dashboard.html / season.html / circuit.html / driver.html
+   Results injected into dashboard.html / season.html / circuit.html / driver.html / outlook.html
        |
        v
    Rendered page returned to user
@@ -182,7 +197,7 @@ Each analysis module is wrapped in try/except - a failure in one never crashes t
 ## Module Reference
 
 ### `app.py` - Application Entry Point
-Routes requests to the correct analysis pipeline based on session type. Classifies sessions into three categories (race, qualifying, practice) and runs only the relevant modules. Serves six endpoints: `/` (dashboard), `/season` (season form tracker), `/circuit` (circuit intelligence), `/driver` (driver intelligence), `/api/data` (JSON), `/health` (Render health check). Includes cold-start warmup to avoid timeouts on initial loads.
+Routes requests to the correct analysis pipeline based on session type. Classifies sessions into three categories (race, qualifying, practice) and runs only the relevant modules. Serves seven endpoints: `/` (dashboard), `/season` (season form tracker), `/circuit` (circuit intelligence), `/driver` (driver intelligence), `/outlook` (weekend outlook), `/api/data` (JSON), `/health` (Render health check). Includes cold-start warmup to avoid timeouts on initial loads.
 
 ### `data_handler.py` - Data Layer
 All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for the most recent completed session using FastF1's actual named session slots and UTC timestamps, so sprint weekends and timezone boundaries are handled correctly. `load_session()` downloads and caches lap data in memory. `build_leaderboard()` uses finishing positions for races and fastest lap for qualifying/practice, normalizes official race-result gaps so direct gap-to-winner values are not misread as full elapsed race times, and prefers final classified lap times for same-lap finishers while falling back to lap-deficit labels for lapped cars.
@@ -254,6 +269,14 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Teammate Context | Compares the selected driver's recent qualifying and race record against the most relevant teammate in the same selected window |
 | Driver Read | Turns the recent metrics into plain-language strengths and watchouts so the page reads like a profile, not just a table |
 
+### `weekend_outlook.py` - Weekend Outlook
+| Module | Algorithm |
+|--------|-----------|
+| Weekend Summary | Combines circuit-intelligence output with season-form output for one selected round to summarize favorite driver, team to beat, passing outlook, tyre pressure, and strategy shape |
+| Main Storylines | Converts track profile, recent patterns, driver form, team form, and teammate battles into a short weekend briefing |
+| Watchlists | Selects the leading drivers and teams to watch based on recent form, trend, and supporting context |
+| Midfield and Garage Focus | Highlights the current midfield battle and one close teammate fight to watch going into the weekend |
+
 ### Race Analysis Modules
 | Module | File | Algorithm |
 |--------|------|-----------|
@@ -298,9 +321,10 @@ http://localhost:5000/?year=2024&round=21&session_type=Sprint+Shootout
 http://localhost:5000/season?year=2025&window=5
 http://localhost:5000/circuit?year=2025&round=14
 http://localhost:5000/driver?year=2025&window=5&driver=VER
+http://localhost:5000/outlook?year=2025&round=14&window=5
 ```
 
-Or use the **Weekend Navigation Bar** to switch between sessions with one click, open the **Season Form Tracker** for recent multi-round trends, use **Circuit Intelligence** for pre-weekend track context, or open **Driver Intelligence** for a one-driver season read.
+Or use the **Weekend Navigation Bar** to switch between sessions with one click, open the **Season Form Tracker** for recent multi-round trends, use **Circuit Intelligence** for pre-weekend track context, open **Driver Intelligence** for a one-driver season read, or open **Weekend Outlook** for the full weekly briefing.
 
 ---
 
@@ -381,6 +405,14 @@ git push origin main
 5. Check **Teammate Context** to understand whether the driver is winning the intra-team fight
 6. Use **Round-by-Round Results** to see where the numbers are coming from event by event
 
+### Reading the Weekend Outlook
+1. Open **Weekend Outlook** from the dashboard or visit `/outlook`
+2. Choose the season, round, and recent-round window you want to use for the briefing
+3. Start with the summary cards to see the likely favorite driver, team to beat, passing outlook, tyre pressure, and strategy shape
+4. Read **Main Storylines** first to understand what is shaping the weekend
+5. Use **Drivers to Watch** and **Teams to Watch** to see who is coming in with the strongest recent form
+6. Check **Midfield Picture** and **Teammate Focus** for the likely side battles around the main story
+
 ### Reviewing Race Accuracy
 1. Open the finished race session
 2. Check **Race Projection Accuracy** beneath the official classification
@@ -415,6 +447,7 @@ git push origin main
 - The season form route only loads the recent rounds needed for trend analysis and warms heavy requests in the background so the page is more reliable on Render's free tier.
 - The circuit intelligence page combines curated track characteristics with recent official event history, so it is a context tool rather than a live performance model.
 - The driver intelligence page reuses the season page's recent official qualifying and race results, but reorganizes them around one driver to make strengths, weaknesses, and teammate context easier to read.
+- The weekend outlook page is a synthesis layer that combines recent form with circuit context. It is meant as a briefing page, not as a full race simulation or betting model.
 
 ---
 
@@ -448,12 +481,13 @@ git push origin main
 | Separate season route | Season-level analysis adds a new product layer without overcrowding the live session dashboard |
 | Separate circuit route | Track intelligence serves a different pre-weekend use case than the session or season pages, so it benefits from its own dedicated screen |
 | Separate driver route | A driver-first profile is more useful as its own page than as another table inside the season overview |
+| Separate outlook route | A weekly briefing works best as a synthesis layer that can pull from season and circuit context without overloading either page |
 
 ---
 
 ## Portfolio Description
 
-> **F1 Strategy Intelligence Dashboard** - A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 28+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, projection accuracy benchmarking against official results, race pace prediction from fuel-corrected long run data, tyre degradation curves per compound, a dedicated season form tracker for recent driver and team momentum, a circuit intelligence page for pre-weekend track context, and a driver intelligence page for one-driver profile analysis versus the recent grid. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
+> **F1 Strategy Intelligence Dashboard** - A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 28+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, projection accuracy benchmarking against official results, race pace prediction from fuel-corrected long run data, tyre degradation curves per compound, a dedicated season form tracker for recent driver and team momentum, a circuit intelligence page for pre-weekend track context, a driver intelligence page for one-driver profile analysis versus the recent grid, and a weekend outlook page that turns track context plus recent form into a pre-weekend briefing. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
 
 ### Sprint Shootout Workflow
 1. Open the **Sprint Shootout** session on a sprint weekend

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Weekend Outlook</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a2e;
+            --bg-card-hover: #22223a;
+            --text-primary: #e8e8f0;
+            --text-secondary: #9595ad;
+            --accent-red: #e10600;
+            --accent-blue: #3366ff;
+            --accent-green: #00c853;
+            --accent-yellow: #ffd600;
+            --accent-orange: #ff6d00;
+            --accent-cyan: #00bcd4;
+            --border-color: #2a2a40;
+            --radius: 12px;
+            --shadow: 0 4px 24px rgba(0,0,0,0.35);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, var(--accent-yellow) 0%, #c77d00 100%);
+            padding: 1.4rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .header h1 { font-size: 1.6rem; font-weight: 800; color: #111; letter-spacing: -0.5px; }
+        .header h1 span { font-weight: 300; opacity: 0.9; }
+        .header-meta { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+        .meta-badge {
+            background: rgba(0,0,0,0.14);
+            color: #111;
+            padding: 0.35rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .toolbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.8rem 2rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .toolbar label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+        .toolbar input, .toolbar select, .toolbar button, .toolbar a {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 0.45rem 0.7rem;
+            font-family: inherit;
+            font-size: 0.82rem;
+            text-decoration: none;
+        }
+        .toolbar button {
+            background: var(--accent-yellow);
+            border-color: var(--accent-yellow);
+            color: #111;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .toolbar .secondary-link {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #fff;
+            font-weight: 700;
+        }
+        .container { max-width: 1440px; margin: 0 auto; padding: 1.5rem; }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 0.8rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card, .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .stat-card { padding: 1rem; text-align: center; }
+        .stat-card:hover, .card:hover { background: var(--bg-card-hover); box-shadow: var(--shadow); }
+        .stat-value { font-size: 1.45rem; font-weight: 800; color: var(--accent-yellow); line-height: 1.2; }
+        .stat-label {
+            margin-top: 0.25rem;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .section-title {
+            margin: 1.2rem 0 1rem;
+            padding-bottom: 0.45rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 1.2rem;
+        }
+        .full-width { grid-column: 1 / -1; }
+        .card-header {
+            padding: 0.85rem 1.1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .card-header h2 { font-size: 0.95rem; font-weight: 700; }
+        .badge {
+            background: var(--accent-yellow);
+            color: #111;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 0.15rem 0.55rem;
+        }
+        .badge-blue { background: var(--accent-blue); color: #fff; }
+        .badge-green { background: var(--accent-green); color: #000; }
+        .badge-orange { background: var(--accent-orange); color: #fff; }
+        .badge-cyan { background: var(--accent-cyan); color: #000; }
+        .card-body { padding: 0; overflow-x: auto; }
+        .list-item {
+            padding: 0.8rem 1rem;
+            display: flex;
+            gap: 0.8rem;
+            align-items: flex-start;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .list-item:last-child { border-bottom: none; }
+        .list-tag {
+            min-width: 74px;
+            text-align: center;
+            padding: 0.18rem 0.4rem;
+            border-radius: 6px;
+            background: rgba(255,214,0,0.12);
+            border: 1px solid rgba(255,214,0,0.28);
+            color: var(--accent-yellow);
+            font-size: 0.64rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .item-title { font-size: 0.84rem; font-weight: 700; }
+        .item-detail { margin-top: 0.1rem; font-size: 0.76rem; color: var(--text-secondary); }
+        .note {
+            padding: 0.95rem 1rem;
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .error-box {
+            background: rgba(225,6,0,0.1);
+            border: 1px solid rgba(225,6,0,0.25);
+            color: #ffd3d1;
+            border-radius: 12px;
+            padding: 1rem 1.1rem;
+            margin-bottom: 1rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-align: left;
+            padding: 0.65rem 0.8rem;
+        }
+        td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.82rem;
+        }
+        tr:hover td { background: rgba(255,255,255,0.03); }
+        .metric { font-variant-numeric: tabular-nums; }
+        @media (max-width: 980px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 700px) {
+            .header, .toolbar, .container { padding-left: 1rem; padding-right: 1rem; }
+            .toolbar { align-items: stretch; }
+            .toolbar label { width: 100%; }
+            .toolbar input, .toolbar select, .toolbar button, .toolbar a { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>F1 <span>Weekend Outlook</span></h1>
+        <div class="header-meta">
+            <span class="meta-badge">{{ outlook_meta.year }}</span>
+            <span class="meta-badge">Round {{ outlook_meta.round_number }}</span>
+            <span class="meta-badge">{{ outlook_meta.event_name }}</span>
+            <span class="meta-badge">{{ outlook_meta.window_label }}</span>
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <label>Season:</label>
+        <input type="number" id="yearInput" min="2018" max="2030" value="{{ outlook_meta.year or '' }}" style="width:90px;">
+        <label>Round:</label>
+        <input type="number" id="roundInput" min="1" max="30" value="{{ outlook_meta.round_number or '' }}" style="width:80px;">
+        <label>Window:</label>
+        <select id="windowInput" style="width:140px;">
+            {% for option in [3,4,5,6,8] %}
+            <option value="{{ option }}" {% if outlook_meta.window == option %}selected{% endif %}>Last {{ option }} rounds</option>
+            {% endfor %}
+        </select>
+        <button onclick="loadOutlook()">Load Weekend Outlook</button>
+        <a class="secondary-link" href="/circuit{% if outlook_meta.year %}?year={{ outlook_meta.year }}&round={{ outlook_meta.round_number }}{% endif %}">Circuit Intel</a>
+        <a class="secondary-link" href="/season{% if outlook_meta.year %}?year={{ outlook_meta.year }}&window={{ outlook_meta.window }}{% endif %}">Season Form</a>
+        <a class="secondary-link" href="/driver{% if outlook_meta.year %}?year={{ outlook_meta.year }}&window={{ outlook_meta.window }}{% endif %}">Driver Intel</a>
+        <a class="secondary-link" href="/">Return to Dashboard</a>
+    </div>
+
+    <div class="container">
+        {% if loading %}
+        <div class="error-box" style="border-color:rgba(255,214,0,0.3);background:rgba(255,214,0,0.12);color:#fff6cc;">
+            Weekend outlook is warming up for {{ outlook_meta.event_name or ('Round ' ~ outlook_meta.round_number) }}.
+            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+        </div>
+        <script>
+            setTimeout(function(){ location.reload(); }, 9000);
+        </script>
+        {% elif error %}
+        <div class="error-box">
+            Weekend outlook could not be built for round {{ outlook_meta.round_number }} in {{ outlook_meta.year }}.
+            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+        </div>
+        {% endif %}
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value">{{ outlook_summary.favorite_driver }}</div>
+                <div class="stat-label">Favorite Driver</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-green);">{{ outlook_summary.team_to_beat }}</div>
+                <div class="stat-label">Team to Beat</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-cyan);">{{ outlook_summary.passing_outlook }}</div>
+                <div class="stat-label">Passing Outlook</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-orange);">{{ outlook_summary.tyre_pressure }}</div>
+                <div class="stat-label">Tyre Pressure</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-blue);">{{ outlook_summary.strategy_shape }}</div>
+                <div class="stat-label">Strategy Shape</div>
+            </div>
+        </div>
+
+        <div class="section-title">Weekend Briefing</div>
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Main Storylines</h2>
+                    <span class="badge">Briefing</span>
+                </div>
+                <div class="card-body">
+                    {% for item in outlook_data.storylines %}
+                    <div class="list-item">
+                        <div class="list-tag">{{ loop.index }}</div>
+                        <div>
+                            <div class="item-title">{{ item.title }}</div>
+                            <div class="item-detail">{{ item.detail }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not outlook_data.storylines %}
+                    <div class="note">No weekend storylines are available yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Track Snapshot</h2>
+                    <span class="badge badge-cyan">{{ outlook_meta.circuit_name }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="list-item">
+                        <div class="list-tag">Place</div>
+                        <div>
+                            <div class="item-title">{{ outlook_meta.location }}, {{ outlook_meta.country }}</div>
+                            <div class="item-detail">{{ outlook_data.supporting_data.circuit.profile.track_style if outlook_data.supporting_data.circuit and outlook_data.supporting_data.circuit.profile else 'Circuit profile not available yet.' }}</div>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div class="list-tag">Read</div>
+                        <div>
+                            <div class="item-title">What matters most here</div>
+                            <div class="item-detail">{{ outlook_data.supporting_data.circuit.profile.watch_for if outlook_data.supporting_data.circuit and outlook_data.supporting_data.circuit.profile else 'Weekend context still loading.' }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Drivers to Watch</h2>
+                    <span class="badge badge-green">{{ outlook_data.drivers_to_watch|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if outlook_data.drivers_to_watch %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Driver</th>
+                                <th>Team</th>
+                                <th>Trend</th>
+                                <th>Form</th>
+                                <th>Avg Qualifying</th>
+                                <th>Avg Finish</th>
+                                <th>Avg Change</th>
+                                <th>Why Watch</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in outlook_data.drivers_to_watch %}
+                            <tr>
+                                <td>{{ row.driver }}</td>
+                                <td>{{ row.team }}</td>
+                                <td>{{ row.trend }}</td>
+                                <td class="metric">{{ row.form_index }}</td>
+                                <td class="metric">{% if row.avg_quali is not none %}P{{ row.avg_quali }}{% else %}-{% endif %}</td>
+                                <td class="metric">{% if row.avg_race is not none %}P{{ row.avg_race }}{% else %}-{% endif %}</td>
+                                <td class="metric">{% if row.avg_gain is not none %}{{ '%+.2f'|format(row.avg_gain) }}{% else %}-{% endif %}</td>
+                                <td>{{ row.reason }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="note">No driver watchlist is available yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Teams to Watch</h2>
+                    <span class="badge badge-blue">{{ outlook_data.teams_to_watch|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% for row in outlook_data.teams_to_watch %}
+                    <div class="list-item">
+                        <div class="list-tag">{{ row.team }}</div>
+                        <div>
+                            <div class="item-title">{{ row.trend }} trend | form {{ row.form_index }}</div>
+                            <div class="item-detail">{{ row.reason }}. Avg quali {% if row.avg_quali is not none %}P{{ row.avg_quali }}{% else %}-{% endif %}, avg finish {% if row.avg_race is not none %}P{{ row.avg_race }}{% else %}-{% endif %}, {{ row.recent_points }} points.</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not outlook_data.teams_to_watch %}
+                    <div class="note">No team watchlist is available yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Midfield Picture</h2>
+                    <span class="badge badge-orange">{{ outlook_data.midfield_picture|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if outlook_data.midfield_picture %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Team</th>
+                                <th>Trend</th>
+                                <th>Form</th>
+                                <th>Recent Points</th>
+                                <th>Avg Finish</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in outlook_data.midfield_picture %}
+                            <tr>
+                                <td>{{ row.team }}</td>
+                                <td>{{ row.trend }}</td>
+                                <td class="metric">{{ row.form_index }}</td>
+                                <td class="metric">{{ row.recent_points }}</td>
+                                <td class="metric">{% if row.avg_race is not none %}P{{ row.avg_race }}{% else %}-{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="note">Not enough team data is available yet to build a midfield picture.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Teammate Focus</h2>
+                    <span class="badge badge-cyan">{{ outlook_data.teammate_focus.team if outlook_data.teammate_focus else 'N/A' }}</span>
+                </div>
+                <div class="card-body">
+                    {% if outlook_data.teammate_focus %}
+                    <div class="list-item">
+                        <div class="list-tag">Battle</div>
+                        <div>
+                            <div class="item-title">{{ outlook_data.teammate_focus.driver_a }} vs {{ outlook_data.teammate_focus.driver_b }}</div>
+                            <div class="item-detail">
+                                Qualifying: {{ outlook_data.teammate_focus.qualifying_score }} for {{ outlook_data.teammate_focus.qualifying_leader }}
+                                | Race: {{ outlook_data.teammate_focus.race_score }} for {{ outlook_data.teammate_focus.race_leader }}
+                                | Based on {{ outlook_data.teammate_focus.rounds_sampled }} recent rounds
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="note">No teammate focus battle is available yet.</div>
+                    {% endif %}
+                </div>
+                <div class="note">
+                    Weekend Outlook combines circuit demands with recent form so this page works as a briefing layer, not as a session prediction model.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function loadOutlook() {
+            const year = document.getElementById('yearInput').value;
+            const roundNum = document.getElementById('roundInput').value;
+            const windowValue = document.getElementById('windowInput').value;
+            if (!year || !roundNum) {
+                return;
+            }
+            window.location.href = `/outlook?year=${encodeURIComponent(year)}&round=${encodeURIComponent(roundNum)}&window=${encodeURIComponent(windowValue)}`;
+        }
+    </script>
+</body>
+</html>

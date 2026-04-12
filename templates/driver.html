@@ -276,6 +276,7 @@
             {% endif %}
         </select>
         <button onclick="loadDriver()">Load Driver Intel</button>
+        <a class="secondary-link" href="/outlook{% if driver_meta.year %}?year={{ driver_meta.year }}&window={{ driver_meta.window }}{% endif %}">Weekend Outlook</a>
         <a class="secondary-link" href="/season{% if driver_meta.year %}?year={{ driver_meta.year }}&window={{ driver_meta.window }}{% endif %}">Season Form</a>
         <a class="secondary-link" href="/circuit{% if driver_meta.year %}?year={{ driver_meta.year }}{% endif %}">Circuit Intel</a>
         <a class="secondary-link" href="/">Return to Dashboard</a>
