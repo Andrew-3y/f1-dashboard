@@ -374,14 +374,14 @@ def _grid_rank_rows(selected_summary, summaries):
 
     return [
         {
-            "label": "Form Rank",
+            "label": "Recent Form Rank",
             "value": _rank_text("form_index"),
             "detail": f"Form index {selected_summary['form_index']}",
         },
         {
             "label": "Qualifying Rank",
             "value": _rank_text("avg_quali"),
-            "detail": f"Avg quali: P{selected_summary['avg_quali']}" if selected_summary["avg_quali"] is not None else "Avg quali not available",
+            "detail": f"Avg qualifying: P{selected_summary['avg_quali']}" if selected_summary["avg_quali"] is not None else "Avg qualifying not available",
         },
         {
             "label": "Race Finish Rank",
@@ -389,7 +389,7 @@ def _grid_rank_rows(selected_summary, summaries):
             "detail": f"Avg finish: P{selected_summary['avg_race']}" if selected_summary["avg_race"] is not None else "Avg finish not available",
         },
         {
-            "label": "Positions Gained Rank",
+            "label": "Position Change Rank",
             "value": _rank_text("avg_gain"),
             "detail": f"Avg change: {selected_summary['avg_gain']:+}" if selected_summary["avg_gain"] is not None else "Avg change not available",
         },
@@ -600,6 +600,7 @@ def build_driver_intelligence(year, driver=None, window=5):
     """Build a driver-focused season view for one selected driver."""
     year = int(year)
     window = max(3, min(int(window or 5), 8))
+    driver = str(driver).strip().upper() if driver else None
     cache_key = (year, driver or "", window)
     if cache_key in _driver_cache:
         return _driver_cache[cache_key]
@@ -648,7 +649,7 @@ def build_driver_intelligence(year, driver=None, window=5):
     payload["meta"]["driver"] = selected_driver
     payload["summary"] = {
         "form_rank": f"P{form_rank}/{len(summaries)}" if form_rank is not None else "-",
-        "trend": f"{selected_summary['trend_arrow']} {selected_summary['trend']}",
+        "trend": selected_summary["trend"].title(),
         "avg_quali": f"P{selected_summary['avg_quali']}" if selected_summary["avg_quali"] is not None else "-",
         "avg_race": f"P{selected_summary['avg_race']}" if selected_summary["avg_race"] is not None else "-",
         "avg_gain": f"{selected_summary['avg_gain']:+}" if selected_summary["avg_gain"] is not None else "-",

@@ -334,7 +334,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-cyan);">{{ season_summary.qualifying_benchmark }}</div>
-                <div class="stat-label">Qualifying Benchmark</div>
+                <div class="stat-label">Best Avg Qualifying</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-orange);">{{ season_summary.positions_gained_leader }}</div>
@@ -348,7 +348,7 @@
 
         <div class="card" style="margin-bottom:1.2rem;">
             <div class="card-header">
-                <h2>Rounds Feeding This View</h2>
+                <h2>Rounds Included</h2>
                 <span class="badge badge-blue">{{ season_meta.rounds_used|length }}</span>
             </div>
             <div class="card-body" style="padding:0.9rem 1rem;">
@@ -358,7 +358,7 @@
             </div>
         </div>
 
-        <div class="section-title">Momentum Tables</div>
+        <div class="section-title">Recent Form</div>
         <div class="grid">
             <div class="card">
                 <div class="card-header">
@@ -375,10 +375,10 @@
                                 <th>Team</th>
                                 <th>Form</th>
                                 <th>Trend</th>
-                                <th>Avg Quali</th>
-                                <th>Avg Race</th>
+                                <th>Avg Qualifying</th>
+                                <th>Avg Finish</th>
                                 <th>Gain</th>
-                                <th>Pts</th>
+                                <th>Points</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -393,7 +393,7 @@
                                 <td class="metric">{{ row.form_index }}</td>
                                 <td>
                                     <span class="trend trend-{{ row.trend }}">
-                                        {{ row.trend_arrow }} {{ row.trend }}
+                                        {{ row.trend.title() }}
                                     </span>
                                 </td>
                                 <td class="metric">
@@ -439,10 +439,10 @@
                                 <th>Team</th>
                                 <th>Form</th>
                                 <th>Trend</th>
-                                <th>Avg Quali</th>
-                                <th>Avg Race</th>
+                                <th>Avg Qualifying</th>
+                                <th>Avg Finish</th>
                                 <th>Gain</th>
-                                <th>Pts</th>
+                                <th>Points</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -451,7 +451,7 @@
                                 <td class="rank">{{ row.rank }}</td>
                                 <td class="name">{{ row.team }}</td>
                                 <td class="metric">{{ row.form_index }}</td>
-                                <td><span class="trend trend-{{ row.trend }}">{{ row.trend_arrow }} {{ row.trend }}</span></td>
+                                <td><span class="trend trend-{{ row.trend }}">{{ row.trend.title() }}</span></td>
                                 <td class="metric">{% if row.recent_quali_avg is not none %}P{{ row.recent_quali_avg }}{% else %}-{% endif %}</td>
                                 <td class="metric">{% if row.recent_race_avg is not none %}P{{ row.recent_race_avg }}{% else %}-{% endif %}</td>
                                 <td class="metric">
@@ -478,7 +478,7 @@
             </div>
         </div>
 
-        <div class="section-title">Garage Battles</div>
+        <div class="section-title">Teammate Battles</div>
         <div class="grid">
             <div class="card full-width">
                 <div class="card-header">

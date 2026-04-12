@@ -59,7 +59,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Driver form ranking** - ranks drivers over the last N completed rounds using recent qualifying, race finishing position, points, and positions gained
 - **Team form ranking** - aggregates both cars to show which teams are trending strongest across recent rounds
 - **Season teammate head-to-head** - compares qualifying and race results between teammates across the selected recent window
-- **Momentum summary cards** - highlights the hottest driver, hottest team, strongest qualifying benchmark, best average position gain, and biggest average position loss over the selected round window
+- **Momentum summary cards** - highlights the hottest driver, hottest team, best recent average qualifier, best average position gain, and biggest average position loss over the selected round window
 - **Season-page background warmup** - first loads now return a friendly loading state while recent qualifying and race results are warmed in the background, reducing Render timeouts on `/season`
 - **Season-page polish pass** - teammate battle summaries now handle tied scorelines cleanly, fallback states use cleaner ASCII separators, and the route safely returns an empty season view if upstream round loads fail instead of erroring
 
@@ -74,7 +74,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 ### Driver Intelligence
 - **Driver Intelligence page** - dedicated `/driver` view for a single-driver season read
 - **Driver selector with recent-window filter** - choose the driver and last-N-round window directly on the page
-- **Grid ranking lens** - shows where the selected driver ranks across recent form, qualifying, race finishes, positions gained, points, and consistency
+- **Grid comparison** - shows where the selected driver ranks across recent form, qualifying, race finishes, positions gained, points, and consistency
 - **Teammate context block** - compares recent qualifying and race record versus the most relevant teammate in the selected window
 - **Round-by-round results** - recent event-by-event qualifying result, race result, grid spot, position change, points, and classification status
 - **Driver-read insights** - plain-language strengths and watchouts built from recent trend, qualifying pace, race execution, consistency, and teammate context
@@ -90,6 +90,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **F1-style lap-time formatting** - lap and pace times are shown as `M:SS.mmm` instead of raw seconds
 - **Ordered projection inputs** - projection cards list sessions in weekend order (FP1 -> FP2 -> FP3, then Qualifying where applicable)
 - **Readable projection explanations** - projection cards show plain-language reasons and clearer driver labels instead of raw shorthand where possible
+- **Terminology polish pass** - season, circuit, driver, and race-strategy labels now use clearer user-facing wording so cards and tables read more consistently at a glance
 - **Session-aware wording** - sprint-specific panels and validation checks now say "Sprint" where appropriate instead of reusing race labels
 - **Clearer warmup/error copy** - warmup and fallback states now use cleaner user-facing wording instead of exposing internal-looking debug phrasing
 - **Background warmup for manual round loads** - explicit year/round/session searches warm in the background first so cold session fetches are less likely to fail on first load
@@ -249,7 +250,7 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Module | Algorithm |
 |--------|-----------|
 | Driver Snapshot | Aggregates recent official qualifying and race results for one selected driver, using the same form-scoring blend as the season page |
-| Grid Ranking Lens | Ranks the selected driver against the active recent sample across form, average qualifying, average finish, average position change, points, and consistency |
+| Grid Comparison | Ranks the selected driver against the active recent sample across form, average qualifying, average finish, average position change, points, and consistency |
 | Teammate Context | Compares the selected driver's recent qualifying and race record against the most relevant teammate in the same selected window |
 | Driver Read | Turns the recent metrics into plain-language strengths and watchouts so the page reads like a profile, not just a table |
 
@@ -259,7 +260,7 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Anomaly Detection | `anomaly.py` | 5-lap rolling average, flags laps >1s slower, and suppresses same-lap field-wide slowdowns so safety-car or neutralized periods are less likely to appear as personal anomalies. Severity: CRITICAL (>3s) / HIGH (>2s) / MEDIUM (>1.5s) / LOW (>1s) |
 | Overtake Prediction | `predictor.py` | Gap-closing rate over last 8 laps, estimates laps to DRS range (<1s) |
 | Tire Degradation | `degradation.py` | Linear regression on clean stint laps (excludes pits, outliers >3s from median). Pit window = cumulative loss vs. ~23s pit cost |
-| Pit Strategy | `strategy.py` | Simulates pit stop: adds 23s, recalculates rejoin position, checks undercut (1.5s/lap advantage over 3 laps) and traffic risk (within 2s) |
+| Pit Strategy | `strategy.py` | Simulates pit stop: adds 23s, recalculates rejoin position, checks pit-timing edge potential (1.5s/lap fresh-tyre gain over 3 laps) and traffic risk (within 2s) |
 | Battle Detection | `battle_detector.py` | Scans consecutive classified pairs using same-lap cumulative times only, ignores mismatched or negative-gap rows, and calculates closing rate from the last 5 shared laps. INTENSE (<1s) / CLOSE (<1.5s) / WATCHING (<2s) |
 
 ---
@@ -376,7 +377,7 @@ git push origin main
 1. Open **Driver Intel** from the dashboard or visit `/driver`
 2. Choose the season, recent-round window, and driver you want to inspect
 3. Start with the summary cards for form rank, trend, average qualifying, average finish, average position change, and window points
-4. Use **Grid Ranking Lens** to see how that driver compares with the rest of the recent field
+4. Use **Grid Comparison** to see how that driver compares with the rest of the recent field
 5. Check **Teammate Context** to understand whether the driver is winning the intra-team fight
 6. Use **Round-by-Round Results** to see where the numbers are coming from event by event
 

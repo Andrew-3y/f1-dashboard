@@ -1489,7 +1489,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-green);">{{ strategy_summary.undercuts_available|default(0) }}</div>
-                <div class="stat-label">Undercuts Available</div>
+                <div class="stat-label">Pit Timing Edges</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ prediction_summary.imminent|default(0) }}</div>
@@ -1648,7 +1648,7 @@
                                         &middot; <span class="item-highlight">traffic behind {{ s.closest_after_pit }}</span>
                                     {% endif %}
                                     {% if s.undercut_possible %}
-                                        &middot; <span style="color:var(--accent-green);">undercut on {{ s.undercut_target }}</span>
+                                        &middot; <span style="color:var(--accent-green);">pit timing edge on {{ s.undercut_target }}</span>
                                     {% endif %}
                                 </div>
                             </div>

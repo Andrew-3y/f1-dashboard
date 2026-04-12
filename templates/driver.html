@@ -300,7 +300,7 @@
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-value">{{ driver_summary.form_rank }}</div>
-                <div class="stat-label">Form Rank</div>
+                <div class="stat-label">Recent Form Rank</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-cyan);">{{ driver_summary.trend }}</div>
@@ -320,7 +320,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ driver_summary.recent_points }}</div>
-                <div class="stat-label">Window Points</div>
+                <div class="stat-label">Recent Points</div>
             </div>
         </div>
 
@@ -337,7 +337,7 @@
                             <div class="fact-value">{{ driver_data.profile.team or '-' }}</div>
                         </div>
                         <div class="fact">
-                            <div class="fact-label">Form Index</div>
+                            <div class="fact-label">Form Score</div>
                             <div class="fact-value">{{ driver_data.profile.form_index or '-' }}</div>
                         </div>
                         <div class="fact">
@@ -389,14 +389,14 @@
                         </div>
                     </div>
                     {% else %}
-                    <div class="note">No stable teammate comparison is available in the selected window yet.</div>
+                    <div class="note">No teammate comparison is available in the selected window yet.</div>
                     {% endif %}
                 </div>
             </div>
 
             <div class="card">
                 <div class="card-header">
-                    <h2>Grid Ranking Lens</h2>
+                    <h2>Grid Comparison</h2>
                     <span class="badge badge-green">{{ driver_data.grid_ranks|length }}</span>
                 </div>
                 <div class="card-body">
@@ -414,8 +414,8 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h2>Driver Read</h2>
-                    <span class="badge badge-orange">Quick Read</span>
+                    <h2>Strengths and Risks</h2>
+                    <span class="badge badge-orange">Profile Read</span>
                 </div>
                 <div class="card-body">
                     {% for item in driver_data.strengths %}
