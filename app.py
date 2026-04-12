@@ -47,6 +47,7 @@ from race_projection import project_race_finish, project_sprint_finish
 from prediction_accuracy import compare_predictions, empty_accuracy
 from validation import validate_session, empty_validation
 from season_form import build_season_form, empty_season_form
+from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -201,6 +202,15 @@ _season_warm_cache = {
 }
 _season_warm_lock = threading.Lock()
 
+_circuit_warm_cache = {
+    "key": None,
+    "data": None,
+    "error": None,
+    "in_progress": False,
+    "updated_at": None,
+}
+_circuit_warm_lock = threading.Lock()
+
 
 def _read_warm_cache():
     """Return a snapshot of the warm cache."""
@@ -332,6 +342,68 @@ def _render_season_page(season_data=None, *, year=None, window=5, error=None, lo
         season_data=payload,
         season_meta=payload_meta,
         season_summary=payload_summary,
+        error=error,
+        loading=loading,
+    ), status_code
+
+
+def _read_circuit_warm_cache():
+    """Return a snapshot of the circuit warm cache."""
+    with _circuit_warm_lock:
+        return {
+            "key": _circuit_warm_cache["key"],
+            "data": _circuit_warm_cache["data"],
+            "error": _circuit_warm_cache["error"],
+            "in_progress": _circuit_warm_cache["in_progress"],
+            "updated_at": _circuit_warm_cache["updated_at"],
+        }
+
+
+def _start_circuit_warmup(year, round_num):
+    """Warm up circuit intelligence in a background thread."""
+    with _circuit_warm_lock:
+        requested_key = (year, round_num)
+        if _circuit_warm_cache["in_progress"] and _circuit_warm_cache["key"] == requested_key:
+            return
+        _circuit_warm_cache["key"] = requested_key
+        _circuit_warm_cache["data"] = None
+        _circuit_warm_cache["error"] = None
+        _circuit_warm_cache["in_progress"] = True
+
+    def _worker():
+        try:
+            data = build_circuit_intelligence(year, round_num)
+            with _circuit_warm_lock:
+                _circuit_warm_cache.update(
+                    {
+                        "key": (year, round_num),
+                        "data": data,
+                        "error": None,
+                        "updated_at": time.time(),
+                    }
+                )
+        except Exception as exc:
+            with _circuit_warm_lock:
+                _circuit_warm_cache["error"] = str(exc)
+        finally:
+            with _circuit_warm_lock:
+                _circuit_warm_cache["in_progress"] = False
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def _render_circuit_page(circuit_data=None, *, year=None, round_num=None, error=None, loading=False, status_code=200):
+    """Render the circuit page with stable fallback data."""
+    payload = circuit_data or empty_circuit_intelligence()
+    payload_meta = payload.get("meta", empty_circuit_intelligence()["meta"])
+    payload_summary = payload.get("summary", empty_circuit_intelligence()["summary"])
+    payload_meta["year"] = year if year is not None else payload_meta.get("year")
+    payload_meta["round_number"] = round_num if round_num is not None else payload_meta.get("round_number")
+    return render_template(
+        "circuit.html",
+        circuit_data=payload,
+        circuit_meta=payload_meta,
+        circuit_summary=payload_summary,
         error=error,
         loading=loading,
     ), status_code
@@ -945,6 +1017,46 @@ def season_view():
         window=window,
         loading=True,
         error="WARMUP: Building season form data. This can take a little longer on Render while recent qualifying and race results are loaded.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# ROUTE: Circuit Intelligence
+# ---------------------------------------------------------------------------
+@app.route("/circuit")
+def circuit_view():
+    """Render a circuit intelligence page for a selected round."""
+    year = request.args.get("year", type=int)
+    round_num = request.args.get("round", type=int)
+    if request.method == "HEAD":
+        return ("", 200)
+
+    if year is None or round_num is None:
+        try:
+            latest = get_latest_session_info()
+            year = year or latest.get("year")
+            round_num = round_num or latest.get("round_number")
+        except Exception:
+            year = year or datetime.datetime.now().year
+            round_num = round_num or 1
+
+    requested_key = (year, round_num)
+    warm_state = _read_circuit_warm_cache()
+
+    if warm_state["key"] == requested_key and warm_state["data"] is not None:
+        return _render_circuit_page(warm_state["data"], year=year, round_num=round_num)
+
+    if warm_state["key"] == requested_key and warm_state["error"]:
+        return _render_circuit_page(year=year, round_num=round_num, error=warm_state["error"], status_code=500)
+
+    if not warm_state["in_progress"] or warm_state["key"] != requested_key:
+        _start_circuit_warmup(year, round_num)
+
+    return _render_circuit_page(
+        year=year,
+        round_num=round_num,
+        loading=True,
+        error="WARMUP: Building circuit intelligence. This can take a little longer on Render while recent race and qualifying history is loaded.",
     )
 
 

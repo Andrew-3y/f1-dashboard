@@ -60,10 +60,18 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Momentum summary cards** - highlights the hottest driver, hottest team, strongest qualifying benchmark, best average position gain, and biggest average position loss over the selected round window
 - **Season-page background warmup** - first loads now return a friendly loading state while recent qualifying and race results are warmed in the background, reducing Render timeouts on `/season`
 
+### Circuit Intelligence
+- **Circuit Intelligence page** - dedicated `/circuit` view for pre-weekend track context
+- **Curated track profile** - lap length, corner count, DRS zones, track style, and what matters most at that venue
+- **Circuit difficulty summary** - overtaking, tyre stress, degradation risk, qualifying importance, and strategy bias
+- **Recent history table** - recent winners and pole sitters for the same Grand Prix
+- **Circuit-page background warmup** - first loads warm recent race and qualifying history in the background to reduce Render timeouts on `/circuit`
+
 ### Navigation & UI
 - **Weekend navigation bar** - one-click switching between FP1, FP2, FP3, Qualifying, Sprint Qualifying, Sprint, and Race for the current round
 - **Session selector** - manual year/round/session picker for historical data (supports all session types, including Sprint Shootout)
 - **Season Form Tracker shortcut** - direct button from the main dashboard to the dedicated season page
+- **Circuit Intelligence shortcut** - direct button from the main dashboard to the dedicated circuit page for the selected round
 - **Auto-refresh** - configurable: OFF / Live (30s) / Session (60s) / Casual (5min), persists across reloads
 - **F1-style lap-time formatting** - lap and pace times are shown as `M:SS.mmm` instead of raw seconds
 - **Ordered projection inputs** - projection cards list sessions in weekend order (FP1 -> FP2 -> FP3, then Qualifying where applicable)
@@ -94,12 +102,14 @@ f1-dashboard/
 |-- prediction_accuracy.py # Projection-vs-result comparison metrics
 |-- validation.py          # Session data quality audit checks
 |-- season_form.py         # Season-level momentum and teammate trend analysis
+|-- circuit_intel.py       # Circuit profiles and recent event history
 |-- requirements.txt       # Python dependencies
 |-- render.yaml            # Render deployment blueprint
 |-- .gitignore
 `-- templates/
     |-- dashboard.html     # Full HTML/CSS/JS dashboard
-    `-- season.html        # Dedicated season form tracker page
+    |-- season.html        # Dedicated season form tracker page
+    `-- circuit.html       # Dedicated circuit intelligence page
 ```
 
 ---
@@ -134,10 +144,12 @@ User visits URL
    |                 (11 analysis modules)|
    |                                     |
    |  Season ------> season_form.py      |
+   |                                     |
+   |  Circuit -----> circuit_intel.py    |
    +-------------------------------------+
        |
        v
-   Results injected into dashboard.html / season.html
+   Results injected into dashboard.html / season.html / circuit.html
        |
        v
    Rendered page returned to user
@@ -150,7 +162,7 @@ Each analysis module is wrapped in try/except - a failure in one never crashes t
 ## Module Reference
 
 ### `app.py` - Application Entry Point
-Routes requests to the correct analysis pipeline based on session type. Classifies sessions into three categories (race, qualifying, practice) and runs only the relevant modules. Serves four endpoints: `/` (dashboard), `/season` (season form tracker), `/api/data` (JSON), `/health` (Render health check). Includes cold-start warmup to avoid timeouts on initial loads.
+Routes requests to the correct analysis pipeline based on session type. Classifies sessions into three categories (race, qualifying, practice) and runs only the relevant modules. Serves five endpoints: `/` (dashboard), `/season` (season form tracker), `/circuit` (circuit intelligence), `/api/data` (JSON), `/health` (Render health check). Includes cold-start warmup to avoid timeouts on initial loads.
 
 ### `data_handler.py` - Data Layer
 All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for the most recent completed session using FastF1's actual named session slots and UTC timestamps, so sprint weekends and timezone boundaries are handled correctly. `load_session()` downloads and caches lap data in memory. `build_leaderboard()` uses finishing positions for races and fastest lap for qualifying/practice, normalizes official race-result gaps so direct gap-to-winner values are not misread as full elapsed race times, and prefers final classified lap times for same-lap finishers while falling back to lap-deficit labels for lapped cars.
@@ -207,6 +219,13 @@ All FastF1 communication. `get_latest_session_info()` scans the F1 calendar for 
 | Team Form | Combines both drivers' recent qualifying and race results to rank which teams are strongest over the selected round window |
 | Teammate Head-to-Head | Tracks qualifying and race wins between teammates across the selected recent rounds |
 
+### `circuit_intel.py` - Circuit Intelligence
+| Module | Algorithm |
+|--------|-----------|
+| Circuit Profile | Matches the selected Grand Prix to a curated circuit profile describing overtaking, tyre stress, degradation, qualifying importance, and strategy bias |
+| Recent History | Loads recent official race and qualifying results for the same event to show winners and pole sitters from prior visits |
+| Track Pattern Summary | Converts the profile plus recent history into plain-language notes about what usually matters at that venue |
+
 ### Race Analysis Modules
 | Module | File | Algorithm |
 |--------|------|-----------|
@@ -249,9 +268,10 @@ http://localhost:5000/?year=2024&round=24&session_type=Qualifying
 http://localhost:5000/?year=2024&round=24&session_type=Practice+1
 http://localhost:5000/?year=2024&round=21&session_type=Sprint+Shootout
 http://localhost:5000/season?year=2025&window=5
+http://localhost:5000/circuit?year=2025&round=14
 ```
 
-Or use the **Weekend Navigation Bar** to switch between sessions with one click, or open the **Season Form Tracker** for recent multi-round trends.
+Or use the **Weekend Navigation Bar** to switch between sessions with one click, open the **Season Form Tracker** for recent multi-round trends, or use **Circuit Intelligence** for pre-weekend track context.
 
 ---
 
@@ -317,6 +337,13 @@ git push origin main
 5. Use **Team Form** to understand which teams are improving or fading
 6. Check **Teammate Head-to-Head** for the recent intra-team battle picture
 
+### Using Circuit Intelligence
+1. Open **Circuit Intel** from the dashboard or visit `/circuit`
+2. Choose the season and round you want to preview
+3. Use the summary cards to understand overtaking, tyre stress, degradation risk, qualifying importance, and strategy bias
+4. Read the **What Matters Here** notes to get the venue's race-shaping themes
+5. Check the recent history table for recent winners and pole sitters at the same event
+
 ### Reviewing Race Accuracy
 1. Open the finished race session
 2. Check **Race Projection Accuracy** beneath the official classification
@@ -349,6 +376,7 @@ git push origin main
 - The qualifying-page projected race finish is a pre-race forecast, not a simulation of the actual race. It is strongest when practice long-run data is available and falls back to lower-confidence qualifying-led signals when it is not.
 - The season form page is a momentum view built from recent official results, not an official championship standings replacement.
 - The season form route only loads the recent rounds needed for trend analysis and warms heavy requests in the background so the page is more reliable on Render's free tier.
+- The circuit intelligence page combines curated track characteristics with recent official event history, so it is a context tool rather than a live performance model.
 
 ---
 
@@ -380,12 +408,13 @@ git push origin main
 | Single HTML file | No build tools, no CDN dependencies, zero frontend complexity |
 | Fuel correction in practice | Long run times are misleading without accounting for ~0.06s/lap fuel burn-off |
 | Separate season route | Season-level analysis adds a new product layer without overcrowding the live session dashboard |
+| Separate circuit route | Track intelligence serves a different pre-weekend use case than the session or season pages, so it benefits from its own dedicated screen |
 
 ---
 
 ## Portfolio Description
 
-> **F1 Strategy Intelligence Dashboard** - A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 28+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, projection accuracy benchmarking against official results, race pace prediction from fuel-corrected long run data, tyre degradation curves per compound, and a dedicated season form tracker for recent driver and team momentum. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
+> **F1 Strategy Intelligence Dashboard** - A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 28+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, projection accuracy benchmarking against official results, race pace prediction from fuel-corrected long run data, tyre degradation curves per compound, a dedicated season form tracker for recent driver and team momentum, and a circuit intelligence page for pre-weekend track context. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
 
 ### Sprint Shootout Workflow
 1. Open the **Sprint Shootout** session on a sprint weekend

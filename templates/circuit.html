@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Circuit Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a2e;
+            --bg-card-hover: #22223a;
+            --text-primary: #e8e8f0;
+            --text-secondary: #9595ad;
+            --text-muted: #66667c;
+            --accent-red: #e10600;
+            --accent-blue: #3366ff;
+            --accent-green: #00c853;
+            --accent-yellow: #ffd600;
+            --accent-orange: #ff6d00;
+            --accent-cyan: #00bcd4;
+            --border-color: #2a2a40;
+            --radius: 12px;
+            --shadow: 0 4px 24px rgba(0,0,0,0.35);
+            --transition: all 0.2s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, var(--accent-cyan) 0%, #004d5b 100%);
+            padding: 1.4rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .header h1 { font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+        .header h1 span { font-weight: 300; opacity: 0.9; }
+        .header-meta { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+        .meta-badge {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            padding: 0.35rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .toolbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.8rem 2rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .toolbar label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+        .toolbar input, .toolbar button, .toolbar a {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 0.45rem 0.7rem;
+            font-family: inherit;
+            font-size: 0.82rem;
+            text-decoration: none;
+        }
+        .toolbar button {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: #000;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .toolbar .secondary-link {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #fff;
+            font-weight: 700;
+        }
+        .container { max-width: 1440px; margin: 0 auto; padding: 1.5rem; }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 0.8rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card, .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .stat-card { padding: 1rem; text-align: center; }
+        .stat-card:hover, .card:hover { background: var(--bg-card-hover); box-shadow: var(--shadow); }
+        .stat-value { font-size: 1.45rem; font-weight: 800; color: var(--accent-cyan); line-height: 1.2; }
+        .stat-label {
+            margin-top: 0.25rem;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .card-header {
+            padding: 0.85rem 1.1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .card-header h2 { font-size: 0.95rem; font-weight: 700; }
+        .badge {
+            background: var(--accent-cyan);
+            color: #000;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 0.15rem 0.55rem;
+        }
+        .badge-blue { background: var(--accent-blue); color: #fff; }
+        .badge-green { background: var(--accent-green); color: #000; }
+        .badge-orange { background: var(--accent-orange); color: #fff; }
+        .card-body { padding: 0; overflow-x: auto; }
+        .section-title {
+            margin: 1.2rem 0 1rem;
+            padding-bottom: 0.45rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.2rem;
+        }
+        .full-width { grid-column: 1 / -1; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-align: left;
+            padding: 0.65rem 0.8rem;
+        }
+        td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.82rem;
+        }
+        tr:hover td { background: rgba(255,255,255,0.03); }
+        .list-item {
+            padding: 0.8rem 1rem;
+            display: flex;
+            gap: 0.8rem;
+            align-items: flex-start;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .list-item:last-child { border-bottom: none; }
+        .list-tag {
+            min-width: 70px;
+            text-align: center;
+            padding: 0.18rem 0.4rem;
+            border-radius: 6px;
+            background: rgba(0,188,212,0.12);
+            border: 1px solid rgba(0,188,212,0.28);
+            color: var(--accent-cyan);
+            font-size: 0.64rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .item-title { font-size: 0.84rem; font-weight: 700; }
+        .item-detail { margin-top: 0.1rem; font-size: 0.76rem; color: var(--text-secondary); }
+        .note {
+            padding: 0.95rem 1rem;
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .error-box {
+            background: rgba(225,6,0,0.1);
+            border: 1px solid rgba(225,6,0,0.25);
+            color: #ffd3d1;
+            border-radius: 12px;
+            padding: 1rem 1.1rem;
+            margin-bottom: 1rem;
+        }
+        .fact-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.8rem;
+            padding: 1rem;
+        }
+        .fact {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 10px;
+            padding: 0.8rem;
+        }
+        .fact-label {
+            color: var(--text-secondary);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+        }
+        .fact-value {
+            margin-top: 0.25rem;
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+        @media (max-width: 980px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 700px) {
+            .header, .toolbar, .container { padding-left: 1rem; padding-right: 1rem; }
+            .toolbar { align-items: stretch; }
+            .toolbar label { width: 100%; }
+            .toolbar input, .toolbar button, .toolbar a { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>F1 <span>Circuit Intelligence</span></h1>
+        <div class="header-meta">
+            <span class="meta-badge">{{ circuit_meta.year }}</span>
+            <span class="meta-badge">Round {{ circuit_meta.round_number }}</span>
+            <span class="meta-badge">{{ circuit_meta.event_name }}</span>
+            <span class="meta-badge">{{ circuit_meta.circuit_name }}</span>
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <label>Season:</label>
+        <input type="number" id="yearInput" min="2018" max="2030" value="{{ circuit_meta.year or '' }}" style="width:90px;">
+        <label>Round:</label>
+        <input type="number" id="roundInput" min="1" max="30" value="{{ circuit_meta.round_number or '' }}" style="width:80px;">
+        <button onclick="loadCircuit()">Load Circuit Intel</button>
+        <a class="secondary-link" href="/season{% if circuit_meta.year %}?year={{ circuit_meta.year }}{% endif %}">Season Form</a>
+        <a class="secondary-link" href="/">Return to Dashboard</a>
+    </div>
+
+    <div class="container">
+        {% if loading %}
+        <div class="error-box" style="border-color:rgba(0,188,212,0.3);background:rgba(0,188,212,0.12);color:#d8fbff;">
+            Circuit intelligence is warming up for {{ circuit_meta.event_name or ('Round ' ~ circuit_meta.round_number) }}.
+            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+        </div>
+        <script>
+            setTimeout(function(){ location.reload(); }, 9000);
+        </script>
+        {% elif error %}
+        <div class="error-box">
+            Circuit intelligence could not be built for round {{ circuit_meta.round_number }} in {{ circuit_meta.year }}.
+            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+        </div>
+        {% endif %}
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value">{{ circuit_summary.overtaking }}</div>
+                <div class="stat-label">Overtaking</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-orange);">{{ circuit_summary.tyre_stress }}</div>
+                <div class="stat-label">Tyre Stress</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-yellow);">{{ circuit_summary.degradation_risk }}</div>
+                <div class="stat-label">Deg Risk</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-green);">{{ circuit_summary.qualifying_importance }}</div>
+                <div class="stat-label">Qualifying Importance</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-blue);">{{ circuit_summary.strategy_bias }}</div>
+                <div class="stat-label">Strategy Bias</div>
+            </div>
+        </div>
+
+        <div class="section-title">Circuit DNA</div>
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Track Profile</h2>
+                    <span class="badge">{{ circuit_meta.circuit_name }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="fact-grid">
+                        <div class="fact">
+                            <div class="fact-label">Location</div>
+                            <div class="fact-value">{{ circuit_meta.location }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Country</div>
+                            <div class="fact-value">{{ circuit_meta.country }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Lap Length</div>
+                            <div class="fact-value">{% if circuit_data.profile.lap_length_km %}{{ circuit_data.profile.lap_length_km }} km{% else %}-{% endif %}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Corners</div>
+                            <div class="fact-value">{{ circuit_data.profile.corners if circuit_data.profile.corners else '-' }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">DRS Zones</div>
+                            <div class="fact-value">{{ circuit_data.profile.drs_zones if circuit_data.profile.drs_zones else '-' }}</div>
+                        </div>
+                    </div>
+                    <div class="note">{{ circuit_data.profile.track_style }}</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>What Matters Here</h2>
+                    <span class="badge badge-orange">Weekend Read</span>
+                </div>
+                <div class="card-body">
+                    {% for item in circuit_data.recent_patterns %}
+                    <div class="list-item">
+                        <div class="list-tag">{{ loop.index }}</div>
+                        <div>
+                            <div class="item-title">{{ item.title }}</div>
+                            <div class="item-detail">{{ item.detail }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Recent History</div>
+        <div class="card full-width">
+            <div class="card-header">
+                <h2>Recent Winners and Pole Sitters</h2>
+                <span class="badge badge-blue">{{ circuit_data.recent_history|length }} races</span>
+            </div>
+            <div class="card-body">
+                {% if circuit_data.recent_history %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Year</th>
+                            <th>Winner</th>
+                            <th>Winning Team</th>
+                            <th>Pole Sitter</th>
+                            <th>Pole Team</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in circuit_data.recent_history %}
+                        <tr>
+                            <td>{{ row.year }}</td>
+                            <td>{{ row.winner }}</td>
+                            <td>{{ row.winning_team }}</td>
+                            <td>{{ row.pole_sitter }}</td>
+                            <td>{{ row.pole_team }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="note">No recent history is available yet for this event.</div>
+                {% endif %}
+            </div>
+            <div class="note">
+                Recent history is built from official qualifying and race results for the most recent visits to the same Grand Prix. The page is meant as a weekend-context guide, not a prediction engine by itself.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function loadCircuit() {
+            const year = document.getElementById('yearInput').value;
+            const roundNum = document.getElementById('roundInput').value;
+            if (!year || !roundNum) {
+                return;
+            }
+            window.location.href = `/circuit?year=${encodeURIComponent(year)}&round=${encodeURIComponent(roundNum)}`;
+        }
+    </script>
+</body>
+</html>
