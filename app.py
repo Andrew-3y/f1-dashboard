@@ -48,6 +48,7 @@ from prediction_accuracy import compare_predictions, empty_accuracy
 from validation import validate_session, empty_validation
 from season_form import build_season_form, empty_season_form
 from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence
+from driver_intel import build_driver_intelligence, empty_driver_intelligence
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -210,6 +211,15 @@ _circuit_warm_cache = {
     "updated_at": None,
 }
 _circuit_warm_lock = threading.Lock()
+
+_driver_warm_cache = {
+    "key": None,
+    "data": None,
+    "error": None,
+    "in_progress": False,
+    "updated_at": None,
+}
+_driver_warm_lock = threading.Lock()
 
 
 def _read_warm_cache():
@@ -404,6 +414,72 @@ def _render_circuit_page(circuit_data=None, *, year=None, round_num=None, error=
         circuit_data=payload,
         circuit_meta=payload_meta,
         circuit_summary=payload_summary,
+        error=error,
+        loading=loading,
+    ), status_code
+
+
+def _read_driver_warm_cache():
+    """Return a snapshot of the driver warm cache."""
+    with _driver_warm_lock:
+        return {
+            "key": _driver_warm_cache["key"],
+            "data": _driver_warm_cache["data"],
+            "error": _driver_warm_cache["error"],
+            "in_progress": _driver_warm_cache["in_progress"],
+            "updated_at": _driver_warm_cache["updated_at"],
+        }
+
+
+def _start_driver_warmup(year, driver, window):
+    """Warm up driver intelligence in a background thread."""
+    with _driver_warm_lock:
+        requested_key = (year, driver or "", window)
+        if _driver_warm_cache["in_progress"] and _driver_warm_cache["key"] == requested_key:
+            return
+        _driver_warm_cache["key"] = requested_key
+        _driver_warm_cache["data"] = None
+        _driver_warm_cache["error"] = None
+        _driver_warm_cache["in_progress"] = True
+
+    def _worker():
+        try:
+            data = build_driver_intelligence(year, driver=driver, window=window)
+            with _driver_warm_lock:
+                _driver_warm_cache.update(
+                    {
+                        "key": (year, driver or "", window),
+                        "data": data,
+                        "error": None,
+                        "updated_at": time.time(),
+                    }
+                )
+        except Exception as exc:
+            with _driver_warm_lock:
+                _driver_warm_cache["error"] = str(exc)
+        finally:
+            with _driver_warm_lock:
+                _driver_warm_cache["in_progress"] = False
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def _render_driver_page(driver_data=None, *, year=None, driver=None, window=5, error=None, loading=False, status_code=200):
+    """Render the driver page with stable fallback data."""
+    payload = driver_data or empty_driver_intelligence()
+    empty_payload = empty_driver_intelligence()
+    payload_meta = payload.get("meta", empty_payload["meta"])
+    payload_summary = payload.get("summary", empty_payload["summary"])
+    payload_meta["year"] = year if year is not None else payload_meta.get("year")
+    payload_meta["window"] = window
+    payload_meta["window_label"] = f"Last {window} rounds"
+    if driver:
+        payload_meta["driver"] = driver
+    return render_template(
+        "driver.html",
+        driver_data=payload,
+        driver_meta=payload_meta,
+        driver_summary=payload_summary,
         error=error,
         loading=loading,
     ), status_code
@@ -1057,6 +1133,50 @@ def circuit_view():
         round_num=round_num,
         loading=True,
         error="Building circuit intelligence. This can take a little longer on Render while recent race and qualifying history is loaded.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# ROUTE: Driver Intelligence
+# ---------------------------------------------------------------------------
+@app.route("/driver")
+def driver_view():
+    """Render a driver-focused season page."""
+    year = request.args.get("year", type=int)
+    driver = request.args.get("driver", default=None, type=str)
+    window = request.args.get("window", default=5, type=int)
+    if request.method == "HEAD":
+        return ("", 200)
+
+    if year is None:
+        try:
+            latest = get_latest_session_info()
+            year = latest.get("year")
+        except Exception:
+            year = None
+
+    if year is None:
+        year = datetime.datetime.now().year
+
+    requested_key = (year, driver or "", window)
+    warm_state = _read_driver_warm_cache()
+
+    if warm_state["key"] == requested_key and warm_state["data"] is not None:
+        loaded_driver = driver or warm_state["data"].get("meta", {}).get("driver")
+        return _render_driver_page(warm_state["data"], year=year, driver=loaded_driver, window=window)
+
+    if warm_state["key"] == requested_key and warm_state["error"]:
+        return _render_driver_page(year=year, driver=driver, window=window, error=warm_state["error"], status_code=500)
+
+    if not warm_state["in_progress"] or warm_state["key"] != requested_key:
+        _start_driver_warmup(year, driver, window)
+
+    return _render_driver_page(
+        year=year,
+        driver=driver,
+        window=window,
+        loading=True,
+        error="Building driver intelligence. This can take a little longer on Render while recent qualifying and race results are loaded.",
     )
 
 

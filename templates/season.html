@@ -302,6 +302,7 @@
             {% endfor %}
         </select>
         <button onclick="loadSeason()">Load Season Form</button>
+        <a class="secondary-link" href="/driver{% if season_meta.year %}?year={{ season_meta.year }}&window={{ season_meta.window }}{% endif %}">Driver Intel</a>
         <a class="secondary-link" href="/circuit">Circuit Intel</a>
         <a class="secondary-link" href="/">Return to Dashboard</a>
     </div>

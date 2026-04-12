@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Driver Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a2e;
+            --bg-card-hover: #22223a;
+            --text-primary: #e8e8f0;
+            --text-secondary: #9595ad;
+            --accent-red: #e10600;
+            --accent-blue: #3366ff;
+            --accent-green: #00c853;
+            --accent-yellow: #ffd600;
+            --accent-orange: #ff6d00;
+            --accent-cyan: #00bcd4;
+            --border-color: #2a2a40;
+            --radius: 12px;
+            --shadow: 0 4px 24px rgba(0,0,0,0.35);
+            --transition: all 0.2s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #1b2d78 100%);
+            padding: 1.4rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .header h1 { font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+        .header h1 span { font-weight: 300; opacity: 0.9; }
+        .header-meta { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+        .meta-badge {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            padding: 0.35rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .toolbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.8rem 2rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .toolbar label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+        .toolbar input, .toolbar select, .toolbar button, .toolbar a {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 0.45rem 0.7rem;
+            font-family: inherit;
+            font-size: 0.82rem;
+            text-decoration: none;
+        }
+        .toolbar button {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .toolbar .secondary-link {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: #000;
+            font-weight: 700;
+        }
+        .container { max-width: 1440px; margin: 0 auto; padding: 1.5rem; }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 0.8rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card, .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .stat-card { padding: 1rem; text-align: center; }
+        .stat-card:hover, .card:hover { background: var(--bg-card-hover); box-shadow: var(--shadow); }
+        .stat-value { font-size: 1.45rem; font-weight: 800; color: var(--accent-blue); line-height: 1.2; }
+        .stat-label {
+            margin-top: 0.25rem;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .card-header {
+            padding: 0.85rem 1.1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .card-header h2 { font-size: 0.95rem; font-weight: 700; }
+        .badge {
+            background: var(--accent-blue);
+            color: #fff;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 0.15rem 0.55rem;
+        }
+        .badge-green { background: var(--accent-green); color: #000; }
+        .badge-orange { background: var(--accent-orange); color: #fff; }
+        .badge-cyan { background: var(--accent-cyan); color: #000; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 1.2rem;
+        }
+        .full-width { grid-column: 1 / -1; }
+        .card-body { padding: 0; overflow-x: auto; }
+        .fact-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.8rem;
+            padding: 1rem;
+        }
+        .fact {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 10px;
+            padding: 0.8rem;
+        }
+        .fact-label {
+            color: var(--text-secondary);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+        }
+        .fact-value {
+            margin-top: 0.25rem;
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+        .list-item {
+            padding: 0.8rem 1rem;
+            display: flex;
+            gap: 0.8rem;
+            align-items: flex-start;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .list-item:last-child { border-bottom: none; }
+        .list-tag {
+            min-width: 66px;
+            text-align: center;
+            padding: 0.18rem 0.4rem;
+            border-radius: 6px;
+            background: rgba(51,102,255,0.12);
+            border: 1px solid rgba(51,102,255,0.28);
+            color: var(--accent-blue);
+            font-size: 0.64rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .item-title { font-size: 0.84rem; font-weight: 700; }
+        .item-detail { margin-top: 0.1rem; font-size: 0.76rem; color: var(--text-secondary); }
+        .note {
+            padding: 0.95rem 1rem;
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .error-box {
+            background: rgba(225,6,0,0.1);
+            border: 1px solid rgba(225,6,0,0.25);
+            color: #ffd3d1;
+            border-radius: 12px;
+            padding: 1rem 1.1rem;
+            margin-bottom: 1rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-align: left;
+            padding: 0.65rem 0.8rem;
+        }
+        td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.82rem;
+        }
+        tr:hover td { background: rgba(255,255,255,0.03); }
+        .metric { font-variant-numeric: tabular-nums; }
+        .pos-good { color: var(--accent-green); font-weight: 700; }
+        .pos-bad { color: var(--accent-orange); font-weight: 700; }
+        @media (max-width: 980px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 700px) {
+            .header, .toolbar, .container { padding-left: 1rem; padding-right: 1rem; }
+            .toolbar { align-items: stretch; }
+            .toolbar label { width: 100%; }
+            .toolbar input, .toolbar select, .toolbar button, .toolbar a { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>F1 <span>Driver Intelligence</span></h1>
+        <div class="header-meta">
+            <span class="meta-badge">{{ driver_meta.year }}</span>
+            <span class="meta-badge">{{ driver_meta.window_label }}</span>
+            <span class="meta-badge">{{ driver_meta.driver }}</span>
+            <span class="meta-badge">Latest: {{ driver_meta.latest_event }}</span>
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <label>Season:</label>
+        <input type="number" id="yearInput" min="2018" max="2030" value="{{ driver_meta.year or '' }}" style="width:90px;">
+        <label>Window:</label>
+        <select id="windowInput" style="width:140px;">
+            {% for option in [3,4,5,6,8] %}
+            <option value="{{ option }}" {% if driver_meta.window == option %}selected{% endif %}>Last {{ option }} rounds</option>
+            {% endfor %}
+        </select>
+        <label>Driver:</label>
+        <select id="driverInput" style="min-width:140px;">
+            {% if driver_meta.available_drivers %}
+                {% for option in driver_meta.available_drivers %}
+                <option value="{{ option }}" {% if driver_meta.driver == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+            {% else %}
+                <option value="{{ driver_meta.driver }}">{{ driver_meta.driver or 'Select driver' }}</option>
+            {% endif %}
+        </select>
+        <button onclick="loadDriver()">Load Driver Intel</button>
+        <a class="secondary-link" href="/season{% if driver_meta.year %}?year={{ driver_meta.year }}&window={{ driver_meta.window }}{% endif %}">Season Form</a>
+        <a class="secondary-link" href="/circuit{% if driver_meta.year %}?year={{ driver_meta.year }}{% endif %}">Circuit Intel</a>
+        <a class="secondary-link" href="/">Return to Dashboard</a>
+    </div>
+
+    <div class="container">
+        {% if loading %}
+        <div class="error-box" style="border-color:rgba(51,102,255,0.3);background:rgba(51,102,255,0.12);color:#dbe6ff;">
+            Driver intelligence is warming up for {{ driver_meta.year }}. Render cold starts and multi-round result loading can take a bit on the first request.
+            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+        </div>
+        <script>
+            setTimeout(function(){ location.reload(); }, 9000);
+        </script>
+        {% elif error %}
+        <div class="error-box">
+            Driver intelligence could not be built for {{ driver_meta.year }}. Try reloading or reducing the round window.
+            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+        </div>
+        {% endif %}
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value">{{ driver_summary.form_rank }}</div>
+                <div class="stat-label">Form Rank</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-cyan);">{{ driver_summary.trend }}</div>
+                <div class="stat-label">Recent Trend</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-green);">{{ driver_summary.avg_quali }}</div>
+                <div class="stat-label">Avg Qualifying</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-yellow);">{{ driver_summary.avg_race }}</div>
+                <div class="stat-label">Avg Finish</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--accent-orange);">{{ driver_summary.avg_gain }}</div>
+                <div class="stat-label">Avg Position Change</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ driver_summary.recent_points }}</div>
+                <div class="stat-label">Window Points</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Driver Snapshot</h2>
+                    <span class="badge">{{ driver_data.profile.driver }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="fact-grid">
+                        <div class="fact">
+                            <div class="fact-label">Team</div>
+                            <div class="fact-value">{{ driver_data.profile.team or '-' }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Form Index</div>
+                            <div class="fact-value">{{ driver_data.profile.form_index or '-' }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Wins</div>
+                            <div class="fact-value">{{ driver_data.profile.wins or 0 }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Podiums</div>
+                            <div class="fact-value">{{ driver_data.profile.podiums or 0 }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Consistency</div>
+                            <div class="fact-value">{{ driver_data.profile.consistency_label or '-' }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Rounds Sampled</div>
+                            <div class="fact-value">{{ driver_data.profile.rounds_sampled or 0 }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="note">
+                    This page uses the same recent-window qualifying and race results as the season page, but centers them on one driver so the grid context is easier to read.
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Teammate Context</h2>
+                    <span class="badge badge-cyan">{{ driver_data.teammate_context.teammate if driver_data.teammate_context else 'N/A' }}</span>
+                </div>
+                <div class="card-body">
+                    {% if driver_data.teammate_context %}
+                    <div class="fact-grid">
+                        <div class="fact">
+                            <div class="fact-label">Team</div>
+                            <div class="fact-value">{{ driver_data.teammate_context.team }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Qualifying</div>
+                            <div class="fact-value">{{ driver_data.teammate_context.qualifying_wins }}-{{ driver_data.teammate_context.qualifying_losses }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Race</div>
+                            <div class="fact-value">{{ driver_data.teammate_context.race_wins }}-{{ driver_data.teammate_context.race_losses }}</div>
+                        </div>
+                        <div class="fact">
+                            <div class="fact-label">Points</div>
+                            <div class="fact-value">{{ driver_data.teammate_context.selected_points }} vs {{ driver_data.teammate_context.teammate_points }}</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="note">No stable teammate comparison is available in the selected window yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Grid Ranking Lens</h2>
+                    <span class="badge badge-green">{{ driver_data.grid_ranks|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% for item in driver_data.grid_ranks %}
+                    <div class="list-item">
+                        <div class="list-tag">{{ item.value }}</div>
+                        <div>
+                            <div class="item-title">{{ item.label }}</div>
+                            <div class="item-detail">{{ item.detail }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Driver Read</h2>
+                    <span class="badge badge-orange">Quick Read</span>
+                </div>
+                <div class="card-body">
+                    {% for item in driver_data.strengths %}
+                    <div class="list-item">
+                        <div class="list-tag" style="background:rgba(0,200,83,0.12);border-color:rgba(0,200,83,0.28);color:var(--accent-green);">Plus</div>
+                        <div>
+                            <div class="item-title">{{ item.title }}</div>
+                            <div class="item-detail">{{ item.detail }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% for item in driver_data.watchouts %}
+                    <div class="list-item">
+                        <div class="list-tag" style="background:rgba(255,109,0,0.12);border-color:rgba(255,109,0,0.28);color:var(--accent-orange);">Watch</div>
+                        <div>
+                            <div class="item-title">{{ item.title }}</div>
+                            <div class="item-detail">{{ item.detail }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not driver_data.strengths and not driver_data.watchouts %}
+                    <div class="note">Not enough recent data is available yet to build a strong driver read.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2>Round-by-Round Results</h2>
+                    <span class="badge">{{ driver_data.recent_results|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if driver_data.recent_results %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Round</th>
+                                <th>Event</th>
+                                <th>Team</th>
+                                <th>Qualifying</th>
+                                <th>Race</th>
+                                <th>Grid</th>
+                                <th>Change</th>
+                                <th>Points</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in driver_data.recent_results %}
+                            <tr>
+                                <td class="metric">R{{ row.round_number }}</td>
+                                <td>{{ row.event_name }}</td>
+                                <td>{{ row.team }}</td>
+                                <td class="metric">{% if row.quali_position is not none %}P{{ row.quali_position }}{% else %}-{% endif %}</td>
+                                <td class="metric">{% if row.race_position is not none %}P{{ row.race_position }}{% else %}-{% endif %}</td>
+                                <td class="metric">{% if row.grid_position is not none %}P{{ row.grid_position }}{% else %}-{% endif %}</td>
+                                <td class="metric">
+                                    {% if row.gained is not none %}
+                                    <span class="{% if row.gained >= 0 %}pos-good{% else %}pos-bad{% endif %}">
+                                        {{ '+' if row.gained >= 0 else '' }}{{ row.gained }}
+                                    </span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td class="metric">{{ row.points }}</td>
+                                <td>{{ row.status if row.status else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="note">No recent driver results are available yet for this season.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function loadDriver() {
+            const year = document.getElementById('yearInput').value;
+            const windowValue = document.getElementById('windowInput').value;
+            const driver = document.getElementById('driverInput').value;
+            if (!year) {
+                return;
+            }
+            let url = `/driver?year=${encodeURIComponent(year)}&window=${encodeURIComponent(windowValue)}`;
+            if (driver) {
+                url += `&driver=${encodeURIComponent(driver)}`;
+            }
+            window.location.href = url;
+        }
+    </script>
+</body>
+</html>
