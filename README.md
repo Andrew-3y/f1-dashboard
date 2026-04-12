@@ -57,7 +57,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Driver form ranking** - ranks drivers over the last N completed rounds using recent qualifying, race finishing position, points, and positions gained
 - **Team form ranking** - aggregates both cars to show which teams are trending strongest across recent rounds
 - **Season teammate head-to-head** - compares qualifying and race results between teammates across the selected recent window
-- **Momentum summary cards** - highlights the hottest driver, hottest team, strongest qualifying benchmark, best recent position gainer, and biggest recent position loser
+- **Momentum summary cards** - highlights the hottest driver, hottest team, strongest qualifying benchmark, best average position gain, and biggest average position loss over the selected round window
 - **Season-page background warmup** - first loads now return a friendly loading state while recent qualifying and race results are warmed in the background, reducing Render timeouts on `/season`
 
 ### Navigation & UI
