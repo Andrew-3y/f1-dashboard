@@ -51,6 +51,25 @@ MAX_ALERTS = 20
 GLOBAL_EVENT_DRIVER_THRESHOLD = 3
 
 
+def _is_green_track_status(value):
+    """
+    Return True when FastF1 track status looks like a normal green-flag lap.
+
+    FastF1 can encode multiple track-status states in one string. We keep the
+    anomaly detector conservative and only trust laps whose status is all-clear
+    (`1`) or missing entirely.
+    """
+    if value is None or pd.isna(value):
+        return True
+
+    status = str(value).strip()
+    if not status:
+        return True
+
+    allowed = {"1"}
+    return all(char in allowed for char in status if char.isdigit())
+
+
 # ---------------------------------------------------------------------------
 # Core detection function
 # ---------------------------------------------------------------------------
@@ -118,6 +137,11 @@ def detect_anomalies(laps, window=ROLLING_WINDOW, threshold=PACE_LOSS_THRESHOLD)
         # PitInTime is NaT when the driver did NOT pit on that lap
         is_pit_lap = dl["PitInTime"].notna() | dl["PitOutTime"].notna()
         clean_laps = dl[~is_pit_lap].copy()
+
+        # Ignore laps run under caution / neutralized conditions. Those often
+        # produce "driver mistake" alerts that are really race-control effects.
+        if "TrackStatus" in clean_laps.columns:
+            clean_laps = clean_laps[clean_laps["TrackStatus"].apply(_is_green_track_status)].copy()
 
         if len(clean_laps) < window + 1:
             continue

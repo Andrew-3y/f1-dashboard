@@ -16,12 +16,14 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Battle detection** - identifies drivers within 2s, tracks closing rates, classifies intensity (INTENSE / CLOSE / WATCHING) with DRS flags
 - **Overtake predictions** - gap-closing rate analysis with estimated laps to DRS range
 - **Anomaly detection** - rolling-average pace analysis, severity levels CRITICAL / HIGH / MEDIUM / LOW
+- **Cleaner anomaly filtering** - pace anomalies now ignore pit laps and non-green/neutralized track-status laps more aggressively, reducing false alerts from safety-car, VSC, and caution periods
 
 ### Qualifying Analysis
 - **Full results with sector breakdown** - S1, S2, S3 times color-coded (purple = best in session, green = within 0.1s, yellow = within 0.3s, orange = off pace)
 - **Tyre compound per driver** on their best lap
 - **Projected race finish** - qualifying-page pre-race forecast that blends grid position with available practice long-run pace and qualifying-form signals
 - **Projection accuracy tracking** - compares FP3 qualifying projections with actual qualifying and pre-race finish projections with the official race result using exact-match rate, average position error, and top-10 overlap
+- **Corrected accuracy movement wording** - projection accuracy cards now describe whether a driver finished higher or lower than predicted using the actual official finishing position direction
 - **Q1 / Q2 / Q3 elimination tracker** - who got knocked out, gap to the cutoff line
 - **Close calls** - exact margin between last-safe and first-eliminated at each cutoff
 - **Teammate head-to-head** - who beat who within each team, gap in seconds and percentage
