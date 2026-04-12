@@ -4,6 +4,33 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 
 **Architecture:** On-demand, zero-cost. The app sleeps on Render's free tier and wakes on request. No always-running server, no paid services, no database.
 
+Built and maintained by **Andrew**.
+
+## Author & Project Links
+
+- **Author:** Andrew
+- **GitHub:** [Andrew-3y](https://github.com/Andrew-3y)
+- **Repository:** [Andrew-3y/f1-dashboard](https://github.com/Andrew-3y/f1-dashboard)
+- **Live Demo:** [f1-dashboard-l1yl.onrender.com](https://f1-dashboard-l1yl.onrender.com)
+- **License:** [MIT](./LICENSE)
+
+## Ownership & Attribution
+
+- This repository, commit history, deployment trail, and feature progression are the primary authorship record for the project.
+- If this project is reused or adapted, attribution should remain with the original repository and license notice.
+- Public repositories can be copied, but the development history in this repo is the strongest proof of original ownership and ongoing maintenance.
+
+## Screenshots
+
+- Add homepage, season page, circuit page, driver page, and weekend-outlook screenshots here as the project evolves.
+- Recommended future folder: `docs/screenshots/`
+- Recommended image set:
+  - main dashboard
+  - season form
+  - circuit intelligence
+  - driver intelligence
+  - weekend outlook
+
 ---
 
 ## Features
@@ -132,9 +159,12 @@ f1-dashboard/
 |-- circuit_intel.py       # Circuit profiles and recent event history
 |-- driver_intel.py        # Driver-focused season profile and grid ranking view
 |-- weekend_outlook.py     # Weekly briefing page combining track context and recent form
+|-- LICENSE                # MIT license for reuse and attribution
 |-- requirements.txt       # Python dependencies
 |-- render.yaml            # Render deployment blueprint
 |-- .gitignore
+|-- docs/
+|   `-- screenshots/       # Screenshot gallery folder for README/demo assets
 `-- templates/
     |-- dashboard.html     # Full HTML/CSS/JS dashboard
     |-- season.html        # Dedicated season form tracker page
@@ -373,6 +403,12 @@ git push origin main
 7. Review **Theoretical Best** to see who had untapped pace
 8. Look at **Track Evolution** to understand session conditions
 
+### Sprint Weekend Workflow
+1. Open the **Sprint Shootout** session on a sprint weekend
+2. Start with **Projected Sprint Finish** for the pre-sprint outlook
+3. Use the **Elimination Tracker** and **Close Calls** for SQ1/SQ2/SQ3 context
+4. After the sprint is complete, open the **Sprint** page and check **Sprint Projection Accuracy**
+
 ### Scouting Practice Before the Race
 1. Load the practice session (FP1/FP2/FP3)
 2. In **FP3**, check **Projected Qualifying Order** for the final practice-based quali forecast
@@ -485,12 +521,24 @@ git push origin main
 
 ---
 
+## Roadmap
+
+- Team intelligence page
+- Deeper comparison tools for drivers and constructors
+- Screenshot gallery in `docs/screenshots/`
+- Optional changelog file if release cadence becomes more formal
+
+## Recent Changelog
+
+- Added Season Form Tracker
+- Added Circuit Intelligence page
+- Added Driver Intelligence page
+- Added Weekend Outlook page
+- Improved warmup handling on Render
+- Improved wording consistency and feature-level polish across intelligence pages
+
+---
+
 ## Portfolio Description
 
 > **F1 Strategy Intelligence Dashboard** - A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 28+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, projection accuracy benchmarking against official results, race pace prediction from fuel-corrected long run data, tyre degradation curves per compound, a dedicated season form tracker for recent driver and team momentum, a circuit intelligence page for pre-weekend track context, a driver intelligence page for one-driver profile analysis versus the recent grid, and a weekend outlook page that turns track context plus recent form into a pre-weekend briefing. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
-
-### Sprint Shootout Workflow
-1. Open the **Sprint Shootout** session on a sprint weekend
-2. Start with **Projected Sprint Finish** for the pre-sprint outlook
-3. Use the **Elimination Tracker** and **Close Calls** for SQ1/SQ2/SQ3 context
-4. After the sprint is complete, open the **Sprint** page and check **Sprint Projection Accuracy**
