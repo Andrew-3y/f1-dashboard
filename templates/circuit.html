@@ -302,7 +302,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-yellow);">{{ circuit_summary.degradation_risk }}</div>
-                <div class="stat-label">Deg Risk</div>
+                <div class="stat-label">Degradation Risk</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-green);">{{ circuit_summary.qualifying_importance }}</div>
@@ -310,7 +310,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-blue);">{{ circuit_summary.strategy_bias }}</div>
-                <div class="stat-label">Strategy Bias</div>
+                <div class="stat-label">Strategy Style</div>
             </div>
         </div>
 
@@ -351,7 +351,7 @@
             <div class="card">
                 <div class="card-header">
                     <h2>What Matters Here</h2>
-                    <span class="badge badge-orange">Weekend Read</span>
+                    <span class="badge badge-orange">Quick Read</span>
                 </div>
                 <div class="card-body">
                     {% for item in circuit_data.recent_patterns %}
@@ -402,7 +402,7 @@
                 {% endif %}
             </div>
             <div class="note">
-                Recent history is built from official qualifying and race results for the most recent visits to the same Grand Prix. The page is meant as a weekend-context guide, not a prediction engine by itself.
+                Recent history is built from official qualifying and race results for the most recent visits to the same Grand Prix. This page is a weekend-context guide, not a standalone prediction engine.
             </div>
         </div>
     </div>

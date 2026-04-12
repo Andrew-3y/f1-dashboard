@@ -37,7 +37,7 @@ _CIRCUIT_PROFILES = [
         "qualifying_importance": "HIGH",
         "strategy_bias": "Flexible 1-stop / 2-stop",
         "track_style": "Fast semi-street circuit with rhythm changes",
-        "watch_for": "Track evolution, confidence through medium-speed changes, and undercut timing.",
+        "watch_for": "Track evolution, confidence through medium-speed changes, and pit-stop timing swings.",
     },
     {
         "keywords": ["chinese"],
@@ -65,7 +65,7 @@ _CIRCUIT_PROFILES = [
         "qualifying_importance": "VERY HIGH",
         "strategy_bias": "Track position first",
         "track_style": "High-speed, flowing classic with long lateral load phases",
-        "watch_for": "Qualifying confidence, front-end precision, and tyre wear through the Esses.",
+        "watch_for": "Qualifying confidence, front-end precision, and tyre wear through the high-speed S-curves.",
     },
     {
         "keywords": ["bahrain"],
@@ -79,7 +79,7 @@ _CIRCUIT_PROFILES = [
         "qualifying_importance": "MEDIUM",
         "strategy_bias": "2-stop favored",
         "track_style": "Big braking zones and heavy rear traction demands",
-        "watch_for": "Rear degradation, undercut strength, and braking stability into Turns 1 and 4.",
+        "watch_for": "Rear degradation, pit-stop timing edge, and braking stability into Turns 1 and 4.",
     },
     {
         "keywords": ["saudi", "jeddah"],
@@ -219,7 +219,7 @@ _CIRCUIT_PROFILES = [
         "qualifying_importance": "VERY HIGH",
         "strategy_bias": "Track position and tyre life",
         "track_style": "Twisty, technical circuit often compared to Monaco without walls",
-        "watch_for": "Qualifying pace, dirty-air management, and undercut windows.",
+        "watch_for": "Qualifying pace, following closely in traffic, and pit-stop timing windows.",
     },
     {
         "keywords": ["dutch", "netherlands", "zandvoort"],
@@ -357,9 +357,9 @@ _CIRCUIT_PROFILES = [
         "tyre_stress": "LOW",
         "degradation_risk": "LOW",
         "qualifying_importance": "HIGH",
-        "strategy_bias": "Track position with some overcut potential",
+        "strategy_bias": "Track position with room for late-stop variation",
         "track_style": "Modern twilight circuit with long straights and a technical final sector",
-        "watch_for": "Warm-up under cooler conditions and undercut timing.",
+        "watch_for": "Warm-up under cooler conditions and pit-stop timing.",
     },
 ]
 
@@ -552,12 +552,12 @@ def _recent_patterns(history, profile, meta):
 
     patterns = [
         {
-            "title": "Track emphasis",
+            "title": "Track character",
             "detail": f"{profile['track_style']}. Watch for {profile['watch_for']}",
         },
         {
             "title": "Strategy bias",
-            "detail": f"{profile['strategy_bias']} with qualifying importance rated {profile['qualifying_importance'].lower()}.",
+            "detail": f"{profile['strategy_bias']}. Qualifying importance here rates {profile['qualifying_importance'].lower()}.",
         },
     ]
 
@@ -580,14 +580,14 @@ def _recent_patterns(history, profile, meta):
         patterns.append(
             {
                 "title": "Saturday pattern",
-                "detail": f"{pole_repeat[0]} has taken pole {pole_repeat[1]} times in the recent {venue_label} sample, reinforcing the value of qualifying here.",
+                "detail": f"{pole_repeat[0]} has taken pole {pole_repeat[1]} times in the recent visits to {venue_label}, reinforcing the value of qualifying here.",
             }
         )
     else:
         patterns.append(
             {
                 "title": "Saturday pattern",
-                "detail": "Pole has changed hands recently, so this is not a one-car-only qualifying venue in the loaded sample.",
+                "detail": f"Pole has changed hands recently at {venue_label}, so qualifying here has not belonged to just one driver in the recent history.",
             }
         )
 

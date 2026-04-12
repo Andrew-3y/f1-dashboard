@@ -61,6 +61,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Season teammate head-to-head** - compares qualifying and race results between teammates across the selected recent window
 - **Momentum summary cards** - highlights the hottest driver, hottest team, strongest qualifying benchmark, best average position gain, and biggest average position loss over the selected round window
 - **Season-page background warmup** - first loads now return a friendly loading state while recent qualifying and race results are warmed in the background, reducing Render timeouts on `/season`
+- **Season-page polish pass** - teammate battle summaries now handle tied scorelines cleanly, fallback states use cleaner ASCII separators, and the route safely returns an empty season view if upstream round loads fail instead of erroring
 
 ### Circuit Intelligence
 - **Circuit Intelligence page** - dedicated `/circuit` view for pre-weekend track context
@@ -68,6 +69,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Circuit difficulty summary** - overtaking, tyre stress, degradation risk, qualifying importance, and strategy bias
 - **Recent history table** - recent winners and pole sitters for the same Grand Prix
 - **Circuit-page background warmup** - first loads warm recent race and qualifying history in the background to reduce Render timeouts on `/circuit`
+- **Beginner-friendlier circuit wording** - circuit notes now avoid more internal or niche phrasing where possible, with clearer labels like `Degradation Risk`, `Strategy Style`, and plainer descriptions of pit-stop timing and high-speed S-curves
 
 ### Navigation & UI
 - **Weekend navigation bar** - one-click switching between FP1, FP2, FP3, Qualifying, Sprint Qualifying, Sprint, and Race for the current round
@@ -79,6 +81,7 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 - **Ordered projection inputs** - projection cards list sessions in weekend order (FP1 -> FP2 -> FP3, then Qualifying where applicable)
 - **Readable projection explanations** - projection cards show plain-language reasons and clearer driver labels instead of raw shorthand where possible
 - **Session-aware wording** - sprint-specific panels and validation checks now say "Sprint" where appropriate instead of reusing race labels
+- **Clearer warmup/error copy** - warmup and fallback states now use cleaner user-facing wording instead of exposing internal-looking debug phrasing
 - **Background warmup for manual round loads** - explicit year/round/session searches warm in the background first so cold session fetches are less likely to fail on first load
 - **Session data-quality audit** - every session now shows pass/warn/fail validation checks over official tables and derived modules
   Main-race projection accuracy is treated as race-only, so sprint sessions no longer show a misleading warning for that check.

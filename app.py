@@ -1016,7 +1016,7 @@ def season_view():
         year=year,
         window=window,
         loading=True,
-        error="WARMUP: Building season form data. This can take a little longer on Render while recent qualifying and race results are loaded.",
+        error="Building season form data. This can take a little longer on Render while recent qualifying and race results are loaded.",
     )
 
 
@@ -1056,7 +1056,7 @@ def circuit_view():
         year=year,
         round_num=round_num,
         loading=True,
-        error="WARMUP: Building circuit intelligence. This can take a little longer on Render while recent race and qualifying history is loaded.",
+        error="Building circuit intelligence. This can take a little longer on Render while recent race and qualifying history is loaded.",
     )
 
 

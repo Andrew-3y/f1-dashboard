@@ -352,7 +352,7 @@
             </div>
             <div class="card-body" style="padding:0.9rem 1rem;">
                 <div class="item-detail" style="margin-top:0;">
-                    {{ season_meta.rounds_used|join(' • ') if season_meta.rounds_used else 'No completed rounds available yet.' }}
+                    {{ season_meta.rounds_used|join(' | ') if season_meta.rounds_used else 'No completed rounds available yet.' }}
                 </div>
             </div>
         </div>
@@ -386,7 +386,7 @@
                                 <td class="rank">{{ row.rank }}</td>
                                 <td>
                                     <div class="name">{{ row.driver_display }}</div>
-                                    <div class="subtle">Latest race: {% if row.latest_race_result %}P{{ row.latest_race_result }}{% else %}—{% endif %}</div>
+                                    <div class="subtle">Latest race: {% if row.latest_race_result %}P{{ row.latest_race_result }}{% else %}-{% endif %}</div>
                                 </td>
                                 <td class="subtle">{{ row.team }}</td>
                                 <td class="metric">{{ row.form_index }}</td>
@@ -396,10 +396,10 @@
                                     </span>
                                 </td>
                                 <td class="metric">
-                                    {% if row.recent_quali_avg is not none %}P{{ row.recent_quali_avg }}{% else %}—{% endif %}
+                                    {% if row.recent_quali_avg is not none %}P{{ row.recent_quali_avg }}{% else %}-{% endif %}
                                 </td>
                                 <td class="metric">
-                                    {% if row.recent_race_avg is not none %}P{{ row.recent_race_avg }}{% else %}—{% endif %}
+                                    {% if row.recent_race_avg is not none %}P{{ row.recent_race_avg }}{% else %}-{% endif %}
                                 </td>
                                 <td class="metric">
                                     {% if row.avg_positions_gained is not none %}
@@ -407,7 +407,7 @@
                                             {{ '+' if row.avg_positions_gained >= 0 else '' }}{{ row.avg_positions_gained }}
                                         </span>
                                     {% else %}
-                                        —
+                                        -
                                     {% endif %}
                                 </td>
                                 <td class="metric">{{ row.recent_points }}</td>
@@ -451,15 +451,15 @@
                                 <td class="name">{{ row.team }}</td>
                                 <td class="metric">{{ row.form_index }}</td>
                                 <td><span class="trend trend-{{ row.trend }}">{{ row.trend_arrow }} {{ row.trend }}</span></td>
-                                <td class="metric">{% if row.recent_quali_avg is not none %}P{{ row.recent_quali_avg }}{% else %}—{% endif %}</td>
-                                <td class="metric">{% if row.recent_race_avg is not none %}P{{ row.recent_race_avg }}{% else %}—{% endif %}</td>
+                                <td class="metric">{% if row.recent_quali_avg is not none %}P{{ row.recent_quali_avg }}{% else %}-{% endif %}</td>
+                                <td class="metric">{% if row.recent_race_avg is not none %}P{{ row.recent_race_avg }}{% else %}-{% endif %}</td>
                                 <td class="metric">
                                     {% if row.avg_positions_gained is not none %}
                                         <span class="{% if row.avg_positions_gained >= 0 %}pos-good{% else %}pos-bad{% endif %}">
                                             {{ '+' if row.avg_positions_gained >= 0 else '' }}{{ row.avg_positions_gained }}
                                         </span>
                                     {% else %}
-                                        —
+                                        -
                                     {% endif %}
                                 </td>
                                 <td class="metric">{{ row.recent_points }}</td>
@@ -493,8 +493,8 @@
                                 <div class="item-title">{{ row.driver_a }} vs {{ row.driver_b }}</div>
                                 <div class="item-detail">
                                     Qualifying: {{ row.qualifying_score }} for {{ row.qualifying_leader }}
-                                    • Race: {{ row.race_score }} for {{ row.race_leader }}
-                                    • Sample: {{ row.rounds_sampled }} recent rounds
+                                    | Race: {{ row.race_score }} for {{ row.race_leader }}
+                                    | Based on {{ row.rounds_sampled }} recent rounds
                                 </div>
                             </div>
                         </div>

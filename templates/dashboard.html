@@ -427,13 +427,13 @@
             {% if error.startswith('WARMUP:') %}
             <h2>Warming Up Session Data</h2>
             <p>This is a cold start. The dashboard will refresh automatically in a few seconds.</p>
-            <div class="error-detail">{{ error }}</div>
+            <div class="error-detail">{{ error.replace('WARMUP: ', '') }}</div>
             <script>
                 setTimeout(function(){ location.reload(); }, 12000);
             </script>
             {% elif 'Session.load' in error or 'has not been loaded yet' in error %}
             <h2>Session Data Still Loading</h2>
-            <p>The upstream timing feed didn’t finish loading in time. Please try again in a few seconds.</p>
+            <p>The upstream timing feed did not finish loading in time. Please try again in a few seconds.</p>
             <div class="error-detail">Tip: hit Reload once, or pick a different session and come back.</div>
             {% else %}
             <h2>Could Not Load Session Data</h2>
@@ -1764,7 +1764,7 @@
                         </div>
                         {% endfor %}
                     {% else %}
-                    <div class="empty-state"><div class="icon">&#9989;</div><p>No anomalies — all drivers running consistently</p></div>
+                    <div class="empty-state"><div class="icon">&#9989;</div><p>No pace anomalies flagged</p></div>
                     {% endif %}
                 </div>
             </div>

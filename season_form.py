@@ -96,6 +96,15 @@ def _trend_arrow(trend):
     }.get(trend, "FLAT")
 
 
+def _battle_leader(score_a, score_b, driver_a, driver_b):
+    """Return a readable leader label for teammate battles."""
+    if score_a > score_b:
+        return driver_a
+    if score_b > score_a:
+        return driver_b
+    return "Tied"
+
+
 def _completed_rounds(year):
     """Return completed grand prix rounds for a season."""
     schedule = fastf1.get_event_schedule(year, include_testing=False)
@@ -461,8 +470,12 @@ def _teammate_battles(round_snapshots, window):
         if total_duels == 0:
             continue
 
-        qual_winner = battle["driver_a"] if battle["qualifying_a"] >= battle["qualifying_b"] else battle["driver_b"]
-        race_winner = battle["driver_a"] if battle["race_a"] >= battle["race_b"] else battle["driver_b"]
+        qual_winner = _battle_leader(
+            battle["qualifying_a"], battle["qualifying_b"], battle["driver_a"], battle["driver_b"]
+        )
+        race_winner = _battle_leader(
+            battle["race_a"], battle["race_b"], battle["driver_a"], battle["driver_b"]
+        )
         rows.append(
             {
                 "team": battle["team"],
@@ -472,7 +485,7 @@ def _teammate_battles(round_snapshots, window):
                 "race_score": f"{battle['race_a']}-{battle['race_b']}",
                 "qualifying_leader": qual_winner,
                 "race_leader": race_winner,
-                "rounds_sampled": len(battle["rounds"]),
+                "rounds_sampled": len(set(battle["rounds"])),
             }
         )
 
@@ -525,6 +538,21 @@ def build_season_form(year, window=5):
                 "race": race_rows,
             }
         )
+
+    if not snapshots:
+        payload = empty_season_form()
+        payload["meta"].update(
+            {
+                "year": year,
+                "completed_rounds": len(completed_rounds),
+                "window": window,
+                "window_label": f"Last {window} rounds",
+                "latest_event": completed_rounds[-1]["event_name"],
+                "latest_round": completed_rounds[-1]["round_number"],
+            }
+        )
+        _season_cache[cache_key] = payload
+        return payload
 
     driver_form = _driver_form_rows(snapshots, window)
     team_form = _team_form_rows(snapshots, window)
