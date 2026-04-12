@@ -6,30 +6,13 @@ A comprehensive, free Formula 1 analytics platform that delivers session-specifi
 
 Built and maintained by **Andrew**.
 
-## Author & Project Links
+## Project Links
 
 - **Author:** Andrew
 - **GitHub:** [Andrew-3y](https://github.com/Andrew-3y)
 - **Repository:** [Andrew-3y/f1-dashboard](https://github.com/Andrew-3y/f1-dashboard)
 - **Live Demo:** [f1-dashboard-l1yl.onrender.com](https://f1-dashboard-l1yl.onrender.com)
 - **License:** [MIT](./LICENSE)
-
-## Ownership & Attribution
-
-- This repository, commit history, deployment trail, and feature progression are the primary authorship record for the project.
-- If this project is reused or adapted, attribution should remain with the original repository and license notice.
-- Public repositories can be copied, but the development history in this repo is the strongest proof of original ownership and ongoing maintenance.
-
-## Screenshots
-
-- Add homepage, season page, circuit page, driver page, and weekend-outlook screenshots here as the project evolves.
-- Recommended future folder: `docs/screenshots/`
-- Recommended image set:
-  - main dashboard
-  - season form
-  - circuit intelligence
-  - driver intelligence
-  - weekend outlook
 
 ---
 
@@ -164,7 +147,7 @@ f1-dashboard/
 |-- render.yaml            # Render deployment blueprint
 |-- .gitignore
 |-- docs/
-|   `-- screenshots/       # Screenshot gallery folder for README/demo assets
+|   `-- screenshots/       # Screenshot assets for future README/demo updates
 `-- templates/
     |-- dashboard.html     # Full HTML/CSS/JS dashboard
     |-- season.html        # Dedicated season form tracker page
@@ -525,8 +508,10 @@ git push origin main
 
 - Team intelligence page
 - Deeper comparison tools for drivers and constructors
-- Screenshot gallery in `docs/screenshots/`
+- Screenshot gallery for the README and project showcase
 - Optional changelog file if release cadence becomes more formal
+
+---
 
 ## Recent Changelog
 
@@ -541,4 +526,4 @@ git push origin main
 
 ## Portfolio Description
 
-> **F1 Strategy Intelligence Dashboard** - A full-stack Formula 1 analytics platform built with Python and Flask. Delivers session-specific intelligence across races, qualifying, and practice with 28+ analysis modules including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, projection accuracy benchmarking against official results, race pace prediction from fuel-corrected long run data, tyre degradation curves per compound, a dedicated season form tracker for recent driver and team momentum, a circuit intelligence page for pre-weekend track context, a driver intelligence page for one-driver profile analysis versus the recent grid, and a weekend outlook page that turns track context plus recent form into a pre-weekend briefing. Features a weekend navigation system for seamless session switching and a dark, responsive F1-themed interface. Deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
+> **F1 Strategy Intelligence Dashboard** - A full-stack Formula 1 analytics platform built with Python and Flask. It delivers session-specific intelligence across races, qualifying, and practice with 28+ analysis modules, including tire degradation modeling via linear regression, pit strategy simulation, on-track battle detection, qualifying elimination tracking with close-call analysis, theoretical best lap computation, projected race-finish forecasting from qualifying plus pre-race weekend context, projected qualifying order from weighted FP1/FP2/FP3 practice data, projection accuracy benchmarking against official results, race-pace prediction from fuel-corrected long-run data, tyre degradation curves per compound, a dedicated season form tracker for recent driver and team momentum, a circuit intelligence page for pre-weekend track context, a driver intelligence page for one-driver profile analysis versus the recent grid, and a weekend outlook page that turns track context plus recent form into a pre-weekend briefing. The project includes seamless weekend navigation and a dark, responsive F1-themed interface, and it is deployed on Render's free tier using FastF1's public timing API with zero infrastructure cost.
