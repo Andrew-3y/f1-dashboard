@@ -1,88 +1,51 @@
-# F1 Post-Race Review
+# F1 Post-Race Dashboard
 
-A focused Formula 1 dashboard for reviewing completed Grands Prix and sprints. It uses FastF1 timing data to present the official result and the factual context around it.
+I built this dashboard to make reviewing a completed Formula 1 race easier. It pulls timing and classification data through FastF1 and turns it into a straightforward post-race overview.
 
-The dashboard intentionally does not present itself as a live race companion. New Grands Prix appear only after a conservative post-race buffer so incomplete classifications are not shown as final results.
+The project is focused on what is useful after the chequered flag rather than trying to act as a live timing screen.
 
-## What the dashboard keeps
+## Features
 
-### Completed-race review
-
-- Official classification and gaps
+- Final classification, gaps, points, and finishing status
 - Starting grid and positions gained or lost
-- Best lap, classification status, and points for every driver
-- Winner, podium, fastest lap, biggest mover, race distance, and non-finisher summary
-- Historical Grand Prix and sprint selection
+- Winner, podium, fastest lap, biggest mover, and retirement summary
+- Grand Prix and sprint archive
+- Driver and team form across recent rounds
+- Driver comparisons and round-by-round results
+- Circuit profiles and recent race history
 
-### Supporting context
+Only completed sessions are shown. A short post-race buffer is used so an unfinished or provisional classification is not presented as final.
 
-- Season form and teammate comparisons
-- Driver form and round-by-round results
-- Circuit characteristics and recent history
+## Built with
 
-## Removed live/pre-race features
+- Python
+- Flask and Jinja
+- FastF1
+- pandas
+- Gunicorn
+- Render
 
-- Pit-now recommendations and simulated rejoin positions
-- Pit-window status
-- Active battle detection
-- DRS and overtake predictions
-- Live auto-refresh controls
-- Standalone practice and qualifying dashboards
-- Weekend outlook and pre-weekend briefing
-- Public data-quality diagnostics
-- Heuristic pace-loss alerts
-- Heuristic pre-race forecast and accuracy review
+## Running locally
 
-## Architecture
+Create a virtual environment and install the dependencies:
 
-```text
-Completed race request
-        |
-        v
-FastF1 session + official results
-        |
-        +--> final classification and race summary
-        |
-        v
-Flask + Jinja post-race dashboard
+```powershell
+python -m venv venv
+./venv/Scripts/Activate.ps1
+pip install -r requirements.txt
 ```
 
-The app remains on-demand and does not require an always-running live timing collector.
+On macOS or Linux, activate it with `source venv/bin/activate` instead.
 
-## Prediction policy
-
-The current dashboard contains no race-outcome predictions. Derived values such as form, average grid movement, and consistency summarize completed sessions; circuit labels describe a typical historical profile. If predictions are added later, they should come from a versioned machine-learning pipeline with time-ordered backtesting, uncertainty estimates, and a clearly documented training cutoff.
-
-## Project structure
-
-```text
-f1-dashboard/
-|-- app.py                 # Flask routes and post-race analysis orchestration
-|-- data_handler.py        # FastF1 loading, completed-race selection, classification
-|-- season_form.py         # Recent driver and team form
-|-- circuit_intel.py       # Circuit context and history
-|-- driver_intel.py        # Driver-focused season review
-|-- requirements.txt
-|-- render.yaml
-`-- templates/
-    |-- dashboard.html
-    |-- season.html
-    |-- circuit.html
-    `-- driver.html
-```
-
-## Run locally
+Start the app:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
 python app.py
 ```
 
-Open `http://localhost:5000`.
+Then open [http://localhost:5000](http://localhost:5000).
 
-Historical review example:
+To open a specific race, pass the year, round, and session type in the URL:
 
 ```text
 http://localhost:5000/?year=2025&round=14&session_type=Race
@@ -90,13 +53,19 @@ http://localhost:5000/?year=2025&round=14&session_type=Race
 
 ## API
 
-`GET /api/data` returns the completed-race classification and race summary as JSON. It accepts the same `year`, `round`, and `session_type` query parameters as the main page.
+The dashboard data is also available as JSON:
 
-## Data notes
+```text
+GET /api/data
+```
 
-- FastF1 is unofficial and depends on upstream Formula 1 timing data.
-- The default page selects the latest Grand Prix whose scheduled start is at least four hours in the past.
-- Manually selected races and sprints are also blocked until their post-session safety window has elapsed.
+It accepts the same `year`, `round`, and `session_type` query parameters as the main dashboard.
+
+## Notes
+
+- This is an unofficial project and is not affiliated with Formula 1.
+- Data availability depends on FastF1 and its upstream timing sources.
+- The analysis is retrospective. The dashboard does not currently publish race-outcome predictions.
 
 ## License
 
