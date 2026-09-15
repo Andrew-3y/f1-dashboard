@@ -2,14 +2,14 @@
 app.py — Flask Application (Main Entry Point)
 ==============================================
 
-This is the file that Render will run. It serves a post-race Formula 1
-review built from completed race data.
+This is the file that Render will run. It serves a Formula 1 dashboard
+built from completed race data.
 
 HOW IT WORKS (on-demand architecture):
   1. User opens the URL → Flask receives a GET request.
   2. Flask calls data_handler to fetch the latest completed Grand Prix.
   3. It builds the official classification and factual post-race summary.
-  4. The review is injected into an HTML template and returned.
+  4. The dashboard data is injected into an HTML template and returned.
   5. The server does NOTHING between requests (Render's free tier
      spins it down after ~15 min of inactivity).
 
@@ -70,7 +70,7 @@ def _render_plain_error(message, status_code=500):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>F1 Post-Race Review</title>
+  <title>F1 Race Dashboard</title>
   <style>
     body {{
       margin: 0;
@@ -119,7 +119,7 @@ def _render_plain_error(message, status_code=500):
 </head>
 <body>
   <div class="card">
-    <h1>F1 Post-Race Review</h1>
+    <h1>F1 Race Dashboard</h1>
     <p>We could not load this completed race. Try reloading or choosing a different round.</p>
     <div class="detail">{safe_message}</div>
     <p style="margin-top:16px;"><a href="/">Return to dashboard</a></p>
@@ -255,7 +255,7 @@ def _render_warmup(session_type=None):
     """Render the warmup state for a requested completed race."""
     return _render_dashboard(
         session_category="race",
-        error="WARMUP: Loading the completed race review. This can take ~30s on a cold start. The page will refresh automatically.",
+        error="WARMUP: Loading completed race data. This can take ~30s on a cold start. The page will refresh automatically.",
     )
 
 
@@ -571,7 +571,7 @@ def index():
 @app.route("/api/data")
 def api_data():
     """
-    Return the same completed-race review as structured JSON.
+    Return the same completed-race dashboard data as structured JSON.
     """
     if request.method == "HEAD":
         return ("", 200)

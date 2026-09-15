@@ -1,4 +1,4 @@
-# F1 Post-Race Dashboard
+# F1 Race Dashboard
 
 I built this dashboard to make reviewing a completed Formula 1 race easier. It pulls timing and classification data through FastF1 and turns it into a straightforward post-race overview.
 

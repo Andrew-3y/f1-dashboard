@@ -1,5 +1,5 @@
 # =============================================================
-# F1 Post-Race Review — Python Dependencies
+# F1 Race Dashboard — Python Dependencies
 # =============================================================
 # All packages here are 100% FREE and open-source.
 #
