@@ -8,8 +8,7 @@ review built from completed race data.
 HOW IT WORKS (on-demand architecture):
   1. User opens the URL → Flask receives a GET request.
   2. Flask calls data_handler to fetch the latest completed Grand Prix.
-  3. It builds the official classification, post-race summary, notable pace
-     losses, and the pre-race projection accuracy report.
+  3. It builds the official classification and factual post-race summary.
   4. The review is injected into an HTML template and returned.
   5. The server does NOTHING between requests (Render's free tier
      spins it down after ~15 min of inactivity).
@@ -31,11 +30,7 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.exceptions import HTTPException
 
 # Our custom modules
-from data_handler import get_dashboard_data, get_latest_session_info, load_session
-from anomaly import detect_anomalies, get_anomaly_summary
-from qualifying import analyze_qualifying
-from race_projection import project_race_finish, project_sprint_finish
-from prediction_accuracy import compare_predictions, empty_accuracy
+from data_handler import get_dashboard_data, get_latest_session_info
 from season_form import build_season_form, empty_season_form
 from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence
 from driver_intel import build_driver_intelligence, empty_driver_intelligence
@@ -51,22 +46,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-@app.template_filter("lapfmt")
-def _format_lap_seconds(seconds):
-    """Format float seconds as M:SS.mmm for dashboard display."""
-    if seconds is None:
-        return "—"
-    try:
-        seconds = float(seconds)
-    except (TypeError, ValueError):
-        return "—"
-    if seconds < 0:
-        seconds = abs(seconds)
-    minutes = int(seconds // 60)
-    rem = seconds - (minutes * 60)
-    return f"{minutes}:{rem:06.3f}"
 
 
 def _base_dashboard_context():
@@ -250,12 +229,7 @@ def _start_warmup(year, round_num, session_type):
             if data.get("error"):
                 analysis = _base_dashboard_context()
             else:
-                analysis = _run_race_analysis(
-                    data["laps"],
-                    session=data.get("session"),
-                    session_info=data.get("session_info"),
-                    leaderboard=data.get("leaderboard"),
-                )
+                analysis = _run_race_analysis(data.get("leaderboard"))
             with _warm_lock:
                 _warm_cache.update(
                     {
@@ -477,32 +451,12 @@ def _render_driver_page(driver_data=None, *, year=None, driver=None, window=5, e
 
 
 # ---------------------------------------------------------------------------
-# Helper: run race analysis modules
+# Helper: build the post-race summary
 # ---------------------------------------------------------------------------
-def _run_race_analysis(laps, session=None, session_info=None, leaderboard=None):
-    """Build the small set of analyses that remain useful after the finish."""
-    try:
-        alerts = detect_anomalies(laps)
-        alert_summary = get_anomaly_summary(alerts)
-    except Exception as exc:
-        logger.warning("Anomaly detection failed: %s", exc)
-        alerts, alert_summary = [], {}
-
-    try:
-        race_projection_accuracy = _build_race_projection_accuracy(
-            session_info,
-            session,
-            _leaderboard_accuracy_rows(leaderboard),
-        )
-    except Exception as exc:
-        logger.warning("Race projection accuracy failed: %s", exc)
-        race_projection_accuracy = empty_accuracy()
-
+def _run_race_analysis(leaderboard=None):
+    """Build factual headline statistics from the final classification."""
     return {
-        "alerts": alerts,
-        "alert_summary": alert_summary,
         "race_summary": _build_post_race_summary(leaderboard),
-        "race_projection_accuracy": race_projection_accuracy,
     }
 
 
@@ -545,170 +499,11 @@ def _build_post_race_summary(leaderboard):
 
 
 # ---------------------------------------------------------------------------
-# Helper: run qualifying analysis
-# ---------------------------------------------------------------------------
-def _load_practice_context(session_info):
-    """Load available practice sessions for the same weekend."""
-    if not session_info:
-        return []
-
-    practice_sessions = []
-    for session_type in ("Practice 1", "Practice 2", "Practice 3"):
-        try:
-            practice_session, practice_laps = load_session(
-                session_info["year"],
-                session_info["round_number"],
-                session_type,
-            )
-        except Exception as exc:
-            logger.info("Skipping %s context: %s", session_type, exc)
-            continue
-
-        if practice_laps is None or practice_laps.empty:
-            continue
-
-        practice_sessions.append(
-            {
-                "session_type": session_type,
-                "session": practice_session,
-                "laps": practice_laps,
-            }
-        )
-
-    return practice_sessions
-
-
-def _leaderboard_accuracy_rows(leaderboard):
-    """Normalize leaderboard rows for prediction-accuracy comparisons."""
-    normalized = []
-    for row in leaderboard or []:
-        position = row.get("position")
-        driver = row.get("driver")
-        if position is None or not driver:
-            continue
-        normalized.append(
-            {
-                "driver": driver,
-                "driver_display": driver,
-                "position": position,
-                "team": row.get("team", "Unknown"),
-            }
-        )
-    return normalized
-
-
-def _official_session_accuracy_rows(session, session_type):
-    """Build official position rows directly from FastF1 session results."""
-    if session is None:
-        return []
-
-    try:
-        results = session.results
-    except Exception:
-        return []
-
-    if results is None or getattr(results, "empty", True):
-        return []
-
-    rows = results.reset_index()
-    if "Position" not in rows.columns:
-        return []
-
-    rows = rows.dropna(subset=["Position"]).copy()
-    if rows.empty:
-        return []
-
-    normalized = []
-    for _, row in rows.iterrows():
-        driver = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
-        if not driver:
-            continue
-
-        position = row.get("Position")
-        if pd.isna(position):
-            continue
-
-        normalized.append(
-            {
-                "driver": str(driver),
-                "driver_display": str(driver),
-                "position": int(position),
-                "team": row.get("TeamName", "Unknown"),
-            }
-        )
-
-    return sorted(normalized, key=lambda row: row["position"])
-
-
-def _build_race_projection_accuracy(session_info, session, actual_rows):
-    """Compare the qualifying-page race projection with the official race result."""
-    if not session_info or session_info.get("session_type") not in ("Race", "Sprint"):
-        return empty_accuracy()
-
-    session_type = session_info.get("session_type")
-    actual_rows = _official_session_accuracy_rows(session, session_type) or actual_rows
-    if not actual_rows:
-        return empty_accuracy()
-
-    if session_type == "Sprint":
-        shootout_session, shootout_laps = load_session(
-            session_info["year"],
-            session_info["round_number"],
-            "Sprint Shootout",
-        )
-        if shootout_laps is None or shootout_laps.empty:
-            return empty_accuracy()
-
-        shootout_analysis = analyze_qualifying(shootout_laps, session=shootout_session)
-        practice_sessions = _load_practice_context(
-            {
-                "year": session_info["year"],
-                "round_number": session_info["round_number"],
-                "session_type": "Sprint Shootout",
-            }
-        )
-        projection = project_sprint_finish(
-            shootout_analysis,
-            practice_sessions=practice_sessions,
-            session=shootout_session,
-        )
-    else:
-        qualifying_session, qualifying_laps = load_session(
-            session_info["year"],
-            session_info["round_number"],
-            "Qualifying",
-        )
-        if qualifying_laps is None or qualifying_laps.empty:
-            return empty_accuracy()
-
-        qualifying_analysis = analyze_qualifying(qualifying_laps, session=qualifying_session)
-        practice_sessions = _load_practice_context(
-            {
-                "year": session_info["year"],
-                "round_number": session_info["round_number"],
-                "session_type": "Qualifying",
-            }
-        )
-        projection = project_race_finish(
-            qualifying_analysis,
-            practice_sessions=practice_sessions,
-            session=qualifying_session,
-        )
-
-    return compare_predictions(
-        projection.get("projected_finish", []),
-        actual_rows,
-    )
-
-
-# ---------------------------------------------------------------------------
 # Helper: empty defaults for all analysis types
 # ---------------------------------------------------------------------------
 def _empty_race():
     return {
-        "alerts": [], "alert_summary": {},
         "race_summary": {},
-        "race_projection_accuracy": empty_accuracy(),
     }
 
 
@@ -797,12 +592,7 @@ def api_data():
     if data["error"]:
         return jsonify({"error": data["error"]}), 500
 
-    analysis = _run_race_analysis(
-        data["laps"],
-        session=data.get("session"),
-        session_info=data.get("session_info"),
-        leaderboard=data.get("leaderboard"),
-    )
+    analysis = _run_race_analysis(data.get("leaderboard"))
 
     elapsed = round(time.time() - start_time, 2)
 

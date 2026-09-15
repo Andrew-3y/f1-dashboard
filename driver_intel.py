@@ -513,7 +513,7 @@ def _insight_lists(selected_summary, teammate_context):
         strengths.append(
             {
                 "title": "Sunday mover",
-                "detail": f"Average position change is {selected_summary['avg_gain']:+}, so this driver usually moves forward in races.",
+                "detail": f"Average position change was {selected_summary['avg_gain']:+} across the selected completed races.",
             }
         )
     elif selected_summary["avg_gain"] is not None and selected_summary["avg_gain"] <= -1:

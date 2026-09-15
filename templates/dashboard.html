@@ -78,25 +78,13 @@
         .driver { font-weight: 850; } .team, .muted { color: var(--muted); }
         .gain { color: var(--green); font-weight: 800; } .loss { color: var(--orange); font-weight: 800; }
         .status { color: var(--muted); font-size: .7rem; }
-        .two-column { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(330px, .8fr); gap: 1rem; }
-        .list-item { display: flex; gap: .85rem; align-items: flex-start; padding: .9rem 1rem; border-top: 1px solid rgba(255,255,255,.045); }
-        .list-item:first-child { border-top: 0; }
-        .severity { min-width: 62px; text-align: center; padding: .25rem .4rem; border-radius: 6px; font-size: .58rem; font-weight: 900; letter-spacing: .05em; }
-        .severity-CRITICAL { color: #fff; background: var(--red); }
-        .severity-HIGH { color: var(--orange); background: rgba(255,159,67,.13); }
-        .severity-MEDIUM { color: var(--yellow); background: rgba(244,211,94,.12); }
-        .severity-LOW { color: var(--cyan); background: rgba(53,201,232,.12); }
-        .item-title { font-size: .8rem; font-weight: 800; }
-        .item-detail { margin-top: .2rem; color: var(--muted); font-size: .7rem; line-height: 1.5; }
-        .metric-strip { display: flex; flex-wrap: wrap; gap: .5rem; padding: 1rem; border-bottom: 1px solid var(--border); }
         .empty { padding: 2.2rem 1rem; color: var(--muted); text-align: center; font-size: .78rem; }
-        .note { padding: .8rem 1rem; color: var(--muted); font-size: .68rem; line-height: 1.55; border-top: 1px solid var(--border); }
         .error-card { max-width: 720px; margin: 3rem auto; padding: 1.5rem; border: 1px solid rgba(255,36,53,.35); border-radius: 14px; background: var(--surface); }
         .error-card h2 { margin: 0 0 .5rem; } .error-card p { color: var(--muted); }
         .error-detail { padding: .8rem; border-radius: 8px; background: rgba(255,255,255,.035); color: var(--muted); font-size: .75rem; }
         .footer { padding: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); text-align: center; font-size: .67rem; }
         .footer a { color: var(--red); text-decoration: none; }
-        @media (max-width: 980px) { .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .two-column { grid-template-columns: 1fr; } }
+        @media (max-width: 980px) { .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
         @media (max-width: 620px) {
             .header { align-items: flex-start; flex-direction: column; } .header-meta { justify-content: flex-start; }
             .toolbar-spacer { display: none; } .toolbar { align-items: stretch; } .toolbar-label { width: 100%; }
@@ -133,7 +121,7 @@
     </div></main>
     {% else %}
     <main class="container">
-        <section class="hero"><div><div class="eyebrow">Race debrief</div><h2>{{ session_info.event_name }}</h2><p>Official result, decisive performance swings, and a check of the pre-race forecast.</p></div><span class="badge badge-green">Final classification</span></section>
+        <section class="hero"><div><div class="eyebrow">Race debrief</div><h2>{{ session_info.event_name }}</h2><p>Official classification, grid movement, fastest laps, points, and finishing status.</p></div><span class="badge badge-green">Final classification</span></section>
 
         <section class="stats-grid" aria-label="Race summary">
             <div class="stat-card"><div><div class="stat-value">{{ race_summary.winner|default('—') }}</div><div class="stat-detail">{{ race_summary.podium|default('—') }}</div></div><div class="stat-label">Winner · Podium</div></div>
@@ -141,7 +129,7 @@
             <div class="stat-card"><div><div class="stat-value" style="color:var(--green)">{{ race_summary.biggest_gainer|default('—') }}</div><div class="stat-detail">{% if race_summary.biggest_gain %}+{{ race_summary.biggest_gain }} positions{% else %}No positive gain{% endif %}</div></div><div class="stat-label">Biggest mover</div></div>
             <div class="stat-card"><div class="stat-value">{{ race_summary.race_laps|default(0) }}</div><div class="stat-label">Winner laps</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--orange)">{{ race_summary.retirements|default(0) }}</div><div class="stat-label">Non-finishers</div></div>
-            <div class="stat-card"><div class="stat-value">{{ alert_summary.total_alerts|default(0) }}</div><div class="stat-label">Notable pace losses</div></div>
+            <div class="stat-card"><div class="stat-value">{{ leaderboard|length }}</div><div class="stat-label">Classified drivers</div></div>
         </section>
 
         <div class="section-title">Official result</div>
@@ -154,21 +142,6 @@
                 <td>{{ d.gap_display }}</td><td>{{ d.best_lap_display }}</td><td class="status">{{ d.status }}</td><td>{{ d.points }}</td>
             </tr>{% endfor %}</tbody></table>{% else %}<div class="empty">No official classification is available.</div>{% endif %}
         </div></section>
-
-        <div class="section-title">What changed the race</div>
-        <div class="two-column">
-            <section class="card"><div class="card-header"><h2>Notable Pace Losses <span class="badge badge-orange">{{ alerts|length }}</span></h2></div><div class="card-body" style="max-height:430px">
-                {% if alerts %}{% for alert in alerts %}<div class="list-item"><span class="severity severity-{{ alert.severity }}">{{ alert.severity }}</span><div><div class="item-title">{{ alert.driver }} · Lap {{ alert.lap_number }}</div><div class="item-detail">{{ alert.delta }}s slower than the recent rolling pace ({{ alert.rolling_avg|lapfmt }} → {{ alert.lap_time_s|lapfmt }}).</div></div></div>{% endfor %}
-                {% else %}<div class="empty">No isolated pace losses passed the anomaly filter.</div>{% endif %}
-            </div><div class="note">Pit laps and neutralized track-status laps are filtered where the source data identifies them. These are performance clues, not automatic incident labels.</div></section>
-
-            <section class="card"><div class="card-header"><h2>Pre-Race Forecast Review</h2><span class="badge {% if race_projection_accuracy.rating == 'STRONG' %}badge-green{% elif race_projection_accuracy.rating == 'SOLID' %}badge-cyan{% else %}badge-orange{% endif %}">{{ race_projection_accuracy.rating|default('N/A') }}</span></div>
-                {% if race_projection_accuracy.available %}<div class="metric-strip"><span class="badge {% if race_projection_accuracy.leader_hit %}badge-green{% else %}badge-orange{% endif %}">Winner {{ 'hit' if race_projection_accuracy.leader_hit else 'miss' }}</span><span class="badge">Exact {{ race_projection_accuracy.exact_matches }}/{{ race_projection_accuracy.compared_drivers }}</span><span class="badge">Avg error {{ race_projection_accuracy.mean_abs_error }} places</span><span class="badge">Top 10 {{ race_projection_accuracy.top_10_hits }}/{{ race_projection_accuracy.top_10_total }}</span></div>
-                <div class="card-body" style="max-height:330px">{% for row in race_projection_accuracy.rows %}<div class="list-item"><span class="badge">P{{ row.predicted_position }} → P{{ row.actual_position }}</span><div><div class="item-title">{{ row.driver_display }}</div><div class="item-detail">{% if row.exact_match %}Exact prediction{% elif row.delta > 0 %}Finished {{ row.delta }} place{{ 's' if row.delta != 1 else '' }} lower than forecast{% else %}Finished {{ row.delta|abs }} place{{ 's' if row.delta|abs != 1 else '' }} higher than forecast{% endif %}</div></div></div>{% endfor %}</div>
-                {% else %}<div class="empty">The matching pre-race projection is not available for this event.</div>{% endif %}
-                <div class="note">The original qualifying-and-practice forecast is compared with the official final classification.</div>
-            </section>
-        </div>
     </main>
     {% endif %}
 

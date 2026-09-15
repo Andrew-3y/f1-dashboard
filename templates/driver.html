@@ -414,8 +414,8 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h2>Strengths and Risks</h2>
-                    <span class="badge badge-orange">Profile Read</span>
+                    <h2>Recent Strengths and Weaknesses</h2>
+                    <span class="badge badge-orange">Results-based</span>
                 </div>
                 <div class="card-body">
                     {% for item in driver_data.strengths %}
@@ -429,7 +429,7 @@
                     {% endfor %}
                     {% for item in driver_data.watchouts %}
                     <div class="list-item">
-                        <div class="list-tag" style="background:rgba(255,109,0,0.12);border-color:rgba(255,109,0,0.28);color:var(--accent-orange);">Watch</div>
+                        <div class="list-tag" style="background:rgba(255,109,0,0.12);border-color:rgba(255,109,0,0.28);color:var(--accent-orange);">Weak</div>
                         <div>
                             <div class="item-title">{{ item.title }}</div>
                             <div class="item-detail">{{ item.detail }}</div>
