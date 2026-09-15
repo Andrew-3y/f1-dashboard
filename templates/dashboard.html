@@ -247,9 +247,6 @@
         </select>
         <button onclick="loadRace()">Load Race</button>
         <a class="secondary-link" href="/">Latest Race</a>
-        <a class="secondary-link" href="/season{% if session_info %}?year={{ session_info.year }}{% endif %}">Season Form</a>
-        <a class="secondary-link" href="/circuit{% if session_info %}?year={{ session_info.year }}&round={{ session_info.round_number }}{% endif %}">Circuit Intel</a>
-        <a class="secondary-link" href="/driver{% if session_info %}?year={{ session_info.year }}{% endif %}">Driver Intel</a>
     </div>
 
     <main class="container">
@@ -275,7 +272,6 @@
             <div class="stat-card"><div class="stat-value" style="color:var(--accent-green);">{{ race_summary.biggest_gainer|default('—') }}</div><div class="stat-detail">{% if race_summary.biggest_gain %}+{{ race_summary.biggest_gain }} positions{% else %}No positive gain{% endif %}</div><div class="stat-label">Biggest Mover</div></div>
             <div class="stat-card"><div class="stat-value">{{ race_summary.race_laps|default(0) }}</div><div class="stat-label">Winner Laps</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--accent-orange);">{{ race_summary.retirements|default(0) }}</div><div class="stat-label">Non-Finishers</div></div>
-            <div class="stat-card"><div class="stat-value">{{ leaderboard|length }}</div><div class="stat-label">Classified Drivers</div></div>
         </section>
 
         <div class="section-title">Official Result</div>

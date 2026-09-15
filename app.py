@@ -335,7 +335,7 @@ def _read_circuit_warm_cache():
 
 
 def _start_circuit_warmup(year, round_num):
-    """Warm up circuit intelligence in a background thread."""
+    """Warm up circuit history in a background thread."""
     with _circuit_warm_lock:
         requested_key = (year, round_num)
         if _circuit_warm_cache["in_progress"] and _circuit_warm_cache["key"] == requested_key:
@@ -371,14 +371,12 @@ def _render_circuit_page(circuit_data=None, *, year=None, round_num=None, error=
     """Render the circuit page with stable fallback data."""
     payload = circuit_data or empty_circuit_intelligence()
     payload_meta = payload.get("meta", empty_circuit_intelligence()["meta"])
-    payload_summary = payload.get("summary", empty_circuit_intelligence()["summary"])
     payload_meta["year"] = year if year is not None else payload_meta.get("year")
     payload_meta["round_number"] = round_num if round_num is not None else payload_meta.get("round_number")
     return render_template(
         "circuit.html",
         circuit_data=payload,
         circuit_meta=payload_meta,
-        circuit_summary=payload_summary,
         error=error,
         loading=loading,
     ), status_code
@@ -652,11 +650,11 @@ def season_view():
 
 
 # ---------------------------------------------------------------------------
-# ROUTE: Circuit Intelligence
+# ROUTE: Circuit History
 # ---------------------------------------------------------------------------
 @app.route("/circuit")
 def circuit_view():
-    """Render a circuit intelligence page for a selected round."""
+    """Render factual race and qualifying history for a selected round."""
     year = request.args.get("year", type=int)
     round_num = request.args.get("round", type=int)
     if request.method == "HEAD":
@@ -687,7 +685,7 @@ def circuit_view():
         year=year,
         round_num=round_num,
         loading=True,
-        error="Building circuit intelligence. This can take a little longer on Render while recent race and qualifying history is loaded.",
+        error="Loading recent race and qualifying history. This can take a little longer on Render on the first request.",
     )
 
 

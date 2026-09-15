@@ -277,7 +277,7 @@
         </select>
         <button onclick="loadDriver()">Load Driver Intel</button>
         <a class="secondary-link" href="/season{% if driver_meta.year %}?year={{ driver_meta.year }}&window={{ driver_meta.window }}{% endif %}">Season Form</a>
-        <a class="secondary-link" href="/circuit{% if driver_meta.year %}?year={{ driver_meta.year }}{% endif %}">Circuit Intel</a>
+        <a class="secondary-link" href="/circuit{% if driver_meta.year %}?year={{ driver_meta.year }}{% endif %}">Circuit History</a>
         <a class="secondary-link" href="/">Return to Dashboard</a>
     </div>
 
@@ -358,9 +358,6 @@
                         </div>
                     </div>
                 </div>
-                <div class="note">
-                    This page uses the same recent-window qualifying and race results as the season page, but centers them on one driver so the grid context is easier to read.
-                </div>
             </div>
 
             <div class="card">
@@ -409,36 +406,6 @@
                         </div>
                     </div>
                     {% endfor %}
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2>Recent Strengths and Weaknesses</h2>
-                    <span class="badge badge-orange">Results-based</span>
-                </div>
-                <div class="card-body">
-                    {% for item in driver_data.strengths %}
-                    <div class="list-item">
-                        <div class="list-tag" style="background:rgba(0,200,83,0.12);border-color:rgba(0,200,83,0.28);color:var(--accent-green);">Plus</div>
-                        <div>
-                            <div class="item-title">{{ item.title }}</div>
-                            <div class="item-detail">{{ item.detail }}</div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                    {% for item in driver_data.watchouts %}
-                    <div class="list-item">
-                        <div class="list-tag" style="background:rgba(255,109,0,0.12);border-color:rgba(255,109,0,0.28);color:var(--accent-orange);">Weak</div>
-                        <div>
-                            <div class="item-title">{{ item.title }}</div>
-                            <div class="item-detail">{{ item.detail }}</div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                    {% if not driver_data.strengths and not driver_data.watchouts %}
-                    <div class="note">Not enough recent data is available yet to build a strong driver read.</div>
-                    {% endif %}
                 </div>
             </div>
 

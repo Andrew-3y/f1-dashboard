@@ -12,7 +12,7 @@ The project is focused on what is useful after the chequered flag rather than tr
 - Grand Prix and sprint archive
 - Driver and team form across recent rounds
 - Driver comparisons and round-by-round results
-- Circuit profiles and recent race history
+- Circuit event details and recent race history
 
 Only completed sessions are shown. A short post-race buffer is used so an unfinished or provisional classification is not presented as final.
 

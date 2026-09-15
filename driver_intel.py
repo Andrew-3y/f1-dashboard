@@ -46,8 +46,6 @@ def empty_driver_intelligence():
         "grid_ranks": [],
         "teammate_context": {},
         "recent_results": [],
-        "strengths": [],
-        "watchouts": [],
     }
 
 
@@ -481,121 +479,6 @@ def _build_teammate_context(selected_driver, drivers, snapshots, window):
     return record
 
 
-def _insight_lists(selected_summary, teammate_context):
-    """Generate short plain-language strengths and watchouts."""
-    strengths = []
-    watchouts = []
-
-    if selected_summary["trend"] in ("SURGING", "RISING"):
-        strengths.append(
-            {
-                "title": "Recent momentum",
-                "detail": f"{selected_summary['driver']} is {selected_summary['trend'].lower()} over the selected window.",
-            }
-        )
-    elif selected_summary["trend"] in ("COOLING", "SLIDING"):
-        watchouts.append(
-            {
-                "title": "Momentum dip",
-                "detail": f"Recent results are {selected_summary['trend'].lower()}, so the trend line is heading the wrong way.",
-            }
-        )
-
-    if selected_summary["avg_quali"] is not None and selected_summary["avg_quali"] <= 6:
-        strengths.append(
-            {
-                "title": "Saturday strength",
-                "detail": f"Average qualifying position is P{selected_summary['avg_quali']}, which points to strong one-lap pace.",
-            }
-        )
-
-    if selected_summary["avg_gain"] is not None and selected_summary["avg_gain"] >= 1:
-        strengths.append(
-            {
-                "title": "Sunday mover",
-                "detail": f"Average position change was {selected_summary['avg_gain']:+} across the selected completed races.",
-            }
-        )
-    elif selected_summary["avg_gain"] is not None and selected_summary["avg_gain"] <= -1:
-        watchouts.append(
-            {
-                "title": "Losing ground on Sundays",
-                "detail": f"Average position change is {selected_summary['avg_gain']:+}, so race execution has been costing places recently.",
-            }
-        )
-
-    if (
-        selected_summary["avg_quali"] is not None
-        and selected_summary["avg_race"] is not None
-        and selected_summary["avg_race"] <= selected_summary["avg_quali"] - 1
-    ):
-        strengths.append(
-            {
-                "title": "Race conversion",
-                "detail": "Average race result is better than average qualifying, which suggests strong race-day execution.",
-            }
-        )
-    elif (
-        selected_summary["avg_quali"] is not None
-        and selected_summary["avg_race"] is not None
-        and selected_summary["avg_race"] >= selected_summary["avg_quali"] + 2
-    ):
-        watchouts.append(
-            {
-                "title": "Race-day drop-off",
-                "detail": "Average race result is notably worse than average qualifying, so converting starting position has been difficult.",
-            }
-        )
-
-    if selected_summary["consistency"] is not None and selected_summary["consistency"] <= 3:
-        strengths.append(
-            {
-                "title": "Steady output",
-                "detail": f"Recent weekend results rate as {selected_summary['consistency_label'].lower()}, which is valuable over a run of rounds.",
-            }
-        )
-    elif selected_summary["consistency"] is not None and selected_summary["consistency"] > 5:
-        watchouts.append(
-            {
-                "title": "Wide swings",
-                "detail": f"Results rate as {selected_summary['consistency_label'].lower()}, so the performance ceiling and floor have been far apart.",
-            }
-        )
-
-    if teammate_context:
-        if teammate_context["qualifying_wins"] > teammate_context["qualifying_losses"]:
-            strengths.append(
-                {
-                    "title": "Teammate edge in qualifying",
-                    "detail": f"Leading {teammate_context['teammate']} {teammate_context['qualifying_wins']}-{teammate_context['qualifying_losses']} on recent Saturdays.",
-                }
-            )
-        elif teammate_context["qualifying_losses"] > teammate_context["qualifying_wins"]:
-            watchouts.append(
-                {
-                    "title": "Teammate pressure in qualifying",
-                    "detail": f"Trailing {teammate_context['teammate']} {teammate_context['qualifying_losses']}-{teammate_context['qualifying_wins']} on recent Saturdays.",
-                }
-            )
-
-        if teammate_context["race_wins"] > teammate_context["race_losses"]:
-            strengths.append(
-                {
-                    "title": "Teammate edge on Sundays",
-                    "detail": f"Leading {teammate_context['teammate']} {teammate_context['race_wins']}-{teammate_context['race_losses']} in recent races.",
-                }
-            )
-        elif teammate_context["race_losses"] > teammate_context["race_wins"]:
-            watchouts.append(
-                {
-                    "title": "Teammate pressure on Sundays",
-                    "detail": f"Trailing {teammate_context['teammate']} {teammate_context['race_losses']}-{teammate_context['race_wins']} in recent races.",
-                }
-            )
-
-    return strengths[:4], watchouts[:4]
-
-
 def build_driver_intelligence(year, driver=None, window=5):
     """Build a driver-focused season view for one selected driver."""
     year = int(year)
@@ -643,7 +526,6 @@ def build_driver_intelligence(year, driver=None, window=5):
     selected_summary["consistency_label"] = _consistency_label(selected_summary["consistency"])
     form_rank = next((index + 1 for index, row in enumerate(summaries) if row["driver"] == selected_driver), None)
     teammate_context = _build_teammate_context(selected_driver, drivers, snapshots, window)
-    strengths, watchouts = _insight_lists(selected_summary, teammate_context)
     recent_results = drivers[selected_driver][-window:]
 
     payload["meta"]["driver"] = selected_driver
@@ -670,8 +552,6 @@ def build_driver_intelligence(year, driver=None, window=5):
     payload["grid_ranks"] = _grid_rank_rows(selected_summary, summaries)
     payload["teammate_context"] = teammate_context
     payload["recent_results"] = recent_results
-    payload["strengths"] = strengths
-    payload["watchouts"] = watchouts
 
     _driver_cache[cache_key] = payload
     return payload
