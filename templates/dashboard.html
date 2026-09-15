@@ -98,6 +98,33 @@
             color: #fff;
             font-weight: 700;
         }
+        .analysis-nav {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 0.9rem 1.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+        .analysis-nav-label {
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+        }
+        .analysis-link {
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            color: var(--text-secondary);
+            font-size: 0.76rem;
+            font-weight: 600;
+            padding: 0.35rem 0.65rem;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+        .analysis-link:hover { border-color: var(--accent-blue); color: var(--text-primary); }
         .container { max-width: 1440px; margin: 0 auto; padding: 1.5rem; }
         .section-title {
             margin: 0 0 1rem;
@@ -215,7 +242,7 @@
         }
         .footer a { color: var(--accent-red); text-decoration: none; }
         @media (max-width: 700px) {
-            .header, .toolbar, .container { padding-left: 1rem; padding-right: 1rem; }
+            .header, .toolbar, .analysis-nav, .container { padding-left: 1rem; padding-right: 1rem; }
             .toolbar { align-items: stretch; }
             .toolbar label { width: 100%; }
             .toolbar input, .toolbar select, .toolbar button, .toolbar a { width: 100%; }
@@ -248,6 +275,13 @@
         <button onclick="loadRace()">Load Race</button>
         <a class="secondary-link" href="/">Latest Race</a>
     </div>
+
+    <nav class="analysis-nav" aria-label="More race analysis">
+        <span class="analysis-nav-label">More analysis</span>
+        <a class="analysis-link" href="/season{% if session_info %}?year={{ session_info.year }}{% endif %}">Season Form</a>
+        <a class="analysis-link" href="/circuit{% if session_info %}?year={{ session_info.year }}&round={{ session_info.round_number }}{% endif %}">Circuit History</a>
+        <a class="analysis-link" href="/driver{% if session_info %}?year={{ session_info.year }}{% endif %}">Driver Intel</a>
+    </nav>
 
     <main class="container">
         {% if error %}
