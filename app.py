@@ -458,6 +458,33 @@ def _run_race_analysis(leaderboard=None):
     }
 
 
+def _is_retirement(status):
+    """Return whether an official result status represents a race retirement."""
+    normalized = str(status or "").strip().lower()
+    if not normalized or normalized in {"finished", "lapped", "classified", "unknown"}:
+        return False
+    if normalized.startswith("+") or normalized in {"did not start", "did not qualify", "disqualified"}:
+        return False
+
+    retirement_markers = (
+        "retired",
+        "accident",
+        "collision",
+        "engine",
+        "gearbox",
+        "transmission",
+        "clutch",
+        "hydraulic",
+        "electrical",
+        "brake",
+        "suspension",
+        "mechanical",
+        "damage",
+        "overheating",
+    )
+    return any(marker in normalized for marker in retirement_markers)
+
+
 def _build_post_race_summary(leaderboard):
     """Create headline facts from the official completed-race classification."""
     rows = leaderboard or []
@@ -465,7 +492,6 @@ def _build_post_race_summary(leaderboard):
         return {
             "winner": "—",
             "podium": "—",
-            "race_laps": 0,
             "fastest_lap_driver": "—",
             "fastest_lap_time": "—",
             "biggest_gainer": "—",
@@ -477,17 +503,11 @@ def _build_post_race_summary(leaderboard):
     fastest = min(fastest_candidates, key=lambda row: row["best_lap"]) if fastest_candidates else None
     gainers = [row for row in rows if (row.get("positions_gained") or 0) > 0]
     biggest_gainer = max(gainers, key=lambda row: row["positions_gained"]) if gainers else None
-    retirements = sum(
-        1
-        for row in rows
-        if row.get("status") not in ("Finished", "Unknown")
-        and not str(row.get("status", "")).startswith("+")
-    )
+    retirements = sum(1 for row in rows if _is_retirement(row.get("status")))
 
     return {
         "winner": rows[0]["driver"],
         "podium": " · ".join(row["driver"] for row in rows[:3]),
-        "race_laps": rows[0].get("total_laps", 0),
         "fastest_lap_driver": fastest["driver"] if fastest else "—",
         "fastest_lap_time": fastest["best_lap_display"] if fastest else "—",
         "biggest_gainer": biggest_gainer["driver"] if biggest_gainer else "—",

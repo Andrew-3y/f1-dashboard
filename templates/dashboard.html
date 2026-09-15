@@ -304,8 +304,7 @@
             <div class="stat-card"><div class="stat-value">{{ race_summary.winner|default('—') }}</div><div class="stat-detail">{{ race_summary.podium|default('—') }}</div><div class="stat-label">Winner · Podium</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--accent-cyan);">{{ race_summary.fastest_lap_driver|default('—') }}</div><div class="stat-detail">{{ race_summary.fastest_lap_time|default('—') }}</div><div class="stat-label">Fastest Lap</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--accent-green);">{{ race_summary.biggest_gainer|default('—') }}</div><div class="stat-detail">{% if race_summary.biggest_gain %}+{{ race_summary.biggest_gain }} positions{% else %}No positive gain{% endif %}</div><div class="stat-label">Biggest Mover</div></div>
-            <div class="stat-card"><div class="stat-value">{{ race_summary.race_laps|default(0) }}</div><div class="stat-label">Winner Laps</div></div>
-            <div class="stat-card"><div class="stat-value" style="color:var(--accent-orange);">{{ race_summary.retirements|default(0) }}</div><div class="stat-label">Non-Finishers</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--accent-orange);">{{ race_summary.retirements|default(0) }}</div><div class="stat-label">Retirements</div></div>
         </section>
 
         <div class="section-title">Official Result</div>
