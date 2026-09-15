@@ -1,5 +1,5 @@
 # =============================================================
-# F1 On-Demand Intelligence Dashboard — Python Dependencies
+# F1 Post-Race Review — Python Dependencies
 # =============================================================
 # All packages here are 100% FREE and open-source.
 #
@@ -8,7 +8,7 @@
 #   gunicorn      — Production WSGI server (Render runs this, not Flask's dev server)
 #   fastf1        — Fetches F1 timing/telemetry data from the official API
 #   pandas        — Data manipulation (DataFrames, groupby, rolling averages)
-#   numpy         — Numerical operations (used in predictor.py)
+#   numpy         — Numerical analysis used to reconstruct pre-race forecasts
 #
 # HOW TO INSTALL LOCALLY:
 #   pip install -r requirements.txt

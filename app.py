@@ -2,26 +2,21 @@
 app.py — Flask Application (Main Entry Point)
 ==============================================
 
-This is the file that Render will run.  It creates a Flask web server
-that serves the F1 Intelligence Dashboard with session-specific analysis.
+This is the file that Render will run. It serves a post-race Formula 1
+review built from completed race data.
 
 HOW IT WORKS (on-demand architecture):
   1. User opens the URL → Flask receives a GET request.
-  2. Flask calls data_handler to fetch the latest F1 session data.
-  3. Based on session type, the data is routed to the right analysis:
-     RACE / SPRINT:
-       - anomaly.py, predictor.py, degradation.py, strategy.py, battle_detector.py
-     QUALIFYING:
-       - qualifying.py (sectors, elimination, improvement, team pace)
-     PRACTICE:
-       - practice.py (long runs, short runs, compounds, team ranking, consistency)
-  4. Everything is injected into an HTML template and returned.
+  2. Flask calls data_handler to fetch the latest completed Grand Prix.
+  3. It builds the official classification, post-race summary, notable pace
+     losses, and the pre-race projection accuracy report.
+  4. The review is injected into an HTML template and returned.
   5. The server does NOTHING between requests (Render's free tier
      spins it down after ~15 min of inactivity).
 
 ROUTES:
-  GET /            → Main dashboard (auto-detects latest session)
-  GET /api/data    → JSON API endpoint (for AJAX refresh)
+  GET /            → Main dashboard (auto-detects latest completed race)
+  GET /api/data    → JSON API endpoint
   GET /health      → Health check (Render uses this to know we're alive)
 """
 
@@ -31,26 +26,19 @@ import threading
 import logging
 import html
 import datetime
-import fastf1
 import pandas as pd
 from flask import Flask, render_template, request, jsonify
+from werkzeug.exceptions import HTTPException
 
 # Our custom modules
 from data_handler import get_dashboard_data, get_latest_session_info, load_session
 from anomaly import detect_anomalies, get_anomaly_summary
-from predictor import predict_overtakes, get_prediction_summary
-from degradation import analyze_degradation, get_degradation_summary
-from strategy import simulate_strategies, get_strategy_summary
-from battle_detector import detect_battles, get_battle_summary
-from qualifying import analyze_qualifying, get_qualifying_summary
-from practice import analyze_practice, get_practice_summary, analyze_qualifying_projection
+from qualifying import analyze_qualifying
 from race_projection import project_race_finish, project_sprint_finish
 from prediction_accuracy import compare_predictions, empty_accuracy
-from validation import validate_session, empty_validation
 from season_form import build_season_form, empty_season_form
 from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence
 from driver_intel import build_driver_intelligence, empty_driver_intelligence
-from weekend_outlook import build_weekend_outlook, empty_weekend_outlook
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -89,10 +77,8 @@ def _base_dashboard_context():
         "session_category": "race",
         "leaderboard": [],
         "load_time": 0,
-        "validation_report": empty_validation(),
+        "race_summary": {},
         **_empty_race(),
-        **_empty_qualifying(),
-        **_empty_practice(),
     }
 
 
@@ -105,7 +91,7 @@ def _render_plain_error(message, status_code=500):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>F1 Strategy Intelligence</title>
+  <title>F1 Post-Race Review</title>
   <style>
     body {{
       margin: 0;
@@ -154,8 +140,8 @@ def _render_plain_error(message, status_code=500):
 </head>
 <body>
   <div class="card">
-    <h1>F1 Strategy Intelligence</h1>
-    <p>We hit a load problem for this session, but the app stayed up. Try reloading or choosing a different round, then come back.</p>
+    <h1>F1 Post-Race Review</h1>
+    <p>We could not load this completed race. Try reloading or choosing a different round.</p>
     <div class="detail">{safe_message}</div>
     <p style="margin-top:16px;"><a href="/">Return to dashboard</a></p>
   </div>
@@ -179,8 +165,16 @@ def _render_dashboard(status_code=200, **context):
 
 @app.errorhandler(Exception)
 def _handle_unexpected_error(exc):
+    if isinstance(exc, HTTPException):
+        return exc
     logger.exception("Unhandled error")
     return _render_dashboard(500, error=str(exc))
+
+
+@app.route("/favicon.ico")
+def favicon():
+    """Avoid turning the browser's optional favicon request into an error."""
+    return ("", 204)
 
 # ---------------------------------------------------------------------------
 # Warmup cache (avoid cold-start timeouts)
@@ -223,16 +217,6 @@ _driver_warm_cache = {
 }
 _driver_warm_lock = threading.Lock()
 
-_outlook_warm_cache = {
-    "key": None,
-    "data": None,
-    "error": None,
-    "in_progress": False,
-    "updated_at": None,
-}
-_outlook_warm_lock = threading.Lock()
-
-
 def _read_warm_cache():
     """Return a snapshot of the warm cache."""
     with _warm_lock:
@@ -248,7 +232,7 @@ def _read_warm_cache():
 
 
 def _start_warmup(year, round_num, session_type):
-    """Warm up a requested session in a background thread."""
+    """Warm up a requested completed race in a background thread."""
     with _warm_lock:
         requested_key = (year, round_num, session_type)
         if _warm_cache["in_progress"] and _warm_cache["key"] == requested_key:
@@ -256,32 +240,29 @@ def _start_warmup(year, round_num, session_type):
         _warm_cache["key"] = requested_key
         _warm_cache["data"] = None
         _warm_cache["analysis"] = None
-        _warm_cache["session_category"] = _session_category(session_type)
+        _warm_cache["session_category"] = "race"
         _warm_cache["in_progress"] = True
         _warm_cache["error"] = None
 
     def _worker():
         try:
             data = get_dashboard_data(year, round_num, session_type)
-            actual_type = data.get("session_info", {}).get("session_type", session_type) if data.get("session_info") else session_type
-            category = _session_category(actual_type)
             if data.get("error"):
                 analysis = _base_dashboard_context()
-            elif category == "qualifying":
-                analysis = {**_empty_race(), **_run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_practice()}
-            elif category == "practice":
-                analysis = {**_empty_race(), **_empty_qualifying(), **_run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))}
             else:
-                analysis = {**_run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard")), **_empty_qualifying(), **_empty_practice()}
-            if not data.get("error"):
-                analysis = _attach_validation(category, data.get("leaderboard", []), analysis, session_info=data.get("session_info"))
+                analysis = _run_race_analysis(
+                    data["laps"],
+                    session=data.get("session"),
+                    session_info=data.get("session_info"),
+                    leaderboard=data.get("leaderboard"),
+                )
             with _warm_lock:
                 _warm_cache.update(
                     {
                         "key": (year, round_num, session_type),
                         "data": data,
                         "analysis": analysis,
-                        "session_category": category,
+                        "session_category": "race",
                         "error": data.get("error"),
                         "updated_at": time.time(),
                     }
@@ -297,11 +278,10 @@ def _start_warmup(year, round_num, session_type):
 
 
 def _render_warmup(session_type=None):
-    """Render the warmup state for a requested session."""
-    category = _session_category(session_type)
+    """Render the warmup state for a requested completed race."""
     return _render_dashboard(
-        session_category=category,
-        error="WARMUP: Loading the requested session data. This can take ~30s on a cold start. The page will refresh automatically.",
+        session_category="race",
+        error="WARMUP: Loading the completed race review. This can take ~30s on a cold start. The page will refresh automatically.",
     )
 
 
@@ -496,167 +476,17 @@ def _render_driver_page(driver_data=None, *, year=None, driver=None, window=5, e
     ), status_code
 
 
-def _read_outlook_warm_cache():
-    """Return a snapshot of the weekend outlook warm cache."""
-    with _outlook_warm_lock:
-        return {
-            "key": _outlook_warm_cache["key"],
-            "data": _outlook_warm_cache["data"],
-            "error": _outlook_warm_cache["error"],
-            "in_progress": _outlook_warm_cache["in_progress"],
-            "updated_at": _outlook_warm_cache["updated_at"],
-        }
-
-
-def _start_outlook_warmup(year, round_num, window):
-    """Warm up weekend outlook in a background thread."""
-    with _outlook_warm_lock:
-        requested_key = (year, round_num, window)
-        if _outlook_warm_cache["in_progress"] and _outlook_warm_cache["key"] == requested_key:
-            return
-        _outlook_warm_cache["key"] = requested_key
-        _outlook_warm_cache["data"] = None
-        _outlook_warm_cache["error"] = None
-        _outlook_warm_cache["in_progress"] = True
-
-    def _worker():
-        try:
-            data = build_weekend_outlook(year, round_num, window=window)
-            with _outlook_warm_lock:
-                _outlook_warm_cache.update(
-                    {
-                        "key": (year, round_num, window),
-                        "data": data,
-                        "error": None,
-                        "updated_at": time.time(),
-                    }
-                )
-        except Exception as exc:
-            with _outlook_warm_lock:
-                _outlook_warm_cache["error"] = str(exc)
-        finally:
-            with _outlook_warm_lock:
-                _outlook_warm_cache["in_progress"] = False
-
-    threading.Thread(target=_worker, daemon=True).start()
-
-
-def _render_outlook_page(outlook_data=None, *, year=None, round_num=None, window=5, error=None, loading=False, status_code=200):
-    """Render the weekend outlook page with stable fallback data."""
-    payload = outlook_data or empty_weekend_outlook()
-    empty_payload = empty_weekend_outlook()
-    payload_meta = payload.get("meta", empty_payload["meta"])
-    payload_summary = payload.get("summary", empty_payload["summary"])
-    payload_meta["year"] = year if year is not None else payload_meta.get("year")
-    payload_meta["round_number"] = round_num if round_num is not None else payload_meta.get("round_number")
-    payload_meta["window"] = window
-    payload_meta["window_label"] = f"Last {window} rounds"
-    return render_template(
-        "outlook.html",
-        outlook_data=payload,
-        outlook_meta=payload_meta,
-        outlook_summary=payload_summary,
-        error=error,
-        loading=loading,
-    ), status_code
-
-
-# ---------------------------------------------------------------------------
-# Helper: classify session type
-# ---------------------------------------------------------------------------
-def _session_category(session_type):
-    """Return 'race', 'qualifying', or 'practice' based on session type string."""
-    if not session_type:
-        return "race"
-    st = session_type.lower()
-    if st in ("race", "sprint"):
-        return "race"
-    elif st in ("qualifying", "sprint shootout"):
-        return "qualifying"
-    elif st.startswith("practice") or st.startswith("fp") or st in ("practice 1", "practice 2", "practice 3"):
-        return "practice"
-    return "race"
-
-
-def _default_outlook_target():
-    """Return the next upcoming round when possible, otherwise the latest completed round."""
-    now = pd.Timestamp(datetime.datetime.now(datetime.timezone.utc))
-    for attempt_year in (now.year, now.year + 1):
-        try:
-            schedule = fastf1.get_event_schedule(attempt_year, include_testing=False)
-        except Exception:
-            continue
-        if schedule is None or schedule.empty:
-            continue
-
-        for _, event in schedule.iterrows():
-            round_number = event.get("RoundNumber")
-            if pd.isna(round_number):
-                continue
-
-            session_times = []
-            for idx in range(1, 6):
-                session_date = event.get(f"Session{idx}DateUtc")
-                if pd.isna(session_date):
-                    continue
-                timestamp = pd.Timestamp(session_date)
-                if timestamp.tzinfo is None:
-                    timestamp = timestamp.tz_localize("UTC")
-                else:
-                    timestamp = timestamp.tz_convert("UTC")
-                session_times.append(timestamp)
-
-            if session_times and max(session_times) >= now:
-                return attempt_year, int(round_number)
-
-    latest = get_latest_session_info()
-    return latest.get("year"), latest.get("round_number")
-
-
 # ---------------------------------------------------------------------------
 # Helper: run race analysis modules
 # ---------------------------------------------------------------------------
 def _run_race_analysis(laps, session=None, session_info=None, leaderboard=None):
-    """Run race-specific analysis modules."""
-    # 1. Anomaly detection
+    """Build the small set of analyses that remain useful after the finish."""
     try:
         alerts = detect_anomalies(laps)
         alert_summary = get_anomaly_summary(alerts)
     except Exception as exc:
         logger.warning("Anomaly detection failed: %s", exc)
         alerts, alert_summary = [], {}
-
-    # 2. Overtake predictions
-    try:
-        predictions = predict_overtakes(laps)
-        prediction_summary = get_prediction_summary(predictions)
-    except Exception as exc:
-        logger.warning("Overtake prediction failed: %s", exc)
-        predictions, prediction_summary = [], {}
-
-    # 3. Tire degradation + pit window
-    try:
-        degradation = analyze_degradation(laps)
-        degradation_summary = get_degradation_summary(degradation)
-    except Exception as exc:
-        logger.warning("Degradation analysis failed: %s", exc)
-        degradation, degradation_summary = [], {}
-
-    # 4. Pit strategy simulation
-    try:
-        strategies = simulate_strategies(laps, degradation_data=degradation)
-        strategy_summary = get_strategy_summary(strategies)
-    except Exception as exc:
-        logger.warning("Strategy simulation failed: %s", exc)
-        strategies, strategy_summary = [], {}
-
-    # 5. Battle detection
-    try:
-        battles = detect_battles(laps)
-        battle_summary = get_battle_summary(battles)
-    except Exception as exc:
-        logger.warning("Battle detection failed: %s", exc)
-        battles, battle_summary = [], {}
 
     try:
         race_projection_accuracy = _build_race_projection_accuracy(
@@ -671,15 +501,46 @@ def _run_race_analysis(laps, session=None, session_info=None, leaderboard=None):
     return {
         "alerts": alerts,
         "alert_summary": alert_summary,
-        "predictions": predictions,
-        "prediction_summary": prediction_summary,
-        "degradation": degradation,
-        "degradation_summary": degradation_summary,
-        "strategies": strategies,
-        "strategy_summary": strategy_summary,
-        "battles": battles,
-        "battle_summary": battle_summary,
+        "race_summary": _build_post_race_summary(leaderboard),
         "race_projection_accuracy": race_projection_accuracy,
+    }
+
+
+def _build_post_race_summary(leaderboard):
+    """Create headline facts from the official completed-race classification."""
+    rows = leaderboard or []
+    if not rows:
+        return {
+            "winner": "—",
+            "podium": "—",
+            "race_laps": 0,
+            "fastest_lap_driver": "—",
+            "fastest_lap_time": "—",
+            "biggest_gainer": "—",
+            "biggest_gain": 0,
+            "retirements": 0,
+        }
+
+    fastest_candidates = [row for row in rows if pd.notna(row.get("best_lap"))]
+    fastest = min(fastest_candidates, key=lambda row: row["best_lap"]) if fastest_candidates else None
+    gainers = [row for row in rows if (row.get("positions_gained") or 0) > 0]
+    biggest_gainer = max(gainers, key=lambda row: row["positions_gained"]) if gainers else None
+    retirements = sum(
+        1
+        for row in rows
+        if row.get("status") not in ("Finished", "Unknown")
+        and not str(row.get("status", "")).startswith("+")
+    )
+
+    return {
+        "winner": rows[0]["driver"],
+        "podium": " · ".join(row["driver"] for row in rows[:3]),
+        "race_laps": rows[0].get("total_laps", 0),
+        "fastest_lap_driver": fastest["driver"] if fastest else "—",
+        "fastest_lap_time": fastest["best_lap_display"] if fastest else "—",
+        "biggest_gainer": biggest_gainer["driver"] if biggest_gainer else "—",
+        "biggest_gain": biggest_gainer["positions_gained"] if biggest_gainer else 0,
+        "retirements": retirements,
     }
 
 
@@ -779,73 +640,6 @@ def _official_session_accuracy_rows(session, session_type):
     return sorted(normalized, key=lambda row: row["position"])
 
 
-def _build_quali_projection_accuracy(session_info, session):
-    """Compare the FP3 qualifying projection with actual qualifying results."""
-    if not session_info or session_info.get("session_type") != "Qualifying":
-        return empty_accuracy()
-
-    actual_rows = _official_session_accuracy_rows(session, "Qualifying")
-    if not actual_rows:
-        return empty_accuracy()
-
-    practice_sessions = _load_practice_context(session_info)
-    if not practice_sessions:
-        return empty_accuracy()
-
-    projection = analyze_qualifying_projection(practice_sessions)
-    return compare_predictions(
-        projection.get("projected_order", []),
-        actual_rows,
-    )
-
-
-def _build_sprint_projection_accuracy(session_info):
-    """Compare the sprint-shootout page projection against the official sprint result."""
-    if not session_info or session_info.get("session_type") != "Sprint Shootout":
-        return empty_accuracy()
-
-    try:
-        shootout_session, shootout_laps = load_session(
-            session_info["year"],
-            session_info["round_number"],
-            "Sprint Shootout",
-        )
-        sprint_session, _ = load_session(
-            session_info["year"],
-            session_info["round_number"],
-            "Sprint",
-        )
-    except Exception as exc:
-        logger.info("Skipping sprint projection accuracy: %s", exc)
-        return empty_accuracy()
-
-    if shootout_laps is None or shootout_laps.empty:
-        return empty_accuracy()
-
-    actual_rows = _official_session_accuracy_rows(sprint_session, "Sprint")
-    if not actual_rows:
-        return empty_accuracy()
-
-    shootout_analysis = analyze_qualifying(shootout_laps, session=shootout_session)
-    practice_sessions = _load_practice_context(
-        {
-            "year": session_info["year"],
-            "round_number": session_info["round_number"],
-            "session_type": "Sprint Shootout",
-        }
-    )
-    projection = project_sprint_finish(
-        shootout_analysis,
-        practice_sessions=practice_sessions,
-        session=shootout_session,
-    )
-
-    return compare_predictions(
-        projection.get("projected_finish", []),
-        actual_rows,
-    )
-
-
 def _build_race_projection_accuracy(session_info, session, actual_rows):
     """Compare the qualifying-page race projection with the official race result."""
     if not session_info or session_info.get("session_type") not in ("Race", "Sprint"):
@@ -907,142 +701,14 @@ def _build_race_projection_accuracy(session_info, session, actual_rows):
     )
 
 
-def _attach_validation(session_category, leaderboard, analysis, session_info=None):
-    """Attach a validation report without mutating upstream inputs."""
-    analysis = {**analysis}
-    try:
-        analysis["validation_report"] = validate_session(session_category, leaderboard, analysis, session_info=session_info)
-    except Exception as exc:
-        logger.warning("Validation audit failed: %s", exc)
-        analysis["validation_report"] = empty_validation()
-    return analysis
-
-
-def _empty_projection():
-    return {
-        "projected_finish": [],
-        "summary": {
-            "predicted_winner": "-",
-            "biggest_riser": "-",
-            "confidence": "LOW",
-            "practice_sessions_used": [],
-            "has_practice_pace": False,
-        },
-    }
-
-
-def _run_qualifying_analysis(laps, session=None, session_info=None, leaderboard=None):
-    """Run qualifying-specific analysis modules."""
-    session_type = (session_info or {}).get("session_type")
-    is_sprint_shootout = session_type == "Sprint Shootout"
-    try:
-        quali_analysis = analyze_qualifying(laps, session=session)
-        quali_summary = get_qualifying_summary(quali_analysis)
-    except Exception as exc:
-        logger.warning("Qualifying analysis failed: %s", exc)
-        quali_analysis = {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": [], "race_projection": []}
-        quali_summary = {
-            "race_projection": _empty_projection()["summary"],
-            "qualifying_projection_accuracy": empty_accuracy(),
-        }
-        return {
-            "quali_analysis": quali_analysis,
-            "quali_summary": quali_summary,
-        }
-
-    try:
-        practice_sessions = _load_practice_context(session_info)
-    except Exception as exc:
-        logger.warning("Practice context load failed: %s", exc)
-        practice_sessions = []
-
-    try:
-        if is_sprint_shootout:
-            projection = project_sprint_finish(quali_analysis, practice_sessions=practice_sessions, session=session)
-        else:
-            projection = project_race_finish(quali_analysis, practice_sessions=practice_sessions, session=session)
-    except Exception as exc:
-        logger.warning("%s projection failed: %s", "Sprint" if is_sprint_shootout else "Race", exc)
-        projection = _empty_projection()
-
-    try:
-        if is_sprint_shootout:
-            qualifying_projection_accuracy = empty_accuracy()
-        else:
-            qualifying_projection_accuracy = _build_quali_projection_accuracy(
-                session_info,
-                session,
-            )
-    except Exception as exc:
-        logger.warning("%s projection accuracy failed: %s", "Sprint" if is_sprint_shootout else "Qualifying", exc)
-        qualifying_projection_accuracy = empty_accuracy()
-
-    quali_analysis["race_projection"] = projection["projected_finish"]
-    quali_summary["race_projection"] = projection["summary"]
-    quali_summary["qualifying_projection_accuracy"] = qualifying_projection_accuracy
-
-    return {
-        "quali_analysis": quali_analysis,
-        "quali_summary": quali_summary,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Helper: run practice analysis
-# ---------------------------------------------------------------------------
-def _run_practice_analysis(laps, session=None, session_info=None):
-    """Run practice-specific analysis modules."""
-    try:
-        practice_sessions = []
-        if session_info and session_info.get("session_type") == "Practice 3":
-            practice_sessions.append({"session_type": "Practice 3", "session": session, "laps": laps})
-            for session_type in ("Practice 1", "Practice 2"):
-                try:
-                    earlier_session, earlier_laps = load_session(session_info["year"], session_info["round_number"], session_type)
-                except Exception as exc:
-                    logger.info("Skipping %s context: %s", session_type, exc)
-                    continue
-                if earlier_laps is not None and not earlier_laps.empty:
-                    practice_sessions.append({"session_type": session_type, "session": earlier_session, "laps": earlier_laps})
-        practice_analysis = analyze_practice(laps, session_info=session_info, practice_sessions=practice_sessions)
-        practice_summary = get_practice_summary(practice_analysis)
-    except Exception as exc:
-        logger.warning("Practice analysis failed: %s", exc)
-        practice_analysis = {"long_runs": [], "short_runs": [], "compounds": [], "team_ranking": [], "consistency": [], "programmes": [], "theoretical_best": [], "sectors": [], "track_evolution": [], "tyre_deg_curves": [], "race_pace_prediction": [], "qualifying_projection": [], "qualifying_projection_summary": {}}
-        practice_summary = {}
-
-    return {
-        "practice_analysis": practice_analysis,
-        "practice_summary": practice_summary,
-    }
-
-
 # ---------------------------------------------------------------------------
 # Helper: empty defaults for all analysis types
 # ---------------------------------------------------------------------------
 def _empty_race():
     return {
         "alerts": [], "alert_summary": {},
-        "predictions": [], "prediction_summary": {},
-        "degradation": [], "degradation_summary": {},
-        "strategies": [], "strategy_summary": {},
-        "battles": [], "battle_summary": {},
+        "race_summary": {},
         "race_projection_accuracy": empty_accuracy(),
-    }
-
-def _empty_qualifying():
-    return {
-        "quali_analysis": {"sectors": [], "elimination": {"q1_eliminated": [], "q2_eliminated": [], "q3_drivers": []}, "improvement": [], "team_pace": [], "theoretical_best": [], "teammate_battles": [], "track_evolution": [], "close_calls": [], "tyre_usage": [], "race_projection": []},
-        "quali_summary": {
-            "race_projection": _empty_projection()["summary"],
-            "qualifying_projection_accuracy": empty_accuracy(),
-        },
-    }
-
-def _empty_practice():
-    return {
-        "practice_analysis": {"long_runs": [], "short_runs": [], "compounds": [], "team_ranking": [], "consistency": [], "programmes": [], "theoretical_best": [], "sectors": [], "track_evolution": [], "tyre_deg_curves": [], "race_pace_prediction": [], "qualifying_projection": [], "qualifying_projection_summary": {}},
-        "practice_summary": {},
     }
 
 
@@ -1057,26 +723,19 @@ def index():
     Query parameters (all optional):
         year         — e.g. 2025
         round        — round number, e.g. 3
-        session_type — 'Race', 'Qualifying', 'Sprint', 'Practice 1', etc.
+        session_type — 'Race' or 'Sprint'
 
-    If no parameters are given, auto-detects the latest session.
+    If no parameters are given, auto-detects the latest completed Grand Prix.
     """
     # Render health checks use HEAD; respond fast to avoid expensive loads.
     if request.method == "HEAD":
         return ("", 200)
-    start_time = time.time()
-
-    # Check for manual session selection
+    # Only completed race sessions are exposed by the public dashboard.
     year = request.args.get("year", type=int)
     round_num = request.args.get("round", type=int)
     session_type = request.args.get("session_type", default=None, type=str)
-
-    # Known problematic session: avoid hard 500s and show a friendly message.
-    if year == 2026 and round_num == 1 and (session_type or "").lower() == "qualifying":
-        return _render_dashboard(
-            session_category="qualifying",
-            error="Qualifying data for 2026 Round 1 is intermittently unavailable from the upstream feed. Please try again later or select another session.",
-        )
+    if year and round_num:
+        session_type = "Sprint" if (session_type or "").lower() == "sprint" else "Race"
 
     requested_key = (year, round_num, session_type)
     warm_state = _read_warm_cache()
@@ -1112,15 +771,12 @@ def index():
 
 
 # ---------------------------------------------------------------------------
-# ROUTE: JSON API (for AJAX auto-refresh)
+# ROUTE: JSON API
 # ---------------------------------------------------------------------------
 @app.route("/api/data")
 def api_data():
     """
-    Returns all dashboard data as JSON.  The front-end JavaScript can
-    call this endpoint to refresh the page without a full reload.
-
-    Same query parameters as the main route.
+    Return the same completed-race review as structured JSON.
     """
     if request.method == "HEAD":
         return ("", 200)
@@ -1129,6 +785,8 @@ def api_data():
     year = request.args.get("year", type=int)
     round_num = request.args.get("round", type=int)
     session_type = request.args.get("session_type", default=None, type=str)
+    if year and round_num:
+        session_type = "Sprint" if (session_type or "").lower() == "sprint" else "Race"
 
     try:
         data = get_dashboard_data(year, round_num, session_type)
@@ -1139,23 +797,19 @@ def api_data():
     if data["error"]:
         return jsonify({"error": data["error"]}), 500
 
-    actual_type = data.get("session_info", {}).get("session_type", session_type)
-    category = _session_category(actual_type)
-
-    if category == "qualifying":
-        analysis = _run_qualifying_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard"))
-    elif category == "practice":
-        analysis = _run_practice_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"))
-    else:
-        analysis = _run_race_analysis(data["laps"], session=data.get("session"), session_info=data.get("session_info"), leaderboard=data.get("leaderboard"))
-    analysis = _attach_validation(category, data.get("leaderboard", []), analysis, session_info=data.get("session_info"))
+    analysis = _run_race_analysis(
+        data["laps"],
+        session=data.get("session"),
+        session_info=data.get("session_info"),
+        leaderboard=data.get("leaderboard"),
+    )
 
     elapsed = round(time.time() - start_time, 2)
 
     return jsonify(
         {
             "session_info": data["session_info"],
-            "session_category": category,
+            "session_category": "race",
             "leaderboard": [
                 {k: v for k, v in d.items() if k != "best_lap"}
                 for d in data["leaderboard"]
@@ -1288,48 +942,6 @@ def driver_view():
         window=window,
         loading=True,
         error="Building driver intelligence. This can take a little longer on Render while recent qualifying and race results are loaded.",
-    )
-
-
-# ---------------------------------------------------------------------------
-# ROUTE: Weekend Outlook
-# ---------------------------------------------------------------------------
-@app.route("/outlook")
-def outlook_view():
-    """Render the weekend outlook page for a selected round."""
-    year = request.args.get("year", type=int)
-    round_num = request.args.get("round", type=int)
-    window = request.args.get("window", default=5, type=int)
-    if request.method == "HEAD":
-        return ("", 200)
-
-    if year is None or round_num is None:
-        try:
-            default_year, default_round = _default_outlook_target()
-            year = year or default_year
-            round_num = round_num or default_round
-        except Exception:
-            year = year or datetime.datetime.now().year
-            round_num = round_num or 1
-
-    requested_key = (year, round_num, window)
-    warm_state = _read_outlook_warm_cache()
-
-    if warm_state["key"] == requested_key and warm_state["data"] is not None:
-        return _render_outlook_page(warm_state["data"], year=year, round_num=round_num, window=window)
-
-    if warm_state["key"] == requested_key and warm_state["error"]:
-        return _render_outlook_page(year=year, round_num=round_num, window=window, error=warm_state["error"], status_code=500)
-
-    if not warm_state["in_progress"] or warm_state["key"] != requested_key:
-        _start_outlook_warmup(year, round_num, window)
-
-    return _render_outlook_page(
-        year=year,
-        round_num=round_num,
-        window=window,
-        loading=True,
-        error="Building the weekend outlook. This can take a little longer on Render while circuit and recent form context are loaded.",
     )
 
 

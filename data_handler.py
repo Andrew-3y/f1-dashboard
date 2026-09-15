@@ -88,12 +88,15 @@ def format_gap(seconds):
 
 
 # ---------------------------------------------------------------------------
-# Detect the latest completed (or most recent) F1 session
+# Detect the latest completed Grand Prix
 # ---------------------------------------------------------------------------
 def get_latest_session_info():
     """
-    Walk through the current season's event schedule to find the most
-    recent session that has already happened.
+    Return the most recent Grand Prix that is safely past its finish window.
+
+    The dashboard is intentionally post-race only. A four-hour buffer after
+    the scheduled race start avoids exposing an active race or a result that
+    is still being finalized by the upstream data providers.
 
     Returns
     -------
@@ -108,13 +111,8 @@ def get_latest_session_info():
     RuntimeError
         If no completed session can be found (e.g. off-season).
 
-    HOW IT WORKS:
-      1. Load the full event schedule for the current year.
-      2. Iterate events in REVERSE order (newest first).
-      3. For each event, check session dates (Race → Qualifying → …).
-      4. Return the first session whose date is in the past.
-      5. If nothing in the current year, fall back to the previous year's
-         last race.
+    If no completed Grand Prix exists in the current season, the previous
+    season is checked as a fallback.
     """
     now = datetime.datetime.now(datetime.timezone.utc)
     year = now.year
@@ -128,12 +126,16 @@ def get_latest_session_info():
 
         # Walk events newest-first
         for _, event in schedule.iloc[::-1].iterrows():
-            sessions = []
+            race_start = None
             for idx in range(1, 6):
                 session_name = event.get(f"Session{idx}")
                 session_date = event.get(f"Session{idx}DateUtc")
 
-                if pd.isna(session_name) or pd.isna(session_date):
+                if (
+                    pd.isna(session_name)
+                    or pd.isna(session_date)
+                    or str(session_name).lower() != "race"
+                ):
                     continue
 
                 session_ts = pd.Timestamp(session_date)
@@ -142,18 +144,18 @@ def get_latest_session_info():
                 else:
                     session_ts = session_ts.tz_convert("UTC")
 
-                sessions.append((session_ts, str(session_name)))
+                race_start = session_ts
+                break
 
-            for session_ts, session_name in sorted(sessions, reverse=True):
-                if session_ts <= pd.Timestamp(now):
-                    return {
-                        "year": attempt_year,
-                        "round_number": int(event["RoundNumber"]),
-                        "event_name": event["EventName"],
-                        "session_type": session_name,
-                    }
+            if race_start is not None and race_start + pd.Timedelta(hours=4) <= pd.Timestamp(now):
+                return {
+                    "year": attempt_year,
+                    "round_number": int(event["RoundNumber"]),
+                    "event_name": event["EventName"],
+                    "session_type": "Race",
+                }
 
-    raise RuntimeError("No completed F1 session found. It may be the off-season.")
+    raise RuntimeError("No completed Grand Prix is available yet.")
 
 
 # ---------------------------------------------------------------------------
@@ -404,6 +406,18 @@ def _build_race_leaderboard(session, laps):
             leader_elapsed_time,
         )
 
+        grid_position = row.get("GridPosition")
+        grid_position = int(grid_position) if pd.notna(grid_position) else None
+        positions_gained = (
+            grid_position - int(row["Position"])
+            if grid_position is not None and grid_position > 0
+            else None
+        )
+        status = row.get("Status")
+        status = str(status) if pd.notna(status) and status else "Unknown"
+        points = row.get("Points")
+        points = float(points) if pd.notna(points) else 0.0
+
         leaderboard.append(
             {
                 "position": int(row["Position"]),
@@ -414,6 +428,10 @@ def _build_race_leaderboard(session, laps):
                 "gap_seconds": gap_seconds,
                 "gap_display": gap_display,
                 "total_laps": int(row["Laps"]) if pd.notna(row.get("Laps")) else int(driver_laps["LapNumber"].max()) if not driver_laps.empty else 0,
+                "grid_position": grid_position,
+                "positions_gained": positions_gained,
+                "status": status,
+                "points": points,
             }
         )
 
@@ -506,6 +524,32 @@ def _build_practice_leaderboard(laps):
 # ---------------------------------------------------------------------------
 # Get full processed data bundle (used by app.py)
 # ---------------------------------------------------------------------------
+def _session_is_safely_complete(schedule, round_number, session_type):
+    """Return whether a race session is beyond the post-race safety buffer."""
+    if schedule is None or schedule.empty:
+        return True
+
+    event_rows = schedule[schedule["RoundNumber"].astype(int) == int(round_number)]
+    if event_rows.empty:
+        return True
+
+    event = event_rows.iloc[0]
+    target = str(session_type).lower()
+    for idx in range(1, 6):
+        name = event.get(f"Session{idx}")
+        start = event.get(f"Session{idx}DateUtc")
+        if pd.isna(name) or pd.isna(start) or str(name).lower() != target:
+            continue
+
+        start = pd.Timestamp(start)
+        start = start.tz_localize("UTC") if start.tzinfo is None else start.tz_convert("UTC")
+        buffer_hours = 4 if target == "race" else 2
+        now = pd.Timestamp(datetime.datetime.now(datetime.timezone.utc))
+        return start + pd.Timedelta(hours=buffer_hours) <= now
+
+    return True
+
+
 def get_dashboard_data(year=None, round_number=None, session_type=None):
     """
     High-level entry point: fetch, process, and return everything the
@@ -514,15 +558,15 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
     Parameters
     ----------
     year, round_number, session_type : optional
-        If all three are provided, load that specific session.
-        Otherwise auto-detect the latest session.
+        If all three are provided, load that completed race or sprint.
+        Otherwise auto-detect the latest completed Grand Prix.
 
     Returns
     -------
     dict with keys:
         session_info  — metadata about the session
         leaderboard   — list of driver dicts (see build_leaderboard)
-        laps          — raw laps DataFrame (used by anomaly & predictor)
+        laps          — raw laps DataFrame used by post-race analysis
         error         — None if everything is fine, else an error string
     """
     try:
@@ -547,6 +591,17 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
                         "session": None,
                         "laps": pd.DataFrame(),
                         "error": f"Round {round_number} does not exist in the {year} schedule.",
+                    }
+
+                if session_type in ("Race", "Sprint") and not _session_is_safely_complete(
+                    schedule, round_number, session_type
+                ):
+                    return {
+                        "session_info": None,
+                        "leaderboard": [],
+                        "session": None,
+                        "laps": pd.DataFrame(),
+                        "error": "This dashboard only publishes a race after it has finished.",
                     }
 
             info = {
