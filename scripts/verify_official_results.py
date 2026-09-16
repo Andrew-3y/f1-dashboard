@@ -237,9 +237,13 @@ def _compare_session(year, round_number, race_url, session_type):
             dashboard_row = expected_rows.get(official_row["number"])
             if dashboard_row is None:
                 continue
-            expected_timing = dashboard_row["best_lap_display"] if index == 0 else dashboard_row["gap_display"]
-            if _normalise_gap(expected_timing) != _normalise_gap(official_row["timing"]):
-                errors.append(f"timing differs for car {official_row['number']}")
+            # Formula1.com's practice pages show an absolute lap time only for
+            # P1. The remaining values are derived gaps which can contradict
+            # the table's own displayed times (for example Australia FP2
+            # 2018). Check the independently stated leader time and ordering,
+            # but never flag a dashboard arithmetic gap from that source.
+            if index == 0 and dashboard_row["best_lap_display"] != official_row["timing"]:
+                errors.append(f"leader timing differs for car {official_row['number']}")
 
     if session_type in qualifying_types:
         result_by_number = {
@@ -252,7 +256,10 @@ def _compare_session(year, round_number, race_url, session_type):
             if result is None:
                 continue
             for segment, official_time in official_row["segments"].items():
-                if official_time and _time_display(result.get(segment)) != official_time:
+                # Formula1.com uses labels such as "DNF" in an empty timing
+                # segment. They are not recorded lap times and must not be
+                # compared to FastF1's missing timedelta.
+                if re.fullmatch(r"\d+:\d{2}\.\d{3}", official_time or "") and _time_display(result.get(segment)) != official_time:
                     errors.append(f"{segment} time differs for car {official_row['number']}")
 
     status = "passed"
