@@ -175,8 +175,8 @@ class PostRaceDataTests(unittest.TestCase):
         """
         headers, rows = _result_table(html)
         self.assertEqual(_official_rows(headers, rows), [
-            {"number": "44", "laps": 58, "position": "1"},
-            {"number": "1", "laps": 58, "position": "2"},
+            {"number": "44", "laps": 58, "position": "1", "timing": "", "points": "", "segments": {}},
+            {"number": "1", "laps": 58, "position": "2", "timing": "", "points": "", "segments": {}},
         ])
 
     def test_fia_override_is_limited_to_recorded_final_classification_cases(self):

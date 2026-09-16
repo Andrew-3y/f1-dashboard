@@ -158,10 +158,29 @@ def _official_rows(headers, rows):
             "number": str(row[index["No."]]),
             "laps": _as_int(row[index["Laps"]]) if "Laps" in index else None,
             "position": row[index.get("Pos.", index.get("Pos"))],
+            "timing": row[index["Time / Gap"]] if "Time / Gap" in index else row[index["Time / Retired"]] if "Time / Retired" in index else "",
+            "points": row[index["Pts."]] if "Pts." in index else "",
+            "segments": {segment: row[index[segment]] for segment in ("Q1", "Q2", "Q3") if segment in index},
         }
         for row in rows
         if len(row) > index["No."] and _as_int(row[index["No."]]) is not None
     ]
+
+
+def _time_display(value):
+    """Match Formula1.com's millisecond session-time notation."""
+    if pd.isna(value):
+        return ""
+    total_milliseconds = round(pd.Timedelta(value).total_seconds() * 1000)
+    minutes, milliseconds = divmod(total_milliseconds, 60_000)
+    seconds, milliseconds = divmod(milliseconds, 1_000)
+    return f"{minutes}:{seconds:02d}.{milliseconds:03d}"
+
+
+def _normalise_gap(value):
+    value = _clean_text(str(value or "")).lower()
+    value = value.replace("laps", "lap")
+    return value
 
 
 def _fia_exception(year, round_number, session_type):
@@ -200,12 +219,41 @@ def _compare_session(year, round_number, race_url, session_type):
 
     if session_type in {"Race", "Sprint"}:
         expected_laps = {number_map.get(str(row["driver"])): row.get("total_laps") for row in dashboard_rows}
+        expected_rows = {number_map.get(str(row["driver"])): row for row in dashboard_rows}
         for official_row in official:
             number = official_row["number"]
             if official_row["laps"] is None or number not in expected_laps:
                 continue
             if expected_laps[number] != official_row["laps"]:
                 errors.append(f"lap count differs for car {number}")
+            if official_row["timing"].startswith("+") and _normalise_gap(expected_rows[number]["gap_display"]) != _normalise_gap(official_row["timing"]):
+                errors.append(f"classification gap differs for car {number}")
+            if official_row["points"] and expected_rows[number]["points"] != float(official_row["points"]):
+                errors.append(f"points differ for car {number}")
+
+    if session_type.startswith("Practice"):
+        expected_rows = {number_map.get(str(row["driver"])): row for row in dashboard_rows}
+        for index, official_row in enumerate(official):
+            dashboard_row = expected_rows.get(official_row["number"])
+            if dashboard_row is None:
+                continue
+            expected_timing = dashboard_row["best_lap_display"] if index == 0 else dashboard_row["gap_display"]
+            if _normalise_gap(expected_timing) != _normalise_gap(official_row["timing"]):
+                errors.append(f"timing differs for car {official_row['number']}")
+
+    if session_type in qualifying_types:
+        result_by_number = {
+            str(row["DriverNumber"]): row
+            for _, row in session.results.iterrows()
+            if pd.notna(row.get("DriverNumber"))
+        }
+        for official_row in official:
+            result = result_by_number.get(official_row["number"])
+            if result is None:
+                continue
+            for segment, official_time in official_row["segments"].items():
+                if official_time and _time_display(result.get(segment)) != official_time:
+                    errors.append(f"{segment} time differs for car {official_row['number']}")
 
     status = "passed"
     if session_type.startswith("Practice") and not validation["passed"]:
