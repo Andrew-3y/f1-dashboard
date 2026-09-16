@@ -299,12 +299,8 @@
 
         <div class="stats-row">
             <div class="stat-card">
-                <div class="stat-value">{{ driver_summary.form_rank }}</div>
-                <div class="stat-label">Recent Form Rank</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" style="color:var(--accent-cyan);">{{ driver_summary.trend }}</div>
-                <div class="stat-label">Recent Trend</div>
+                <div class="stat-value">{{ driver_summary.points_rank }}</div>
+                <div class="stat-label">Window Points Rank</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-green);">{{ driver_summary.avg_quali }}</div>
@@ -337,20 +333,12 @@
                             <div class="fact-value">{{ driver_data.profile.team or '-' }}</div>
                         </div>
                         <div class="fact">
-                            <div class="fact-label">Form Score</div>
-                            <div class="fact-value">{{ driver_data.profile.form_index or '-' }}</div>
-                        </div>
-                        <div class="fact">
                             <div class="fact-label">Wins</div>
                             <div class="fact-value">{{ driver_data.profile.wins or 0 }}</div>
                         </div>
                         <div class="fact">
                             <div class="fact-label">Podiums</div>
                             <div class="fact-value">{{ driver_data.profile.podiums or 0 }}</div>
-                        </div>
-                        <div class="fact">
-                            <div class="fact-label">Consistency</div>
-                            <div class="fact-value">{{ driver_data.profile.consistency_label or '-' }}</div>
                         </div>
                         <div class="fact">
                             <div class="fact-label">Rounds Sampled</div>

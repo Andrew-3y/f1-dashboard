@@ -205,32 +205,6 @@
         .pos-good { color: var(--accent-green); font-weight: 700; }
         .pos-bad { color: var(--accent-orange); font-weight: 700; }
 
-        .trend {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            border-radius: 999px;
-            padding: 0.18rem 0.55rem;
-            font-size: 0.68rem;
-            font-weight: 800;
-            letter-spacing: 0.35px;
-        }
-        .trend-SURGING, .trend-RISING {
-            background: rgba(0,200,83,0.16);
-            color: var(--accent-green);
-            border: 1px solid rgba(0,200,83,0.32);
-        }
-        .trend-STABLE, .trend-NEW {
-            background: rgba(0,188,212,0.12);
-            color: var(--accent-cyan);
-            border: 1px solid rgba(0,188,212,0.28);
-        }
-        .trend-COOLING, .trend-SLIDING {
-            background: rgba(255,109,0,0.15);
-            color: var(--accent-orange);
-            border: 1px solid rgba(255,109,0,0.32);
-        }
-
         .list-item {
             padding: 0.8rem 1rem;
             display: flex;
@@ -325,12 +299,12 @@
 
         <div class="stats-row">
             <div class="stat-card">
-                <div class="stat-value">{{ season_summary.hottest_driver }}</div>
-                <div class="stat-label">Hottest Driver</div>
+                <div class="stat-value">{{ season_summary.points_leader }}</div>
+                <div class="stat-label">Most Window Points</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" style="color:var(--accent-green);">{{ season_summary.hottest_team }}</div>
-                <div class="stat-label">Hottest Team</div>
+                <div class="stat-value" style="color:var(--accent-green);">{{ season_summary.team_points_leader }}</div>
+                <div class="stat-label">Top Team Points</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color:var(--accent-cyan);">{{ season_summary.qualifying_benchmark }}</div>
@@ -358,11 +332,11 @@
             </div>
         </div>
 
-        <div class="section-title">Recent Form</div>
+        <div class="section-title">Recent Results</div>
         <div class="grid">
             <div class="card">
                 <div class="card-header">
-                    <h2>Driver Form</h2>
+                    <h2>Driver Results</h2>
                     <span class="badge">{{ season_data.driver_form|length }}</span>
                 </div>
                 <div class="card-body" style="max-height:620px;">
@@ -373,8 +347,6 @@
                                 <th>#</th>
                                 <th>Driver</th>
                                 <th>Team</th>
-                                <th>Form</th>
-                                <th>Trend</th>
                                 <th>Avg Qualifying</th>
                                 <th>Avg Finish</th>
                                 <th>Gain</th>
@@ -390,12 +362,6 @@
                                     <div class="subtle">Latest race: {% if row.latest_race_result %}P{{ row.latest_race_result }}{% else %}-{% endif %}</div>
                                 </td>
                                 <td class="subtle">{{ row.team }}</td>
-                                <td class="metric">{{ row.form_index }}</td>
-                                <td>
-                                    <span class="trend trend-{{ row.trend }}">
-                                        {{ row.trend.title() }}
-                                    </span>
-                                </td>
                                 <td class="metric">
                                     {% if row.recent_quali_avg is not none %}P{{ row.recent_quali_avg }}{% else %}-{% endif %}
                                 </td>
@@ -417,17 +383,17 @@
                         </tbody>
                     </table>
                     {% else %}
-                    <div class="note">No driver form data is available yet for this season.</div>
+                    <div class="note">No driver results are available yet for this season.</div>
                     {% endif %}
                 </div>
                 <div class="note">
-                    Form index blends recent race finish, qualifying position, positions gained, and points. It is a momentum indicator, not an official championship metric.
+                    Ordered by points scored in the selected completed-race window, then average finish and qualifying position.
                 </div>
             </div>
 
             <div class="card">
                 <div class="card-header">
-                    <h2>Team Form</h2>
+                    <h2>Team Results</h2>
                     <span class="badge badge-green">{{ season_data.team_form|length }}</span>
                 </div>
                 <div class="card-body" style="max-height:620px;">
@@ -437,8 +403,6 @@
                             <tr>
                                 <th>#</th>
                                 <th>Team</th>
-                                <th>Form</th>
-                                <th>Trend</th>
                                 <th>Avg Qualifying</th>
                                 <th>Avg Finish</th>
                                 <th>Gain</th>
@@ -450,8 +414,6 @@
                             <tr>
                                 <td class="rank">{{ row.rank }}</td>
                                 <td class="name">{{ row.team }}</td>
-                                <td class="metric">{{ row.form_index }}</td>
-                                <td><span class="trend trend-{{ row.trend }}">{{ row.trend.title() }}</span></td>
                                 <td class="metric">{% if row.recent_quali_avg is not none %}P{{ row.recent_quali_avg }}{% else %}-{% endif %}</td>
                                 <td class="metric">{% if row.recent_race_avg is not none %}P{{ row.recent_race_avg }}{% else %}-{% endif %}</td>
                                 <td class="metric">
@@ -469,11 +431,11 @@
                         </tbody>
                     </table>
                     {% else %}
-                    <div class="note">No team form data is available yet for this season.</div>
+                    <div class="note">No team results are available yet for this season.</div>
                     {% endif %}
                 </div>
                 <div class="note">
-                    Team form uses both cars together, so consistent double-points weekends and strong average positions matter more than one-off spikes.
+                    Each row combines both cars' official qualifying and race results across the selected window.
                 </div>
             </div>
         </div>

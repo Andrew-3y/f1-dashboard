@@ -1,13 +1,4 @@
-"""
-season_form.py - Season-level form and momentum analysis
-=======================================================
-
-Adds a missing season dimension to the dashboard by aggregating official
-qualifying and race results across completed rounds. The existing app is
-very strong at session intelligence; this module focuses on multi-weekend
-form so users can answer "who is trending up right now?" without leaving
-the project.
-"""
+"""Season-level summaries built from completed qualifying and race results."""
 
 import datetime
 import logging
@@ -37,8 +28,8 @@ def empty_season_form():
             "rounds_used": [],
         },
         "summary": {
-            "hottest_driver": "-",
-            "hottest_team": "-",
+            "points_leader": "-",
+            "team_points_leader": "-",
             "qualifying_benchmark": "-",
             "positions_gained_leader": "-",
             "positions_lost_leader": "-",
@@ -67,33 +58,6 @@ def _safe_float(value):
         return float(value)
     except (TypeError, ValueError):
         return None
-
-
-def _trend(delta):
-    """Classify momentum from recent-vs-previous form delta."""
-    if delta is None:
-        return "NEW"
-    if delta >= 7:
-        return "SURGING"
-    if delta >= 2:
-        return "RISING"
-    if delta <= -7:
-        return "SLIDING"
-    if delta <= -2:
-        return "COOLING"
-    return "STABLE"
-
-
-def _trend_arrow(trend):
-    """Human-readable arrow for templates."""
-    return {
-        "SURGING": "UP",
-        "RISING": "UP",
-        "STABLE": "FLAT",
-        "COOLING": "DOWN",
-        "SLIDING": "DOWN",
-        "NEW": "NEW",
-    }.get(trend, "FLAT")
 
 
 def _battle_leader(score_a, score_b, driver_a, driver_b):
@@ -192,37 +156,6 @@ def _session_results_rows(session):
     return sorted(normalized, key=lambda row: row["position"])
 
 
-def _round_score(quali_position=None, race_position=None, gained=None, points=None):
-    """
-    Blend weekend outcomes into one coarse form score.
-
-    The score intentionally favors race result and points, then uses
-    qualifying and positions gained as supporting signals.
-    """
-    score = 0.0
-
-    if race_position is not None:
-        score += max(0, 21 - race_position) * 3.0
-    if quali_position is not None:
-        score += max(0, 21 - quali_position) * 1.25
-    if gained is not None:
-        score += max(-5, min(8, gained)) + 5
-    if points is not None:
-        score += min(25.0, max(0.0, points)) * 1.4
-
-    return round(score, 2)
-
-
-def _recent_previous_split(values, window):
-    """Return recent and previous chunks from a time-ordered list."""
-    if not values:
-        return [], []
-
-    recent = values[-window:]
-    previous = values[-(window * 2):-window] if len(values) > window else []
-    return recent, previous
-
-
 def _average(values, digits=2):
     """Return rounded mean for non-empty numeric lists."""
     cleaned = [value for value in values if value is not None]
@@ -232,7 +165,7 @@ def _average(values, digits=2):
 
 
 def _driver_form_rows(round_snapshots, window):
-    """Aggregate driver-level momentum across completed rounds."""
+    """Aggregate driver results across completed rounds."""
     drivers = {}
 
     for snapshot in round_snapshots:
@@ -261,12 +194,6 @@ def _driver_form_rows(round_snapshots, window):
                 "grid_position": grid_position,
                 "points": points,
                 "gained": gained,
-                "score": _round_score(
-                    quali_position=quali_position,
-                    race_position=race_position,
-                    gained=gained,
-                    points=points,
-                ),
             }
             drivers.setdefault(driver, []).append(entry)
 
@@ -274,17 +201,10 @@ def _driver_form_rows(round_snapshots, window):
     for driver, entries in drivers.items():
         entries = sorted(entries, key=lambda item: item["round_number"])
         recent_entries = entries[-window:]
-        recent_scores, previous_scores = _recent_previous_split([item["score"] for item in entries], window)
         recent_quali = [item["quali_position"] for item in recent_entries]
         recent_race = [item["race_position"] for item in recent_entries]
         recent_gained = [item["gained"] for item in recent_entries]
         recent_points = [item["points"] for item in recent_entries]
-
-        recent_avg_score = _average(recent_scores, digits=2) or 0.0
-        previous_avg_score = _average(previous_scores, digits=2)
-        delta = None if previous_avg_score is None else round(recent_avg_score - previous_avg_score, 2)
-        trend = _trend(delta)
-        form_index = round(min(100.0, recent_avg_score * 1.35), 1)
 
         wins = sum(1 for item in recent_entries if item["race_position"] == 1)
         podiums = sum(1 for item in recent_entries if item["race_position"] and item["race_position"] <= 3)
@@ -297,10 +217,6 @@ def _driver_form_rows(round_snapshots, window):
                 "driver_display": driver,
                 "team": latest["team"],
                 "rounds_count": len(entries),
-                "form_index": form_index,
-                "trend": trend,
-                "trend_arrow": _trend_arrow(trend),
-                "trend_delta": delta,
                 "recent_quali_avg": _average(recent_quali, digits=2),
                 "recent_race_avg": _average(recent_race, digits=2),
                 "recent_points": points_total,
@@ -314,7 +230,7 @@ def _driver_form_rows(round_snapshots, window):
 
     rows.sort(
         key=lambda row: (
-            -row["form_index"],
+            -row["recent_points"],
             row["recent_race_avg"] if row["recent_race_avg"] is not None else 99,
             row["recent_quali_avg"] if row["recent_quali_avg"] is not None else 99,
         )
@@ -349,12 +265,6 @@ def _team_form_rows(round_snapshots, window):
             race_avg = _average(bucket.get("race_positions", []), digits=2)
             points_total = round(sum(bucket.get("points", [])), 1)
             gained_avg = _average(bucket.get("gained", []), digits=2)
-            score = _round_score(
-                quali_position=quali_avg,
-                race_position=race_avg,
-                gained=gained_avg,
-                points=points_total,
-            )
             team_rounds.setdefault(team, []).append(
                 {
                     "round_number": snapshot["round_number"],
@@ -363,7 +273,6 @@ def _team_form_rows(round_snapshots, window):
                     "race_avg": race_avg,
                     "points": points_total,
                     "gained_avg": gained_avg,
-                    "score": score,
                 }
             )
 
@@ -371,19 +280,9 @@ def _team_form_rows(round_snapshots, window):
     for team, entries in team_rounds.items():
         entries = sorted(entries, key=lambda item: item["round_number"])
         recent_entries = entries[-window:]
-        recent_scores, previous_scores = _recent_previous_split([item["score"] for item in entries], window)
-        recent_avg_score = _average(recent_scores, digits=2) or 0.0
-        previous_avg_score = _average(previous_scores, digits=2)
-        delta = None if previous_avg_score is None else round(recent_avg_score - previous_avg_score, 2)
-        trend = _trend(delta)
-
         rows.append(
             {
                 "team": team,
-                "form_index": round(min(100.0, recent_avg_score * 1.1), 1),
-                "trend": trend,
-                "trend_arrow": _trend_arrow(trend),
-                "trend_delta": delta,
                 "recent_quali_avg": _average([item["quali_avg"] for item in recent_entries], digits=2),
                 "recent_race_avg": _average([item["race_avg"] for item in recent_entries], digits=2),
                 "recent_points": round(sum(item["points"] for item in recent_entries), 1),
@@ -397,9 +296,9 @@ def _team_form_rows(round_snapshots, window):
 
     rows.sort(
         key=lambda row: (
-            -row["form_index"],
-            row["recent_race_avg"] if row["recent_race_avg"] is not None else 99,
             -row["recent_points"],
+            row["recent_race_avg"] if row["recent_race_avg"] is not None else 99,
+            row["recent_quali_avg"] if row["recent_quali_avg"] is not None else 99,
         )
     )
 
@@ -579,8 +478,8 @@ def build_season_form(year, window=5):
             "rounds_used": [f"R{row['round_number']} {row['event_name']}" for row in snapshots[-window:]],
         },
         "summary": {
-            "hottest_driver": driver_form[0]["driver_display"] if driver_form else "-",
-            "hottest_team": team_form[0]["team"] if team_form else "-",
+            "points_leader": driver_form[0]["driver_display"] if driver_form else "-",
+            "team_points_leader": team_form[0]["team"] if team_form else "-",
             "qualifying_benchmark": next(
                 (
                     row["driver_display"]

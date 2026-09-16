@@ -528,10 +528,15 @@ def _build_race_story(leaderboard, session=None, laps=None):
                 story["lead_changes"] = max(len(leaders) - 1, 0)
 
     track_status = getattr(session, "track_status", None) if session is not None else None
-    if track_status is not None and not getattr(track_status, "empty", True) and "Status" in track_status.columns:
-        status_codes = track_status["Status"].astype(str)
-        story["safety_cars"] = int((status_codes == "4").sum())
-        story["virtual_safety_cars"] = int((status_codes == "6").sum())
+    if track_status is not None and not getattr(track_status, "empty", True):
+        if "Message" in track_status.columns:
+            messages = track_status["Message"].fillna("").astype(str).str.strip().str.upper()
+            story["safety_cars"] = int((messages == "SCDEPLOYED").sum())
+            story["virtual_safety_cars"] = int((messages == "VSCDEPLOYED").sum())
+        elif "Status" in track_status.columns:
+            status_codes = track_status["Status"].astype(str)
+            story["safety_cars"] = int((status_codes == "4").sum())
+            story["virtual_safety_cars"] = int((status_codes == "6").sum())
 
     return story
 
@@ -864,7 +869,7 @@ def api_data():
 # ---------------------------------------------------------------------------
 @app.route("/season")
 def season_view():
-    """Render season-level form and momentum analysis."""
+    """Render season-level completed-results analysis."""
     year = request.args.get("year", type=int)
     window = request.args.get("window", default=5, type=int)
     if request.method == "HEAD":

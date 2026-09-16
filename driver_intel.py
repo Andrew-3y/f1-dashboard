@@ -1,15 +1,8 @@
-"""
-driver_intel.py - Driver-level season intelligence
-=================================================
-
-Builds a dedicated driver page that answers a different question from the
-season summary page: "What kind of season is this driver having, and how do
-they compare with the rest of the grid right now?"
-"""
+"""Driver-level summaries built from completed qualifying and race results."""
 
 import datetime
 import logging
-from statistics import mean, pstdev
+from statistics import mean
 
 import fastf1
 import pandas as pd
@@ -35,8 +28,7 @@ def empty_driver_intelligence():
             "available_drivers": [],
         },
         "summary": {
-            "form_rank": "-",
-            "trend": "-",
+            "points_rank": "-",
             "avg_quali": "-",
             "avg_race": "-",
             "avg_gain": "-",
@@ -72,53 +64,6 @@ def _average(values, digits=2):
     if not cleaned:
         return None
     return round(mean(cleaned), digits)
-
-
-def _recent_previous_split(values, window):
-    if not values:
-        return [], []
-    recent = values[-window:]
-    previous = values[-(window * 2):-window] if len(values) > window else []
-    return recent, previous
-
-
-def _trend(delta):
-    if delta is None:
-        return "NEW"
-    if delta >= 7:
-        return "SURGING"
-    if delta >= 2:
-        return "RISING"
-    if delta <= -7:
-        return "SLIDING"
-    if delta <= -2:
-        return "COOLING"
-    return "STABLE"
-
-
-def _trend_arrow(trend):
-    return {
-        "SURGING": "UP",
-        "RISING": "UP",
-        "STABLE": "FLAT",
-        "COOLING": "DOWN",
-        "SLIDING": "DOWN",
-        "NEW": "NEW",
-    }.get(trend, "FLAT")
-
-
-def _round_score(quali_position=None, race_position=None, gained=None, points=None):
-    """Match the season page's coarse form scoring so both views stay aligned."""
-    score = 0.0
-    if race_position is not None:
-        score += max(0, 21 - race_position) * 3.0
-    if quali_position is not None:
-        score += max(0, 21 - quali_position) * 1.25
-    if gained is not None:
-        score += max(-5, min(8, gained)) + 5
-    if points is not None:
-        score += min(25.0, max(0.0, points)) * 1.4
-    return round(score, 2)
 
 
 def _completed_rounds(year):
@@ -273,7 +218,6 @@ def _aggregate_driver_entries(snapshots):
                     "grid_position": grid_position,
                     "points": round(points, 1),
                     "gained": gained,
-                    "score": _round_score(quali_position, race_position, gained, points),
                     "status": race.get("status") or "",
                 }
             )
@@ -284,58 +228,23 @@ def _aggregate_driver_entries(snapshots):
     return drivers
 
 
-def _consistency_score(entries):
-    """Return a simple consistency score based on recent results."""
-    sample = []
-    for row in entries:
-        if row.get("quali_position") is not None:
-            sample.append(float(row["quali_position"]))
-        if row.get("race_position") is not None:
-            sample.append(float(row["race_position"]))
-    if len(sample) < 2:
-        return None
-    return round(pstdev(sample), 2)
-
-
-def _consistency_label(score):
-    if score is None:
-        return "N/A"
-    if score <= 1.5:
-        return "VERY STEADY"
-    if score <= 3.0:
-        return "STEADY"
-    if score <= 5.0:
-        return "SWINGING"
-    return "VOLATILE"
-
-
 def _summarize_drivers(drivers, window):
     """Build comparable summaries for every driver in the loaded sample."""
     summaries = []
 
     for driver, entries in drivers.items():
         recent_entries = entries[-window:]
-        recent_scores, previous_scores = _recent_previous_split([row["score"] for row in entries], window)
-        recent_avg_score = _average(recent_scores, digits=2) or 0.0
-        previous_avg_score = _average(previous_scores, digits=2)
-        delta = None if previous_avg_score is None else round(recent_avg_score - previous_avg_score, 2)
-
         summaries.append(
             {
                 "driver": driver,
                 "team": recent_entries[-1]["team"] if recent_entries else "Unknown",
                 "rounds_sampled": len(recent_entries),
-                "form_index": round(min(100.0, recent_avg_score * 1.35), 1),
-                "trend": _trend(delta),
-                "trend_arrow": _trend_arrow(_trend(delta)),
-                "trend_delta": delta,
                 "avg_quali": _average([row["quali_position"] for row in recent_entries], digits=2),
                 "avg_race": _average([row["race_position"] for row in recent_entries], digits=2),
                 "avg_gain": _average([row["gained"] for row in recent_entries], digits=2),
                 "recent_points": round(sum(row["points"] for row in recent_entries), 1),
                 "wins": sum(1 for row in recent_entries if row.get("race_position") == 1),
                 "podiums": sum(1 for row in recent_entries if row.get("race_position") and row["race_position"] <= 3),
-                "consistency": _consistency_score(recent_entries),
                 "latest_event": recent_entries[-1]["event_name"] if recent_entries else "-",
             }
         )
@@ -354,12 +263,10 @@ def _grid_rank_rows(selected_summary, summaries):
     """Create compact rank cards for the selected driver."""
     total_drivers = len(summaries)
     rank_maps = {
-        "form_index": _rank_value(summaries, "form_index", reverse=True),
         "avg_quali": _rank_value(summaries, "avg_quali", reverse=False),
         "avg_race": _rank_value(summaries, "avg_race", reverse=False),
         "avg_gain": _rank_value(summaries, "avg_gain", reverse=True),
         "recent_points": _rank_value(summaries, "recent_points", reverse=True),
-        "consistency": _rank_value(summaries, "consistency", reverse=False),
     }
 
     def _rank_text(metric_name):
@@ -372,9 +279,9 @@ def _grid_rank_rows(selected_summary, summaries):
 
     return [
         {
-            "label": "Recent Form Rank",
-            "value": _rank_text("form_index"),
-            "detail": f"Form index {selected_summary['form_index']}",
+            "label": "Points Rank",
+            "value": _rank_text("recent_points"),
+            "detail": f"{selected_summary['recent_points']} points in window",
         },
         {
             "label": "Qualifying Rank",
@@ -390,16 +297,6 @@ def _grid_rank_rows(selected_summary, summaries):
             "label": "Position Change Rank",
             "value": _rank_text("avg_gain"),
             "detail": f"Avg change: {selected_summary['avg_gain']:+}" if selected_summary["avg_gain"] is not None else "Avg change not available",
-        },
-        {
-            "label": "Points Rank",
-            "value": _rank_text("recent_points"),
-            "detail": f"{selected_summary['recent_points']} points in window",
-        },
-        {
-            "label": "Consistency Rank",
-            "value": _rank_text("consistency"),
-            "detail": selected_summary["consistency_label"],
         },
     ]
 
@@ -508,7 +405,7 @@ def build_driver_intelligence(year, driver=None, window=5):
     summaries = _summarize_drivers(drivers, window)
     summaries.sort(
         key=lambda row: (
-            -row["form_index"],
+            -row["recent_points"],
             row["avg_race"] if row["avg_race"] is not None else 99,
             row["avg_quali"] if row["avg_quali"] is not None else 99,
         )
@@ -523,15 +420,13 @@ def build_driver_intelligence(year, driver=None, window=5):
         _driver_cache[cache_key] = payload
         return payload
 
-    selected_summary["consistency_label"] = _consistency_label(selected_summary["consistency"])
-    form_rank = next((index + 1 for index, row in enumerate(summaries) if row["driver"] == selected_driver), None)
+    points_rank = next((index + 1 for index, row in enumerate(summaries) if row["driver"] == selected_driver), None)
     teammate_context = _build_teammate_context(selected_driver, drivers, snapshots, window)
     recent_results = drivers[selected_driver][-window:]
 
     payload["meta"]["driver"] = selected_driver
     payload["summary"] = {
-        "form_rank": f"P{form_rank}/{len(summaries)}" if form_rank is not None else "-",
-        "trend": selected_summary["trend"].title(),
+        "points_rank": f"P{points_rank}/{len(summaries)}" if points_rank is not None else "-",
         "avg_quali": f"P{selected_summary['avg_quali']}" if selected_summary["avg_quali"] is not None else "-",
         "avg_race": f"P{selected_summary['avg_race']}" if selected_summary["avg_race"] is not None else "-",
         "avg_gain": f"{selected_summary['avg_gain']:+}" if selected_summary["avg_gain"] is not None else "-",
@@ -540,13 +435,8 @@ def build_driver_intelligence(year, driver=None, window=5):
     payload["profile"] = {
         "driver": selected_driver,
         "team": selected_summary["team"],
-        "trend": selected_summary["trend"],
-        "trend_arrow": selected_summary["trend_arrow"],
-        "form_index": selected_summary["form_index"],
         "wins": selected_summary["wins"],
         "podiums": selected_summary["podiums"],
-        "consistency_score": selected_summary["consistency"],
-        "consistency_label": selected_summary["consistency_label"],
         "rounds_sampled": selected_summary["rounds_sampled"],
     }
     payload["grid_ranks"] = _grid_rank_rows(selected_summary, summaries)
