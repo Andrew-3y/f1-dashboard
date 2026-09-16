@@ -192,6 +192,37 @@
         .compound-w { background: #1877f2; color: #fff; }
         .compound-unknown { background: var(--text-muted); color: #fff; }
         .stint-meta { color: var(--text-secondary); white-space: nowrap; }
+        .progression-controls {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            justify-content: space-between;
+            margin-bottom: 0.85rem;
+        }
+        .progression-controls label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+        .progression-controls select {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 7px;
+            color: var(--text-primary);
+            font: inherit;
+            padding: 0.45rem 0.65rem;
+        }
+        .progression-summary { color: var(--text-secondary); font-size: 0.78rem; }
+        .progression-chart-wrap { background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+        .progression-chart { display: block; height: auto; width: 100%; }
+        .chart-grid { stroke: rgba(255,255,255,0.1); stroke-width: 1; }
+        .chart-axis-label { fill: var(--text-secondary); font-size: 11px; }
+        .chart-line { fill: none; stroke: var(--accent-cyan); stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
+        .chart-final-point { fill: var(--accent-red); stroke: var(--bg-card); stroke-width: 2; }
+        .progression-note { color: var(--text-muted); font-size: 0.74rem; margin: 0.7rem 0 0; }
+        .battle-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .battle-item { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.85rem; }
+        .battle-competitors { color: var(--text-primary); font-weight: 800; }
+        .battle-competitors span { color: var(--text-secondary); font-size: 0.78rem; font-weight: 600; }
+        .battle-margin { color: var(--accent-cyan); font-size: 1.25rem; font-weight: 800; margin-top: 0.5rem; }
+        .battle-detail { color: var(--text-secondary); font-size: 0.74rem; margin-top: 0.2rem; }
         .stat-card, .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -298,6 +329,9 @@
             .toolbar input, .toolbar select, .toolbar button, .toolbar a { width: 100%; }
             .story-item { border-bottom: 1px solid var(--border-color); border-right: none; }
             .story-item:last-child { border-bottom: none; }
+            .battle-grid { grid-template-columns: 1fr; }
+            .progression-controls { align-items: stretch; }
+            .progression-controls select { width: 100%; }
         }
     </style>
 </head>
@@ -423,6 +457,51 @@
             </div>
         </section>
 
+        <div class="section-title">Race Progression</div>
+        <section class="card">
+            <div class="card-header"><h2>Position by Lap</h2><span class="badge">Official timing</span></div>
+            <div class="card-body">
+                {% if race_progression.drivers %}
+                <div class="progression-controls">
+                    <label for="progressionDriver">Driver
+                        <select id="progressionDriver" aria-label="Driver position progression">
+                            {% for item in race_progression.drivers %}
+                            <option value="{{ item.driver }}">{{ item.driver }} · {{ item.team }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <div class="progression-summary" id="progressionSummary"></div>
+                </div>
+                <div class="progression-chart-wrap">
+                    <svg class="progression-chart" id="progressionChart" viewBox="0 0 760 330" role="img" aria-label="Selected driver's position after each completed lap"></svg>
+                </div>
+                <p class="progression-note">Position at the end of each completed lap. P1 is at the top of the chart.</p>
+                {% else %}
+                <div class="empty">No lap-by-lap position data is available for this session.</div>
+                {% endif %}
+            </div>
+        </section>
+
+        <div class="section-title">Key Battles</div>
+        <section class="card">
+            <div class="card-header"><h2>Closest Classified Finishes</h2><span class="badge">Final timing</span></div>
+            <div class="card-body">
+                {% if close_finishes %}
+                <div class="battle-grid">
+                    {% for battle in close_finishes %}
+                    <article class="battle-item">
+                        <div class="battle-competitors"><span>P{{ battle.ahead_position }}</span> {{ battle.ahead_driver }} <span>vs P{{ battle.behind_position }}</span> {{ battle.behind_driver }}</div>
+                        <div class="battle-margin">{{ battle.margin_display }}</div>
+                        <div class="battle-detail">Final classified margin</div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty">No comparable final-time gaps are available.</div>
+                {% endif %}
+            </div>
+        </section>
+
         <div class="section-title">Official Result</div>
         <section class="card">
             <div class="card-header"><h2>Final Classification</h2><span class="badge">{{ leaderboard|length }} drivers</span></div>
@@ -463,6 +542,64 @@
             const sessionType = document.getElementById('sessionType').value;
             if (!year || !round) return;
             window.location.href = `/?year=${encodeURIComponent(year)}&round=${encodeURIComponent(round)}&session_type=${encodeURIComponent(sessionType)}`;
+        }
+
+        const raceProgression = {{ race_progression|tojson }};
+        const progressionSelect = document.getElementById('progressionDriver');
+        const progressionChart = document.getElementById('progressionChart');
+        const progressionSummary = document.getElementById('progressionSummary');
+
+        if (progressionSelect && progressionChart && raceProgression.drivers.length) {
+            const svgNamespace = 'http://www.w3.org/2000/svg';
+            const driverByCode = Object.fromEntries(raceProgression.drivers.map((item) => [item.driver, item]));
+
+            function svgElement(tagName, attributes = {}, text = '') {
+                const element = document.createElementNS(svgNamespace, tagName);
+                Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
+                if (text) element.textContent = text;
+                return element;
+            }
+
+            function drawProgression() {
+                const driver = driverByCode[progressionSelect.value] || raceProgression.drivers[0];
+                const chartWidth = 760;
+                const chartHeight = 330;
+                const left = 46;
+                const right = 20;
+                const top = 20;
+                const bottom = 38;
+                const plotWidth = chartWidth - left - right;
+                const plotHeight = chartHeight - top - bottom;
+                const totalLaps = Math.max(raceProgression.total_laps, 1);
+                const maxPosition = Math.max(raceProgression.max_position, 1);
+                const xForLap = (lap) => left + ((lap - 1) / Math.max(totalLaps - 1, 1)) * plotWidth;
+                const yForPosition = (position) => top + ((position - 1) / Math.max(maxPosition - 1, 1)) * plotHeight;
+
+                progressionChart.replaceChildren();
+                const yTicks = [...new Set([1, 5, 10, 15, 20, maxPosition].filter((value) => value <= maxPosition))].sort((a, b) => a - b);
+                yTicks.forEach((position) => {
+                    const y = yForPosition(position);
+                    progressionChart.appendChild(svgElement('line', { x1: left, x2: chartWidth - right, y1: y, y2: y, class: 'chart-grid' }));
+                    progressionChart.appendChild(svgElement('text', { x: left - 9, y: y + 4, 'text-anchor': 'end', class: 'chart-axis-label' }, `P${position}`));
+                });
+
+                [...new Set([1, Math.ceil(totalLaps / 2), totalLaps])].forEach((lap) => {
+                    const x = xForLap(lap);
+                    progressionChart.appendChild(svgElement('line', { x1: x, x2: x, y1: top, y2: chartHeight - bottom, class: 'chart-grid' }));
+                    progressionChart.appendChild(svgElement('text', { x, y: chartHeight - 14, 'text-anchor': 'middle', class: 'chart-axis-label' }, `Lap ${lap}`));
+                });
+
+                const pathData = driver.points.map((point, index) => `${index ? 'L' : 'M'}${xForLap(point.lap).toFixed(2)},${yForPosition(point.position).toFixed(2)}`).join(' ');
+                progressionChart.appendChild(svgElement('path', { d: pathData, class: 'chart-line' }));
+                const finalPoint = driver.points[driver.points.length - 1];
+                progressionChart.appendChild(svgElement('circle', { cx: xForLap(finalPoint.lap), cy: yForPosition(finalPoint.position), r: 5, class: 'chart-final-point' }));
+
+                const startText = driver.grid_position && driver.grid_position > 0 ? `Started P${driver.grid_position}` : 'Started from pit lane';
+                progressionSummary.textContent = `${startText} · finished P${driver.final_position}`;
+            }
+
+            progressionSelect.addEventListener('change', drawProgression);
+            drawProgression();
         }
     </script>
 </body>

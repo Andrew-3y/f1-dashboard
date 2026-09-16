@@ -462,6 +462,8 @@ def _run_race_analysis(leaderboard=None, session=None, laps=None):
         "race_summary": _build_post_race_summary(leaderboard),
         "race_story": _build_race_story(leaderboard, session=session, laps=laps),
         "strategy_rows": strategy_rows,
+        "race_progression": _build_race_progression(leaderboard, laps=laps),
+        "close_finishes": _build_close_finishes(leaderboard),
     }
 
 
@@ -563,7 +565,7 @@ def _build_strategy_rows(leaderboard, laps=None):
 
     strategy_laps = laps.dropna(subset=["Driver", "Stint", "LapNumber"]).copy()
     if "FastF1Generated" in strategy_laps.columns:
-        generated_mask = strategy_laps["FastF1Generated"].fillna(False).astype(bool)
+        generated_mask = strategy_laps["FastF1Generated"].eq(True)
         strategy_laps = strategy_laps[~generated_mask]
 
     stints_by_driver = {}
@@ -624,6 +626,88 @@ def _build_strategy_rows(leaderboard, laps=None):
     return strategy_rows
 
 
+def _build_race_progression(leaderboard, laps=None):
+    """Return lap-by-lap classified positions for the selected completed race."""
+    rows = leaderboard or []
+    empty_progression = {"total_laps": 0, "max_position": max(len(rows), 1), "drivers": []}
+    if laps is None or getattr(laps, "empty", True):
+        return empty_progression
+    required_columns = {"Driver", "LapNumber", "Position"}
+    if not required_columns.issubset(laps.columns):
+        return empty_progression
+
+    position_laps = laps.dropna(subset=["Driver", "LapNumber", "Position"]).copy()
+    if "FastF1Generated" in position_laps.columns:
+        generated_mask = position_laps["FastF1Generated"].eq(True)
+        position_laps = position_laps[~generated_mask]
+    position_laps["LapNumber"] = pd.to_numeric(position_laps["LapNumber"], errors="coerce")
+    position_laps["Position"] = pd.to_numeric(position_laps["Position"], errors="coerce")
+    position_laps = position_laps.dropna(subset=["LapNumber", "Position"])
+    if position_laps.empty:
+        return empty_progression
+
+    total_laps = int(position_laps["LapNumber"].max())
+    max_position = max(len(rows), int(position_laps["Position"].max()))
+    by_driver = {}
+    for driver, driver_laps in position_laps.groupby("Driver", sort=False):
+        latest_per_lap = (
+            driver_laps.sort_values("LapNumber")
+            .drop_duplicates("LapNumber", keep="last")
+        )
+        points = [
+            {"lap": int(row.LapNumber), "position": int(row.Position)}
+            for row in latest_per_lap.itertuples()
+            if 1 <= int(row.Position) <= max_position
+        ]
+        if points:
+            by_driver[str(driver)] = points
+
+    drivers = []
+    for result in rows:
+        driver = result.get("driver", "-")
+        points = by_driver.get(driver, [])
+        if not points:
+            continue
+        drivers.append(
+            {
+                "driver": driver,
+                "team": result.get("team", "Unknown"),
+                "grid_position": result.get("grid_position"),
+                "final_position": result.get("position"),
+                "points": points,
+            }
+        )
+
+    return {"total_laps": total_laps, "max_position": max_position, "drivers": drivers}
+
+
+def _build_close_finishes(leaderboard, limit=3):
+    """Return the closest adjacent classified finishers by final time gap."""
+    rows = leaderboard or []
+    close_finishes = []
+    for ahead, behind in zip(rows, rows[1:]):
+        ahead_gap = ahead.get("gap_seconds")
+        behind_gap = behind.get("gap_seconds")
+        if pd.isna(ahead_gap) or pd.isna(behind_gap):
+            continue
+
+        margin = float(behind_gap) - float(ahead_gap)
+        if margin < 0:
+            continue
+        close_finishes.append(
+            {
+                "ahead_driver": ahead.get("driver", "—"),
+                "ahead_position": ahead.get("position", "—"),
+                "behind_driver": behind.get("driver", "—"),
+                "behind_position": behind.get("position", "—"),
+                "margin_seconds": round(margin, 3),
+                "margin_display": f"{margin:.3f}s",
+            }
+        )
+
+    return sorted(close_finishes, key=lambda item: item["margin_seconds"])[:limit]
+
+
 def _build_post_race_summary(leaderboard):
     """Create headline facts from the official completed-race classification."""
     rows = leaderboard or []
@@ -663,6 +747,8 @@ def _empty_race():
         "race_summary": {},
         "race_story": {},
         "strategy_rows": [],
+        "race_progression": {"total_laps": 0, "max_position": 1, "drivers": []},
+        "close_finishes": [],
     }
 
 
