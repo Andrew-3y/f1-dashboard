@@ -33,6 +33,11 @@ def _is_rate_limited(error):
     return "ratelimitexceeded" in message or "calls/h" in message
 
 
+def _record_key(record):
+    """Return the stable identity for one scheduled session audit record."""
+    return record.get("year"), record.get("round"), record.get("session")
+
+
 def _utc_timestamp(value):
     timestamp = pd.Timestamp(value)
     return timestamp.tz_localize("UTC") if timestamp.tzinfo is None else timestamp.tz_convert("UTC")
@@ -61,8 +66,9 @@ def _event_sessions(event, now):
             yield normalized
 
 
-def audit_year(year, now):
+def audit_year(year, now, verified_keys=None):
     """Return audit records for all completed sessions in one championship year."""
+    verified_keys = verified_keys or set()
     try:
         schedule = fastf1.get_event_schedule(year, include_testing=False)
     except Exception as exc:
@@ -85,6 +91,8 @@ def audit_year(year, now):
         round_number = int(round_number)
         event_name = str(event.get("EventName", f"Round {round_number}"))
         for session_type in _event_sessions(event, now):
+            if (year, round_number, session_type) in verified_keys:
+                continue
             record = {
                 "year": year,
                 "round": round_number,
@@ -118,20 +126,41 @@ def main():
     parser.add_argument("--start-year", type=int, default=2018)
     parser.add_argument("--end-year", type=int, default=dt.datetime.now(dt.timezone.utc).year)
     parser.add_argument("--output", type=Path, default=Path("audit-reports/fastf1-archive-audit.json"))
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Reuse already-passed records in the output report and retry only unfinished sessions.",
+    )
     args = parser.parse_args()
     if args.start_year < 2018 or args.end_year < args.start_year:
         parser.error("Choose a valid range beginning in 2018.")
 
     now = pd.Timestamp(dt.datetime.now(dt.timezone.utc))
-    records = []
+    records_by_key = {}
+    if args.resume and args.output.exists():
+        previous_report = json.loads(args.output.read_text(encoding="utf-8"))
+        for record in previous_report.get("records", []):
+            key = _record_key(record)
+            if args.start_year <= (record.get("year") or 0) <= args.end_year:
+                records_by_key[key] = record
+
     for year in range(args.start_year, args.end_year + 1):
         print(f"Auditing {year}...", flush=True)
-        year_records = audit_year(year, now)
-        records.extend(year_records)
+        verified_keys = {
+            key for key, record in records_by_key.items()
+            if record.get("year") == year and record.get("status") == "passed"
+        }
+        year_records = audit_year(year, now, verified_keys)
+        for record in year_records:
+            records_by_key[_record_key(record)] = record
         if any(record["status"] == "unavailable" and _is_rate_limited(record["errors"][0]) for record in year_records):
             print("Stopped because FastF1's public API rate limit was reached.", flush=True)
             break
 
+    records = sorted(
+        records_by_key.values(),
+        key=lambda record: (record.get("year") or 0, record.get("round") or 0, record.get("session") or ""),
+    )
     passed = sum(record["status"] == "passed" for record in records)
     failed = sum(record["status"] == "failed" for record in records)
     unavailable = sum(record["status"] == "unavailable" for record in records)

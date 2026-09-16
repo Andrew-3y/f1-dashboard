@@ -22,9 +22,14 @@ from data_handler import (
 )
 from driver_intel import _aggregate_driver_entries, _summarize_drivers, empty_driver_intelligence
 from season_form import _driver_form_rows, _team_form_rows, empty_season_form
+from scripts.audit_fastf1_archive import _record_key
 
 
 class PostRaceDataTests(unittest.TestCase):
+    def test_audit_checkpoint_uses_one_stable_key_per_session(self):
+        record = {"year": 2019, "round": 15, "session": "Qualifying", "status": "passed"}
+        self.assertEqual(_record_key(record), (2019, 15, "Qualifying"))
+
     def test_retirement_detection_uses_result_status(self):
         self.assertTrue(_is_retirement("Accident"))
         self.assertTrue(_is_retirement("Engine"))
