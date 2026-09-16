@@ -30,7 +30,7 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.exceptions import HTTPException
 
 # Our custom modules
-from data_handler import format_laptime, get_dashboard_data, get_latest_session_info
+from data_handler import get_dashboard_data, get_latest_session_info
 from season_form import build_season_form, empty_season_form
 from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence
 from driver_intel import build_driver_intelligence, empty_driver_intelligence
@@ -464,7 +464,6 @@ def _run_race_analysis(leaderboard=None, session=None, laps=None):
         "strategy_rows": strategy_rows,
         "race_progression": _build_race_progression(leaderboard, laps=laps),
         "close_finishes": _build_close_finishes(leaderboard),
-        "pace_rows": _build_race_pace(leaderboard, laps=laps),
     }
 
 
@@ -709,69 +708,6 @@ def _build_close_finishes(leaderboard, limit=3):
     return sorted(close_finishes, key=lambda item: item["margin_seconds"])[:limit]
 
 
-def _is_disrupted_track_status(status):
-    """Return whether a lap ran under Safety Car, VSC, or a red flag."""
-    if pd.isna(status):
-        return False
-    status_codes = set(str(status))
-    return bool(status_codes.intersection({"4", "5", "6", "7"}))
-
-
-def _build_race_pace(leaderboard, laps=None):
-    """Build a comparable median lap-time table from representative race laps."""
-    rows = leaderboard or []
-    if laps is None or getattr(laps, "empty", True):
-        return []
-    required_columns = {"Driver", "LapNumber", "LapTime"}
-    if not required_columns.issubset(laps.columns):
-        return []
-
-    pace_laps = laps.dropna(subset=["Driver", "LapNumber", "LapTime"]).copy()
-    pace_laps["LapNumber"] = pd.to_numeric(pace_laps["LapNumber"], errors="coerce")
-    pace_laps = pace_laps[pace_laps["LapNumber"] > 1]
-    if "FastF1Generated" in pace_laps.columns:
-        pace_laps = pace_laps[~pace_laps["FastF1Generated"].eq(True)]
-    if "Deleted" in pace_laps.columns:
-        pace_laps = pace_laps[~pace_laps["Deleted"].eq(True)]
-    for pit_column in ("PitInTime", "PitOutTime"):
-        if pit_column in pace_laps.columns:
-            pace_laps = pace_laps[pace_laps[pit_column].isna()]
-    if "TrackStatus" in pace_laps.columns:
-        pace_laps = pace_laps[~pace_laps["TrackStatus"].map(_is_disrupted_track_status)]
-    if pace_laps.empty:
-        return []
-
-    median_by_driver = pace_laps.groupby("Driver")["LapTime"].agg(["median", "count"])
-    pace_rows = []
-    for result in rows:
-        driver = result.get("driver", "-")
-        if driver not in median_by_driver.index:
-            continue
-        median_lap = median_by_driver.loc[driver, "median"]
-        valid_laps = int(median_by_driver.loc[driver, "count"])
-        if pd.isna(median_lap) or valid_laps < 3:
-            continue
-        pace_rows.append(
-            {
-                "position": result.get("position", "—"),
-                "driver": driver,
-                "team": result.get("team", "Unknown"),
-                "median_seconds": round(median_lap.total_seconds(), 3),
-                "median_lap_display": format_laptime(median_lap),
-                "valid_laps": valid_laps,
-            }
-        )
-
-    pace_rows.sort(key=lambda item: item["median_seconds"])
-    if not pace_rows:
-        return []
-    quickest_median = pace_rows[0]["median_seconds"]
-    for row in pace_rows:
-        gap_seconds = row["median_seconds"] - quickest_median
-        row["gap_display"] = "FASTEST" if gap_seconds == 0 else f"+{gap_seconds:.3f}s"
-    return pace_rows
-
-
 def _build_post_race_summary(leaderboard):
     """Create headline facts from the official completed-race classification."""
     rows = leaderboard or []
@@ -813,7 +749,6 @@ def _empty_race():
         "strategy_rows": [],
         "race_progression": {"total_laps": 0, "max_position": 1, "drivers": []},
         "close_finishes": [],
-        "pace_rows": [],
     }
 
 

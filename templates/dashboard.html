@@ -223,7 +223,6 @@
         .battle-competitors span { color: var(--text-secondary); font-size: 0.78rem; font-weight: 600; }
         .battle-margin { color: var(--accent-cyan); font-size: 1.25rem; font-weight: 800; margin-top: 0.5rem; }
         .battle-detail { color: var(--text-secondary); font-size: 0.74rem; margin-top: 0.2rem; }
-        .pace-note { color: var(--text-secondary); font-size: 0.74rem; line-height: 1.45; margin: 0; padding: 0.8rem 1rem; }
         .stat-card, .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -479,34 +478,6 @@
                 <p class="progression-note">Position at the end of each completed lap. P1 is at the top of the chart.</p>
                 {% else %}
                 <div class="empty">No lap-by-lap position data is available for this session.</div>
-                {% endif %}
-            </div>
-        </section>
-
-        <div class="section-title">Race Pace</div>
-        <section class="card">
-            <div class="card-header"><h2>Representative Lap Pace</h2><span class="badge">Median valid lap</span></div>
-            <div class="card-body">
-                {% if pace_rows %}
-                <table>
-                    <thead><tr><th>Pace Rank</th><th>Driver</th><th>Team</th><th>Median Lap</th><th>Gap</th><th>Valid Laps</th><th>Finish</th></tr></thead>
-                    <tbody>
-                    {% for row in pace_rows %}
-                    <tr>
-                        <td class="position position-{{ loop.index }}">{{ loop.index }}</td>
-                        <td class="driver">{{ row.driver }}</td>
-                        <td class="team">{{ row.team }}</td>
-                        <td class="metric">{{ row.median_lap_display }}</td>
-                        <td class="metric">{{ row.gap_display }}</td>
-                        <td class="metric">{{ row.valid_laps }}</td>
-                        <td>P{{ row.position }}</td>
-                    </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                <p class="pace-note">Median lap time from valid race laps only: lap one, pit entry/exit laps, Safety Car/VSC/red-flag laps, generated laps, and deleted laps are excluded.</p>
-                {% else %}
-                <div class="empty">Not enough uninterrupted lap data is available to compare representative pace.</div>
                 {% endif %}
             </div>
         </section>
