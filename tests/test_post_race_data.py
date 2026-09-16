@@ -10,8 +10,11 @@ from app import (
     _build_race_progression,
     _build_race_story,
     _build_strategy_rows,
+    _build_session_summary,
     _is_retirement,
+    _session_category,
 )
+from data_handler import _build_quali_leaderboard, _session_is_safely_complete, normalize_session_type
 from driver_intel import _aggregate_driver_entries, _summarize_drivers, empty_driver_intelligence
 from season_form import _driver_form_rows, _team_form_rows, empty_season_form
 
@@ -138,6 +141,86 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertNotIn("Form Score", season_html)
         self.assertNotIn("Form Score", driver_html)
         self.assertNotIn("Recent Trend", driver_html)
+
+    def test_all_public_session_names_normalize_and_get_the_right_view(self):
+        expected = {
+            "fp1": ("Practice 1", "practice"),
+            "FP2": ("Practice 2", "practice"),
+            "Practice 3": ("Practice 3", "practice"),
+            "qualifying": ("Qualifying", "qualifying"),
+            "Sprint Shootout": ("Sprint Qualifying", "qualifying"),
+            "Sprint": ("Sprint", "race"),
+            "Race": ("Race", "race"),
+        }
+        for supplied, (normalized, category) in expected.items():
+            self.assertEqual(normalize_session_type(supplied), normalized)
+            self.assertEqual(_session_category(supplied), category)
+        self.assertIsNone(normalize_session_type("warm-up"))
+
+    def test_completion_check_accepts_sprint_qualifying_schedule_alias(self):
+        schedule = pd.DataFrame(
+            {
+                "RoundNumber": [1],
+                "Session1": ["Sprint Shootout"],
+                "Session1DateUtc": [pd.Timestamp("2020-01-01", tz="UTC")],
+            }
+        )
+        self.assertTrue(_session_is_safely_complete(schedule, 1, "Sprint Qualifying"))
+        self.assertIsNone(_session_is_safely_complete(schedule, 1, "Practice 1"))
+
+    def test_dashboard_template_renders_a_qualifying_timing_view_not_race_cards(self):
+        leaderboard = [
+            {"position": 1, "driver": "AAA", "team": "Alpha", "gap_display": "LEADER", "best_lap_display": "1:20.000", "best_lap": pd.Timedelta(seconds=80), "total_laps": 12},
+            {"position": 2, "driver": "BBB", "team": "Beta", "gap_display": "+0.100s", "best_lap_display": "1:20.100", "best_lap": pd.Timedelta(seconds=80.1), "total_laps": 10},
+        ]
+        with flask_app.test_request_context("/?year=2025&round=1&session_type=Qualifying"):
+            html = flask_app.jinja_env.get_template("dashboard.html").render(
+                error=None,
+                session_info={"year": 2025, "round_number": 1, "event_name": "Test Grand Prix", "session_type": "Qualifying"},
+                session_category="qualifying",
+                leaderboard=leaderboard,
+                session_summary=_build_session_summary(leaderboard),
+                race_summary={},
+                race_story={},
+                strategy_rows=[],
+                race_progression={"drivers": []},
+                close_finishes=[],
+            )
+        self.assertIn("Official Classification", html)
+        self.assertIn("Best Session Lap", html)
+        self.assertNotIn("Race Strategy", html)
+
+    def test_qualifying_keeps_officially_classified_driver_with_no_time(self):
+        session = type(
+            "Session",
+            (),
+            {
+                "results": pd.DataFrame(
+                    {
+                        "DriverNumber": ["1", "2"],
+                        "Position": [1, 2],
+                        "Abbreviation": ["AAA", "BBB"],
+                        "TeamName": ["Alpha", "Beta"],
+                        "Q1": [pd.Timedelta(seconds=80), pd.NaT],
+                        "Q2": [pd.NaT, pd.NaT],
+                        "Q3": [pd.Timedelta(seconds=79), pd.NaT],
+                        "Status": ["Finished", "No time"],
+                    }
+                )
+            },
+        )()
+        laps = pd.DataFrame(
+            {
+                "Driver": ["AAA"],
+                "LapTime": [pd.Timedelta(seconds=79)],
+                "LapNumber": [1],
+                "Deleted": [False],
+            }
+        )
+        rows = _build_quali_leaderboard(session, laps)
+        self.assertEqual([row["driver"] for row in rows], ["AAA", "BBB"])
+        self.assertEqual(rows[1]["best_lap_display"], "N/A")
+        self.assertEqual(rows[1]["gap_display"], "No time")
 
 
 if __name__ == "__main__":

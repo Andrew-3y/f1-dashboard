@@ -355,10 +355,15 @@
         <input type="number" id="roundInput" aria-label="Round" min="1" max="30" value="{{ session_info.round_number if session_info else '' }}" style="width:80px;">
         <label>Session:</label>
         <select id="sessionType" aria-label="Session" style="width:120px;">
-            <option value="Race" {% if not session_info or session_info.session_type == 'Race' %}selected{% endif %}>Grand Prix</option>
+            <option value="Practice 1" {% if session_info and session_info.session_type == 'Practice 1' %}selected{% endif %}>Practice 1</option>
+            <option value="Practice 2" {% if session_info and session_info.session_type == 'Practice 2' %}selected{% endif %}>Practice 2</option>
+            <option value="Practice 3" {% if session_info and session_info.session_type == 'Practice 3' %}selected{% endif %}>Practice 3</option>
+            <option value="Qualifying" {% if session_info and session_info.session_type == 'Qualifying' %}selected{% endif %}>Qualifying</option>
+            <option value="Sprint Qualifying" {% if session_info and session_info.session_type == 'Sprint Qualifying' %}selected{% endif %}>Sprint Qualifying</option>
             <option value="Sprint" {% if session_info and session_info.session_type == 'Sprint' %}selected{% endif %}>Sprint</option>
+            <option value="Race" {% if not session_info or session_info.session_type == 'Race' %}selected{% endif %}>Grand Prix</option>
         </select>
-        <button onclick="loadRace()">Load Race</button>
+        <button onclick="loadRace()">Load Session</button>
         <a class="secondary-link" href="/">Latest Race</a>
     </div>
 
@@ -373,18 +378,19 @@
         {% if error %}
         <div class="error-box">
             {% if error.startswith('WARMUP:') %}
-            <h2>Loading race data</h2>
+            <h2>Loading session data</h2>
             <p>The completed session is being loaded. This page will retry automatically.</p>
             <div class="error-detail">{{ error.replace('WARMUP: ', '') }}</div>
             <script>setTimeout(function () { location.reload(); }, 12000);</script>
             {% else %}
             <h2>Dashboard unavailable</h2>
-            <p>Choose a race that has finished and whose official timing data has been published.</p>
+            <p>Choose a completed session whose timing data has been published.</p>
             <div class="error-detail">{{ error }}</div>
             {% endif %}
         </div>
         {% else %}
-        <div class="section-title">{{ session_info.event_name }} · Race Summary</div>
+        {% if session_category == 'race' %}
+        <div class="section-title">{{ session_info.event_name }} · {{ session_info.session_type }} Summary</div>
 
         <section class="stats-row" aria-label="Race summary">
             <div class="stat-card"><div class="stat-value">{{ race_summary.winner|default('—') }}</div><div class="stat-detail">{{ race_summary.podium|default('—') }}</div><div class="stat-label">Winner · Podium</div></div>
@@ -530,6 +536,39 @@
                 {% endif %}
             </div>
         </section>
+        {% else %}
+        <div class="section-title">{{ session_info.event_name }} · {{ session_info.session_type }} Results</div>
+        <section class="stats-row" aria-label="Session summary">
+            <div class="stat-card"><div class="stat-value">{{ session_summary.leader|default('—') }}</div><div class="stat-detail">{{ session_summary.top_three|default('—') }}</div><div class="stat-label">{% if session_category == 'qualifying' %}P1 · Top 3{% else %}Fastest · Top 3{% endif %}</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--accent-cyan);">{{ session_summary.fastest_lap_driver|default('—') }}</div><div class="stat-detail">{{ session_summary.fastest_lap_time|default('—') }}</div><div class="stat-label">Best Session Lap</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--accent-green);">{{ session_summary.timed_drivers|default(0) }}</div><div class="stat-label">Timed Drivers</div></div>
+        </section>
+
+        <section class="card">
+            <div class="card-header"><h2>{% if session_category == 'qualifying' %}Official Classification{% else %}Session Timing{% endif %}</h2><span class="badge">{% if session_category == 'qualifying' %}Official result{% else %}Official timing{% endif %}</span></div>
+            <div class="card-body">
+                {% if leaderboard %}
+                <table>
+                    <thead><tr><th>Pos</th><th>Driver</th><th>Team</th><th>Gap</th><th>Best Lap</th><th>Laps</th></tr></thead>
+                    <tbody>
+                    {% for d in leaderboard %}
+                    <tr>
+                        <td class="position position-{{ d.position }}">{{ d.position }}</td>
+                        <td class="driver">{{ d.driver }}</td>
+                        <td class="team">{{ d.team }}</td>
+                        <td class="metric">{{ d.gap_display }}</td>
+                        <td class="metric">{{ d.best_lap_display }}</td>
+                        <td class="metric">{{ d.total_laps }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty">No completed-session timing is available.</div>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
         {% endif %}
     </main>
 

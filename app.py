@@ -30,7 +30,7 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.exceptions import HTTPException
 
 # Our custom modules
-from data_handler import get_dashboard_data, get_latest_session_info
+from data_handler import get_dashboard_data, get_latest_session_info, normalize_session_type
 from season_form import build_season_form, empty_season_form
 from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence
 from driver_intel import build_driver_intelligence, empty_driver_intelligence
@@ -56,6 +56,7 @@ def _base_dashboard_context():
         "session_category": "race",
         "leaderboard": [],
         "load_time": 0,
+        "session_summary": {},
         "race_summary": {},
         **_empty_race(),
     }
@@ -211,7 +212,7 @@ def _read_warm_cache():
 
 
 def _start_warmup(year, round_num, session_type):
-    """Warm up a requested completed race in a background thread."""
+    """Warm up a requested completed session in a background thread."""
     with _warm_lock:
         requested_key = (year, round_num, session_type)
         if _warm_cache["in_progress"] and _warm_cache["key"] == requested_key:
@@ -219,28 +220,31 @@ def _start_warmup(year, round_num, session_type):
         _warm_cache["key"] = requested_key
         _warm_cache["data"] = None
         _warm_cache["analysis"] = None
-        _warm_cache["session_category"] = "race"
+        _warm_cache["session_category"] = _session_category(session_type)
         _warm_cache["in_progress"] = True
         _warm_cache["error"] = None
 
     def _worker():
         try:
             data = get_dashboard_data(year, round_num, session_type)
+            session_category = _session_category(data.get("session_info", {}).get("session_type"))
             if data.get("error"):
                 analysis = _base_dashboard_context()
-            else:
+            elif session_category == "race":
                 analysis = _run_race_analysis(
                     data.get("leaderboard"),
                     session=data.get("session"),
                     laps=data.get("laps"),
                 )
+            else:
+                analysis = {"session_summary": _build_session_summary(data.get("leaderboard"))}
             with _warm_lock:
                 _warm_cache.update(
                     {
                         "key": (year, round_num, session_type),
                         "data": data,
                         "analysis": analysis,
-                        "session_category": "race",
+                        "session_category": session_category,
                         "error": data.get("error"),
                         "updated_at": time.time(),
                     }
@@ -256,10 +260,10 @@ def _start_warmup(year, round_num, session_type):
 
 
 def _render_warmup(session_type=None):
-    """Render the warmup state for a requested completed race."""
+    """Render the warmup state for a requested completed session."""
     return _render_dashboard(
-        session_category="race",
-        error="WARMUP: Loading completed race data. This can take ~30s on a cold start. The page will refresh automatically.",
+        session_category=_session_category(session_type),
+        error="WARMUP: Loading completed session data. This can take ~30s on a cold start. The page will refresh automatically.",
     )
 
 
@@ -464,6 +468,33 @@ def _run_race_analysis(leaderboard=None, session=None, laps=None):
         "strategy_rows": strategy_rows,
         "race_progression": _build_race_progression(leaderboard, laps=laps),
         "close_finishes": _build_close_finishes(leaderboard),
+    }
+
+
+def _session_category(session_type):
+    """Classify a supported session for the correct post-session presentation."""
+    normalized = normalize_session_type(session_type)
+    if normalized in {"Race", "Sprint"}:
+        return "race"
+    if normalized in {"Qualifying", "Sprint Qualifying"}:
+        return "qualifying"
+    return "practice"
+
+
+def _build_session_summary(leaderboard):
+    """Build factual summary cards for non-race completed sessions."""
+    rows = leaderboard or []
+    fastest = min(
+        (row for row in rows if pd.notna(row.get("best_lap"))),
+        key=lambda row: row["best_lap"],
+        default=None,
+    )
+    return {
+        "leader": rows[0].get("driver", "—") if rows else "—",
+        "top_three": " · ".join(row.get("driver", "—") for row in rows[:3]) if rows else "—",
+        "fastest_lap_driver": fastest.get("driver", "—") if fastest else "—",
+        "fastest_lap_time": fastest.get("best_lap_display", "—") if fastest else "—",
+        "timed_drivers": len(rows),
     }
 
 
@@ -768,19 +799,18 @@ def index():
     Query parameters (all optional):
         year         — e.g. 2025
         round        — round number, e.g. 3
-        session_type — 'Race' or 'Sprint'
+        session_type — a supported completed session type
 
     If no parameters are given, auto-detects the latest completed Grand Prix.
     """
     # Render health checks use HEAD; respond fast to avoid expensive loads.
     if request.method == "HEAD":
         return ("", 200)
-    # Only completed race sessions are exposed by the public dashboard.
     year = request.args.get("year", type=int)
     round_num = request.args.get("round", type=int)
     session_type = request.args.get("session_type", default=None, type=str)
     if year and round_num:
-        session_type = "Sprint" if (session_type or "").lower() == "sprint" else "Race"
+        session_type = normalize_session_type(session_type) or "Race"
 
     requested_key = (year, round_num, session_type)
     warm_state = _read_warm_cache()
@@ -831,7 +861,7 @@ def api_data():
     round_num = request.args.get("round", type=int)
     session_type = request.args.get("session_type", default=None, type=str)
     if year and round_num:
-        session_type = "Sprint" if (session_type or "").lower() == "sprint" else "Race"
+        session_type = normalize_session_type(session_type) or "Race"
 
     try:
         data = get_dashboard_data(year, round_num, session_type)
@@ -842,10 +872,11 @@ def api_data():
     if data["error"]:
         return jsonify({"error": data["error"]}), 500
 
-    analysis = _run_race_analysis(
-        data.get("leaderboard"),
-        session=data.get("session"),
-        laps=data.get("laps"),
+    session_category = _session_category(data["session_info"].get("session_type"))
+    analysis = (
+        _run_race_analysis(data.get("leaderboard"), session=data.get("session"), laps=data.get("laps"))
+        if session_category == "race"
+        else {"session_summary": _build_session_summary(data.get("leaderboard"))}
     )
 
     elapsed = round(time.time() - start_time, 2)
@@ -853,7 +884,7 @@ def api_data():
     return jsonify(
         {
             "session_info": data["session_info"],
-            "session_category": "race",
+            "session_category": session_category,
             "leaderboard": [
                 {k: v for k, v in d.items() if k != "best_lap"}
                 for d in data["leaderboard"]

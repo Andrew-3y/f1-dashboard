@@ -165,6 +165,40 @@ def get_latest_session_info():
 # requests within the same Render wake cycle don't re-download.
 _session_cache = {}
 
+SUPPORTED_SESSION_TYPES = (
+    "Practice 1",
+    "Practice 2",
+    "Practice 3",
+    "Qualifying",
+    "Sprint Qualifying",
+    "Sprint",
+    "Race",
+)
+
+
+def normalize_session_type(session_type):
+    """Return a supported public session name, or ``None`` for an invalid one."""
+    normalized = str(session_type or "").strip().lower()
+    aliases = {
+        "practice": "Practice 1",
+        "practice 1": "Practice 1",
+        "fp1": "Practice 1",
+        "practice 2": "Practice 2",
+        "fp2": "Practice 2",
+        "practice 3": "Practice 3",
+        "fp3": "Practice 3",
+        "qualifying": "Qualifying",
+        "q": "Qualifying",
+        "sprint qualifying": "Sprint Qualifying",
+        "sprint shootout": "Sprint Qualifying",
+        "sq": "Sprint Qualifying",
+        "sprint": "Sprint",
+        "s": "Sprint",
+        "race": "Race",
+        "r": "Race",
+    }
+    return aliases.get(normalized)
+
 
 def load_session(year, round_number, session_type):
     """
@@ -186,6 +220,7 @@ def load_session(year, round_number, session_type):
     - First call downloads data (~10-30 s depending on session).
     - Subsequent calls with the same arguments return instantly from cache.
     """
+    session_type = normalize_session_type(session_type) or session_type
     cache_key = (year, round_number, session_type)
     if cache_key in _session_cache:
         logger.info("Returning cached session for %s", cache_key)
@@ -197,7 +232,7 @@ def load_session(year, round_number, session_type):
     session_map = {
         "Race": "R",
         "Qualifying": "Q",
-        "Sprint Shootout": "SQ",
+        "Sprint Qualifying": "SQ",
         "Sprint": "S",
         "Practice": "FP1",
         "Practice 1": "FP1",
@@ -452,12 +487,15 @@ def _build_quali_leaderboard(session, laps):
 
     for _, row in result_rows.iterrows():
         best_lap = _official_best_td(row)
-        if pd.isna(best_lap):
-            continue
-
         driver = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
         driver_laps = valid_laps[valid_laps["Driver"] == driver]
-        gap = best_lap.total_seconds() - pole_time.total_seconds() if pd.notna(pole_time) else None
+        gap = (
+            best_lap.total_seconds() - pole_time.total_seconds()
+            if pd.notna(best_lap) and pd.notna(pole_time)
+            else None
+        )
+        status = row.get("Status")
+        no_time_label = str(status) if pd.notna(status) and str(status).strip() else "NO TIME"
 
         leaderboard.append(
             {
@@ -467,7 +505,7 @@ def _build_quali_leaderboard(session, laps):
                 "best_lap": best_lap,
                 "best_lap_display": format_laptime(best_lap),
                 "gap_seconds": round(gap, 3) if gap is not None else None,
-                "gap_display": "LEADER" if gap == 0 else format_gap(gap),
+                "gap_display": "LEADER" if gap == 0 else (format_gap(gap) if gap is not None else no_time_label),
                 "total_laps": int(driver_laps["LapNumber"].max()) if not driver_laps.empty else 0,
             }
         )
@@ -525,7 +563,7 @@ def _build_practice_leaderboard(laps):
 # Get full processed data bundle (used by app.py)
 # ---------------------------------------------------------------------------
 def _session_is_safely_complete(schedule, round_number, session_type):
-    """Return whether a race session is beyond the post-race safety buffer."""
+    """Return completion state; ``None`` means that session is not scheduled."""
     if schedule is None or schedule.empty:
         return True
 
@@ -534,20 +572,31 @@ def _session_is_safely_complete(schedule, round_number, session_type):
         return True
 
     event = event_rows.iloc[0]
-    target = str(session_type).lower()
+    target = normalize_session_type(session_type)
+    if target is None:
+        return False
+    schedule_names = {
+        "Practice 1": {"practice 1"},
+        "Practice 2": {"practice 2"},
+        "Practice 3": {"practice 3"},
+        "Qualifying": {"qualifying"},
+        "Sprint Qualifying": {"sprint qualifying", "sprint shootout"},
+        "Sprint": {"sprint"},
+        "Race": {"race"},
+    }[target]
     for idx in range(1, 6):
         name = event.get(f"Session{idx}")
         start = event.get(f"Session{idx}DateUtc")
-        if pd.isna(name) or pd.isna(start) or str(name).lower() != target:
+        if pd.isna(name) or pd.isna(start) or str(name).strip().lower() not in schedule_names:
             continue
 
         start = pd.Timestamp(start)
         start = start.tz_localize("UTC") if start.tzinfo is None else start.tz_convert("UTC")
-        buffer_hours = 4 if target == "race" else 2
+        buffer_hours = 4 if target == "Race" else 2
         now = pd.Timestamp(datetime.datetime.now(datetime.timezone.utc))
         return start + pd.Timedelta(hours=buffer_hours) <= now
 
-    return True
+    return None
 
 
 def get_dashboard_data(year=None, round_number=None, session_type=None):
@@ -571,6 +620,15 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
     """
     try:
         if year and round_number and session_type:
+            session_type = normalize_session_type(session_type)
+            if session_type is None:
+                return {
+                    "session_info": None,
+                    "leaderboard": [],
+                    "session": None,
+                    "laps": pd.DataFrame(),
+                    "error": "Choose a supported completed session.",
+                }
             # Validate the requested round only if the schedule is available.
             # If the schedule request fails, continue and let FastF1 try.
             try:
@@ -593,15 +651,22 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
                         "error": f"Round {round_number} does not exist in the {year} schedule.",
                     }
 
-                if session_type in ("Race", "Sprint") and not _session_is_safely_complete(
-                    schedule, round_number, session_type
-                ):
+                session_complete = _session_is_safely_complete(schedule, round_number, session_type)
+                if session_complete is None:
                     return {
                         "session_info": None,
                         "leaderboard": [],
                         "session": None,
                         "laps": pd.DataFrame(),
-                        "error": "This dashboard only publishes a race after it has finished.",
+                        "error": f"{session_type} is not scheduled for round {round_number} in {year}.",
+                    }
+                if not session_complete:
+                    return {
+                        "session_info": None,
+                        "leaderboard": [],
+                        "session": None,
+                        "laps": pd.DataFrame(),
+                        "error": "This dashboard only publishes a session after it has finished.",
                     }
 
             info = {
