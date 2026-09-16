@@ -14,7 +14,6 @@ env/
 
 # FastF1 cache (large binary files — do NOT commit)
 fastf1_cache/
-verification-reports/
 
 # Generated archive validation reports
 
