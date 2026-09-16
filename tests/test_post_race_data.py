@@ -1,6 +1,7 @@
 """Regression checks for factual post-race dashboard calculations."""
 
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -17,19 +18,17 @@ from app import (
 from data_handler import (
     _build_quali_leaderboard,
     _session_is_safely_complete,
+    build_leaderboard,
+    load_session,
     normalize_session_type,
     validate_session_data,
 )
+import data_handler
 from driver_intel import _aggregate_driver_entries, _summarize_drivers, empty_driver_intelligence
 from season_form import _driver_form_rows, _team_form_rows, empty_season_form
-from scripts.audit_fastf1_archive import _record_key
 
 
 class PostRaceDataTests(unittest.TestCase):
-    def test_audit_checkpoint_uses_one_stable_key_per_session(self):
-        record = {"year": 2019, "round": 15, "session": "Qualifying", "status": "passed"}
-        self.assertEqual(_record_key(record), (2019, 15, "Qualifying"))
-
     def test_retirement_detection_uses_result_status(self):
         self.assertTrue(_is_retirement("Accident"))
         self.assertTrue(_is_retirement("Engine"))
@@ -166,6 +165,67 @@ class PostRaceDataTests(unittest.TestCase):
             self.assertEqual(normalize_session_type(supplied), normalized)
             self.assertEqual(_session_category(supplied), category)
         self.assertIsNone(normalize_session_type("warm-up"))
+
+    def test_every_public_session_type_uses_the_correct_fastf1_identifier(self):
+        expected_identifiers = {
+            "Practice 1": "FP1",
+            "Practice 2": "FP2",
+            "Practice 3": "FP3",
+            "Qualifying": "Q",
+            "Sprint Qualifying": "SQ",
+            "Sprint": "S",
+            "Race": "R",
+        }
+        fake_session = type(
+            "Session",
+            (),
+            {
+                "laps": pd.DataFrame({"LapTime": [pd.Timedelta(seconds=80)]}),
+                "load": lambda self, **kwargs: None,
+            },
+        )()
+
+        data_handler._session_cache.clear()
+        try:
+            with patch("data_handler.fastf1.get_session", return_value=fake_session) as get_session:
+                for index, (session_type, identifier) in enumerate(expected_identifiers.items(), start=1):
+                    load_session(2025, index, session_type)
+                    self.assertEqual(get_session.call_args.args, (2025, index, identifier))
+                self.assertEqual(get_session.call_count, len(expected_identifiers))
+        finally:
+            data_handler._session_cache.clear()
+
+    def test_sprint_qualifying_uses_official_classification_not_practice_order(self):
+        session = type(
+            "Session",
+            (),
+            {
+                "results": pd.DataFrame(
+                    {
+                        "DriverNumber": ["1", "2"],
+                        "Position": [1, 2],
+                        "Abbreviation": ["AAA", "BBB"],
+                        "TeamName": ["Alpha", "Beta"],
+                        "Q1": [pd.Timedelta(seconds=82), pd.Timedelta(seconds=81)],
+                        "Q2": [pd.Timedelta(seconds=83), pd.Timedelta(seconds=82)],
+                        "Q3": [pd.Timedelta(seconds=84), pd.Timedelta(seconds=84.2)],
+                        "Status": ["Finished", "Finished"],
+                    }
+                )
+            },
+        )()
+        laps = pd.DataFrame(
+            {
+                "Driver": ["AAA", "BBB"],
+                "LapTime": [pd.Timedelta(seconds=84), pd.Timedelta(seconds=81)],
+                "LapNumber": [1, 1],
+                "Deleted": [False, False],
+            }
+        )
+
+        rows = build_leaderboard(laps, "Sprint Qualifying", session)
+        self.assertEqual([row["driver"] for row in rows], ["AAA", "BBB"])
+        self.assertEqual(rows[1]["gap_display"], "+0.200s")
 
     def test_completion_check_accepts_sprint_qualifying_schedule_alias(self):
         schedule = pd.DataFrame(

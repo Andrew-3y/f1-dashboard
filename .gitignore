@@ -16,7 +16,6 @@ env/
 fastf1_cache/
 
 # Generated archive validation reports
-audit-reports/
 
 # IDE
 .vscode/
