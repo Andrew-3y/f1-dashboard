@@ -142,6 +142,26 @@
             gap: 0.8rem;
             margin-bottom: 1.5rem;
         }
+        .story-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0;
+        }
+        .story-item {
+            min-height: 104px;
+            padding: 1rem;
+            border-right: 1px solid var(--border-color);
+        }
+        .story-item:last-child { border-right: none; }
+        .story-label {
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+        }
+        .story-value { margin-top: 0.35rem; font-size: 1.35rem; font-weight: 800; }
+        .story-detail { margin-top: 0.2rem; color: var(--text-secondary); font-size: 0.78rem; }
         .stat-card, .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -246,6 +266,8 @@
             .toolbar { align-items: stretch; }
             .toolbar label { width: 100%; }
             .toolbar input, .toolbar select, .toolbar button, .toolbar a { width: 100%; }
+            .story-item { border-bottom: 1px solid var(--border-color); border-right: none; }
+            .story-item:last-child { border-bottom: none; }
         }
     </style>
 </head>
@@ -305,6 +327,39 @@
             <div class="stat-card"><div class="stat-value" style="color:var(--accent-cyan);">{{ race_summary.fastest_lap_driver|default('—') }}</div><div class="stat-detail">{{ race_summary.fastest_lap_time|default('—') }}</div><div class="stat-label">Fastest Lap</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--accent-green);">{{ race_summary.biggest_gainer|default('—') }}</div><div class="stat-detail">{% if race_summary.biggest_gain %}+{{ race_summary.biggest_gain }} positions{% else %}No positive gain{% endif %}</div><div class="stat-label">Biggest Mover</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--accent-orange);">{{ race_summary.retirements|default(0) }}</div><div class="stat-label">Retirements</div></div>
+        </section>
+
+        <div class="section-title">Race Story</div>
+        <section class="card" aria-label="Recorded race events">
+            <div class="card-header"><h2>Recorded Race Events</h2><span class="badge">Official timing</span></div>
+            <div class="story-grid">
+                {% if race_story.lead_changes is not none %}
+                <div class="story-item">
+                    <div class="story-label">Lead Changes</div>
+                    <div class="story-value">{{ race_story.lead_changes }}</div>
+                    <div class="story-detail">{% if race_story.leaders %}Leaders: {{ race_story.leaders|join(' · ') }}{% else %}No leader data recorded{% endif %}</div>
+                </div>
+                {% endif %}
+                {% if race_story.pit_stops is not none %}
+                <div class="story-item">
+                    <div class="story-label">Pit Stops</div>
+                    <div class="story-value" style="color:var(--accent-cyan);">{{ race_story.pit_stops }}</div>
+                    <div class="story-detail">{{ race_story.drivers_pitted }} drivers pitted</div>
+                </div>
+                {% endif %}
+                {% if race_story.safety_cars is not none %}
+                <div class="story-item">
+                    <div class="story-label">Neutralisations</div>
+                    <div class="story-value" style="color:var(--accent-yellow);">{{ race_story.safety_cars + race_story.virtual_safety_cars }}</div>
+                    <div class="story-detail">Safety car {{ race_story.safety_cars }} · VSC {{ race_story.virtual_safety_cars }}</div>
+                </div>
+                {% endif %}
+                <div class="story-item">
+                    <div class="story-label">Retirements</div>
+                    <div class="story-value" style="color:var(--accent-orange);">{{ race_story.retirements|length }}</div>
+                    <div class="story-detail">{% if race_story.retirements %}{% for item in race_story.retirements %}{{ item.driver }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}None recorded{% endif %}</div>
+                </div>
+            </div>
         </section>
 
         <div class="section-title">Official Result</div>

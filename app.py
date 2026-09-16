@@ -229,7 +229,11 @@ def _start_warmup(year, round_num, session_type):
             if data.get("error"):
                 analysis = _base_dashboard_context()
             else:
-                analysis = _run_race_analysis(data.get("leaderboard"))
+                analysis = _run_race_analysis(
+                    data.get("leaderboard"),
+                    session=data.get("session"),
+                    laps=data.get("laps"),
+                )
             with _warm_lock:
                 _warm_cache.update(
                     {
@@ -451,10 +455,11 @@ def _render_driver_page(driver_data=None, *, year=None, driver=None, window=5, e
 # ---------------------------------------------------------------------------
 # Helper: build the post-race summary
 # ---------------------------------------------------------------------------
-def _run_race_analysis(leaderboard=None):
+def _run_race_analysis(leaderboard=None, session=None, laps=None):
     """Build factual headline statistics from the final classification."""
     return {
         "race_summary": _build_post_race_summary(leaderboard),
+        "race_story": _build_race_story(leaderboard, session=session, laps=laps),
     }
 
 
@@ -483,6 +488,55 @@ def _is_retirement(status):
         "overheating",
     )
     return any(marker in normalized for marker in retirement_markers)
+
+
+def _build_race_story(leaderboard, session=None, laps=None):
+    """Build a factual account of recorded race events from timing data."""
+    rows = leaderboard or []
+    story = {
+        "lead_changes": None,
+        "leaders": [],
+        "pit_stops": None,
+        "drivers_pitted": None,
+        "safety_cars": None,
+        "virtual_safety_cars": None,
+        "retirements": [
+            {"driver": row.get("driver", "-"), "status": row.get("status", "Retired")}
+            for row in rows
+            if _is_retirement(row.get("status"))
+        ],
+    }
+
+    if laps is not None and not getattr(laps, "empty", True):
+        if {"PitInTime", "Driver"}.issubset(laps.columns):
+            pit_laps = laps[laps["PitInTime"].notna()]
+            story["pit_stops"] = int(len(pit_laps))
+            story["drivers_pitted"] = int(pit_laps["Driver"].dropna().nunique())
+
+        if {"LapNumber", "Position", "Driver"}.issubset(laps.columns):
+            leader_laps = laps[["LapNumber", "Position", "Driver"]].copy()
+            leader_laps["Position"] = pd.to_numeric(leader_laps["Position"], errors="coerce")
+            leader_laps = leader_laps[
+                leader_laps["LapNumber"].notna()
+                & leader_laps["Driver"].notna()
+                & (leader_laps["Position"] == 1)
+            ].sort_values("LapNumber")
+            if not leader_laps.empty:
+                lead_sequence = leader_laps.drop_duplicates("LapNumber", keep="last")["Driver"].tolist()
+                leaders = []
+                for driver in lead_sequence:
+                    if not leaders or leaders[-1] != driver:
+                        leaders.append(driver)
+                story["leaders"] = leaders
+                story["lead_changes"] = max(len(leaders) - 1, 0)
+
+    track_status = getattr(session, "track_status", None) if session is not None else None
+    if track_status is not None and not getattr(track_status, "empty", True) and "Status" in track_status.columns:
+        status_codes = track_status["Status"].astype(str)
+        story["safety_cars"] = int((status_codes == "4").sum())
+        story["virtual_safety_cars"] = int((status_codes == "6").sum())
+
+    return story
 
 
 def _build_post_race_summary(leaderboard):
@@ -522,6 +576,7 @@ def _build_post_race_summary(leaderboard):
 def _empty_race():
     return {
         "race_summary": {},
+        "race_story": {},
     }
 
 
@@ -610,7 +665,11 @@ def api_data():
     if data["error"]:
         return jsonify({"error": data["error"]}), 500
 
-    analysis = _run_race_analysis(data.get("leaderboard"))
+    analysis = _run_race_analysis(
+        data.get("leaderboard"),
+        session=data.get("session"),
+        laps=data.get("laps"),
+    )
 
     elapsed = round(time.time() - start_time, 2)
 
