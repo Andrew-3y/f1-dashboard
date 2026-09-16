@@ -14,7 +14,12 @@ from app import (
     _is_retirement,
     _session_category,
 )
-from data_handler import _build_quali_leaderboard, _session_is_safely_complete, normalize_session_type
+from data_handler import (
+    _build_quali_leaderboard,
+    _session_is_safely_complete,
+    normalize_session_type,
+    validate_session_data,
+)
 from driver_intel import _aggregate_driver_entries, _summarize_drivers, empty_driver_intelligence
 from season_form import _driver_form_rows, _team_form_rows, empty_season_form
 
@@ -221,6 +226,53 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual([row["driver"] for row in rows], ["AAA", "BBB"])
         self.assertEqual(rows[1]["best_lap_display"], "N/A")
         self.assertEqual(rows[1]["gap_display"], "No time")
+
+    def test_qualifying_only_compares_q3_times_to_pole(self):
+        session = type(
+            "Session",
+            (),
+            {
+                "results": pd.DataFrame(
+                    {
+                        "DriverNumber": ["1", "2", "3"],
+                        "Position": [1, 2, 3],
+                        "Abbreviation": ["AAA", "BBB", "CCC"],
+                        "TeamName": ["Alpha", "Beta", "Gamma"],
+                        "Q1": [pd.Timedelta(seconds=80), pd.Timedelta(seconds=80.2), pd.Timedelta(seconds=79)],
+                        "Q2": [pd.Timedelta(seconds=81), pd.Timedelta(seconds=81.1), pd.Timedelta(seconds=79.5)],
+                        "Q3": [pd.Timedelta(seconds=82), pd.Timedelta(seconds=82.2), pd.NaT],
+                        "Status": ["Finished", "Finished", "Finished"],
+                    }
+                )
+            },
+        )()
+        laps = pd.DataFrame(
+            {"Driver": ["AAA"], "LapTime": [pd.Timedelta(seconds=82)], "LapNumber": [1], "Deleted": [False]}
+        )
+
+        rows = _build_quali_leaderboard(session, laps)
+        self.assertEqual(rows[1]["gap_display"], "+0.200s")
+        self.assertEqual(rows[2]["gap_display"], "Q2")
+        self.assertIsNone(rows[2]["gap_seconds"])
+        self.assertTrue(validate_session_data(session, laps, rows, "Sprint Qualifying")["passed"])
+
+    def test_session_validation_blocks_invalid_timing_data(self):
+        laps = pd.DataFrame({"Driver": ["AAA"], "LapTime": [pd.Timedelta(seconds=80)], "LapNumber": [1]})
+        leaderboard = [
+            {
+                "position": 1,
+                "driver": "AAA",
+                "best_lap": pd.Timedelta(seconds=80),
+                "gap_seconds": 0.0,
+            }
+        ]
+        passed = validate_session_data(object(), laps, leaderboard, "Practice 1")
+        self.assertTrue(passed["passed"])
+
+        leaderboard[0]["gap_seconds"] = -0.1
+        failed = validate_session_data(object(), laps, leaderboard, "Practice 1")
+        self.assertFalse(failed["passed"])
+        self.assertIn("invalid timing gap", failed["errors"][0])
 
 
 if __name__ == "__main__":

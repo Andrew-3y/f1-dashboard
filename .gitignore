@@ -15,6 +15,9 @@ env/
 # FastF1 cache (large binary files — do NOT commit)
 fastf1_cache/
 
+# Generated archive validation reports
+audit-reports/
+
 # IDE
 .vscode/
 .idea/

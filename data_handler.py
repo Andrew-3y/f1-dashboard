@@ -273,6 +273,14 @@ def _official_best_td(result_row):
     return pd.NaT
 
 
+def _qualifying_classification_time(result_row):
+    """Return the knockout segment and official time used for classification."""
+    for segment in ("Q3", "Q2", "Q1"):
+        if segment in result_row and pd.notna(result_row[segment]):
+            return segment, result_row[segment]
+    return None, pd.NaT
+
+
 def _session_results_rows(session):
     """Return official session result rows sorted by official position."""
     if session is None:
@@ -397,14 +405,16 @@ def build_leaderboard(laps, session_type="Race", session=None):
     if laps.empty:
         return []
 
-    is_race = session_type.lower() in ("race", "sprint")
+    normalized_type = normalize_session_type(session_type)
 
-    if is_race:
+    if normalized_type in ("Race", "Sprint"):
         return _build_race_leaderboard(session, laps)
-    elif session_type.lower() in ("qualifying", "sprint shootout"):
+    elif normalized_type in ("Qualifying", "Sprint Qualifying"):
         return _build_quali_leaderboard(session, laps)
-    else:
+    elif normalized_type and normalized_type.startswith("Practice"):
         return _build_practice_leaderboard(laps)
+
+    return []
 
 
 def _build_race_leaderboard(session, laps):
@@ -482,20 +492,25 @@ def _build_quali_leaderboard(session, laps):
         return _build_practice_leaderboard(laps)
 
     leaderboard = []
-    pole_time = _official_best_td(result_rows.iloc[0])
+    pole_segment, pole_time = _qualifying_classification_time(result_rows.iloc[0])
     valid_laps = _valid_laps(laps)
 
     for _, row in result_rows.iterrows():
-        best_lap = _official_best_td(row)
+        classification_segment, best_lap = _qualifying_classification_time(row)
         driver = row.get("Abbreviation") or row.get("BroadcastName") or row.get("DriverNumber")
         driver_laps = valid_laps[valid_laps["Driver"] == driver]
         gap = (
             best_lap.total_seconds() - pole_time.total_seconds()
-            if pd.notna(best_lap) and pd.notna(pole_time)
+            if (
+                classification_segment == pole_segment == "Q3"
+                and pd.notna(best_lap)
+                and pd.notna(pole_time)
+            )
             else None
         )
         status = row.get("Status")
         no_time_label = str(status) if pd.notna(status) and str(status).strip() else "NO TIME"
+        segment_display = classification_segment or no_time_label
 
         leaderboard.append(
             {
@@ -505,7 +520,8 @@ def _build_quali_leaderboard(session, laps):
                 "best_lap": best_lap,
                 "best_lap_display": format_laptime(best_lap),
                 "gap_seconds": round(gap, 3) if gap is not None else None,
-                "gap_display": "LEADER" if gap == 0 else (format_gap(gap) if gap is not None else no_time_label),
+                "gap_display": "LEADER" if gap == 0 else (format_gap(gap) if gap is not None else segment_display),
+                "classification_segment": classification_segment,
                 "total_laps": int(driver_laps["LapNumber"].max()) if not driver_laps.empty else 0,
             }
         )
@@ -557,6 +573,75 @@ def _build_practice_leaderboard(laps):
         )
 
     return leaderboard
+
+
+def validate_session_data(session, laps, leaderboard, session_type):
+    """Validate source-derived session data before it is shown to a user.
+
+    This checks structural integrity, not the sporting record itself: FastF1
+    remains the source of truth for the raw timing and classification data.
+    """
+    normalized_type = normalize_session_type(session_type)
+    rows = leaderboard or []
+    errors = []
+
+    if normalized_type is None:
+        errors.append("unsupported session type")
+    if session is None:
+        errors.append("session was not loaded")
+    if laps is None or getattr(laps, "empty", True):
+        errors.append("no session laps were loaded")
+    if not rows:
+        errors.append("no leaderboard rows were produced")
+
+    positions = [row.get("position") for row in rows]
+    expected_positions = list(range(1, len(rows) + 1))
+    if positions and positions != expected_positions:
+        errors.append("leaderboard positions are not a contiguous official order")
+
+    for row in rows:
+        if not row.get("driver"):
+            errors.append("leaderboard contains a row without a driver")
+            break
+        gap = row.get("gap_seconds")
+        if gap is not None and (pd.isna(gap) or float(gap) < 0):
+            errors.append("leaderboard contains an invalid timing gap")
+            break
+
+    official_result_sessions = {"Race", "Sprint", "Qualifying", "Sprint Qualifying"}
+    if normalized_type in official_result_sessions and session is not None:
+        result_rows = _session_results_rows(session)
+        official_positions = result_rows["Position"].astype(int).tolist() if not result_rows.empty else []
+        if not official_positions:
+            errors.append("official session classification is unavailable")
+        elif positions != official_positions:
+            errors.append("displayed positions do not match the official session classification")
+
+    if normalized_type and normalized_type.startswith("Practice"):
+        lap_times = [row.get("best_lap") for row in rows]
+        if any(pd.isna(lap_time) for lap_time in lap_times):
+            errors.append("practice leaderboard contains a driver without a timed lap")
+        elif lap_times != sorted(lap_times):
+            errors.append("practice leaderboard is not sorted by fastest lap")
+
+    if normalized_type in {"Qualifying", "Sprint Qualifying"}:
+        for row in rows:
+            segment = row.get("classification_segment")
+            if row.get("gap_seconds") is not None and segment != "Q3":
+                errors.append("qualifying gap compares times from different knockout segments")
+                break
+
+    return {
+        "passed": not errors,
+        "checks": [
+            "session loaded",
+            "leaderboard order",
+            "non-negative timing gaps",
+            "official classification match" if normalized_type in official_result_sessions else "fastest-lap order",
+        ],
+        "errors": errors,
+        "source": "FastF1",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -686,12 +771,23 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
         info["event_name"] = session.event["EventName"]
 
         leaderboard = build_leaderboard(laps, session_type=info["session_type"], session=session)
+        validation = validate_session_data(session, laps, leaderboard, info["session_type"])
+        if not validation["passed"]:
+            return {
+                "session_info": info,
+                "leaderboard": [],
+                "session": session,
+                "laps": laps,
+                "validation": validation,
+                "error": "Session data failed integrity checks: " + "; ".join(validation["errors"]),
+            }
 
         return {
             "session_info": info,
             "leaderboard": leaderboard,
             "session": session,
             "laps": laps,
+            "validation": validation,
             "error": None,
         }
 
@@ -702,5 +798,6 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
             "leaderboard": [],
             "session": None,
             "laps": pd.DataFrame(),
+            "validation": None,
             "error": str(exc),
         }

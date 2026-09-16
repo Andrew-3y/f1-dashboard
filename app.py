@@ -54,6 +54,7 @@ def _base_dashboard_context():
         "error": None,
         "session_info": None,
         "session_category": "race",
+        "validation": None,
         "leaderboard": [],
         "load_time": 0,
         "session_summary": {},
@@ -825,6 +826,7 @@ def index():
             error=None,
             session_info=warm_state["data"]["session_info"],
             session_category=warm_state["session_category"],
+            validation=warm_state["data"].get("validation"),
             leaderboard=warm_state["data"]["leaderboard"],
             load_time=0,
             **warm_state["analysis"],
@@ -885,6 +887,7 @@ def api_data():
         {
             "session_info": data["session_info"],
             "session_category": session_category,
+            "validation": data.get("validation"),
             "leaderboard": [
                 {k: v for k, v in d.items() if k != "best_lap"}
                 for d in data["leaderboard"]
