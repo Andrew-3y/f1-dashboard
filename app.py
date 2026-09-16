@@ -457,9 +457,11 @@ def _render_driver_page(driver_data=None, *, year=None, driver=None, window=5, e
 # ---------------------------------------------------------------------------
 def _run_race_analysis(leaderboard=None, session=None, laps=None):
     """Build factual headline statistics from the final classification."""
+    strategy_rows = _build_strategy_rows(leaderboard, laps=laps)
     return {
         "race_summary": _build_post_race_summary(leaderboard),
         "race_story": _build_race_story(leaderboard, session=session, laps=laps),
+        "strategy_rows": strategy_rows,
     }
 
 
@@ -496,8 +498,6 @@ def _build_race_story(leaderboard, session=None, laps=None):
     story = {
         "lead_changes": None,
         "leaders": [],
-        "pit_stops": None,
-        "drivers_pitted": None,
         "safety_cars": None,
         "virtual_safety_cars": None,
         "retirements": [
@@ -508,11 +508,6 @@ def _build_race_story(leaderboard, session=None, laps=None):
     }
 
     if laps is not None and not getattr(laps, "empty", True):
-        if {"PitInTime", "Driver"}.issubset(laps.columns):
-            pit_laps = laps[laps["PitInTime"].notna()]
-            story["pit_stops"] = int(len(pit_laps))
-            story["drivers_pitted"] = int(pit_laps["Driver"].dropna().nunique())
-
         if {"LapNumber", "Position", "Driver"}.issubset(laps.columns):
             leader_laps = laps[["LapNumber", "Position", "Driver"]].copy()
             leader_laps["Position"] = pd.to_numeric(leader_laps["Position"], errors="coerce")
@@ -537,6 +532,96 @@ def _build_race_story(leaderboard, session=None, laps=None):
         story["virtual_safety_cars"] = int((status_codes == "6").sum())
 
     return story
+
+
+def _compound_display(compound):
+    """Return a compact, readable tyre label from FastF1 compound data."""
+    normalized = str(compound or "").strip().upper()
+    labels = {
+        "SOFT": ("S", "Soft"),
+        "MEDIUM": ("M", "Medium"),
+        "HARD": ("H", "Hard"),
+        "INTERMEDIATE": ("I", "Intermediate"),
+        "WET": ("W", "Wet"),
+    }
+    return labels.get(normalized, ("—", "Unknown"))
+
+
+def _build_strategy_rows(leaderboard, laps=None):
+    """Build each driver's recorded compound sequence from completed lap data.
+
+    FastF1 can split a run into multiple raw stints during early-race
+    interruptions even when the tyre compound has not changed. Merging those
+    fragments keeps the post-race view factual and legible.
+    """
+    rows = leaderboard or []
+    if laps is None or getattr(laps, "empty", True):
+        return []
+    required_columns = {"Driver", "Stint", "LapNumber", "Compound"}
+    if not required_columns.issubset(laps.columns):
+        return []
+
+    strategy_laps = laps.dropna(subset=["Driver", "Stint", "LapNumber"]).copy()
+    if "FastF1Generated" in strategy_laps.columns:
+        generated_mask = strategy_laps["FastF1Generated"].fillna(False).astype(bool)
+        strategy_laps = strategy_laps[~generated_mask]
+
+    stints_by_driver = {}
+    for driver, driver_laps in strategy_laps.groupby("Driver", sort=False):
+        stints = []
+        for _, stint_laps in driver_laps.groupby("Stint", sort=True):
+            lap_numbers = pd.to_numeric(stint_laps["LapNumber"], errors="coerce").dropna()
+            if lap_numbers.empty:
+                continue
+
+            compounds = stint_laps["Compound"].dropna().astype(str)
+            compound = next(
+                (value for value in compounds if value.strip().upper() not in {"", "UNKNOWN", "NAN"}),
+                "Unknown",
+            )
+            short_compound, compound_name = _compound_display(compound)
+            first_lap = int(lap_numbers.min())
+            last_lap = int(lap_numbers.max())
+            stint_starts_on_new_compound = not stints or stints[-1]["compound_code"] != short_compound
+
+            if stint_starts_on_new_compound:
+                stints.append(
+                    {
+                        "compound_code": short_compound,
+                        "compound": compound_name,
+                        "lap_count": int(lap_numbers.nunique()),
+                        "first_lap": first_lap,
+                        "last_lap": last_lap,
+                    }
+                )
+            else:
+                previous_stint = stints[-1]
+                previous_stint["lap_count"] += int(lap_numbers.nunique())
+                previous_stint["last_lap"] = last_lap
+
+        for stint in stints:
+            first_lap = stint["first_lap"]
+            last_lap = stint["last_lap"]
+            stint["lap_range"] = f"L{first_lap}–{last_lap}" if first_lap != last_lap else f"L{first_lap}"
+            stint.pop("first_lap")
+            stint.pop("last_lap")
+        stints_by_driver[str(driver)] = stints
+
+    strategy_rows = []
+    for result in rows:
+        driver = result.get("driver", "-")
+        stints = stints_by_driver.get(driver, [])
+        strategy_rows.append(
+            {
+                "position": result.get("position", "—"),
+                "driver": driver,
+                "team": result.get("team", "Unknown"),
+                "status": result.get("status", "Unknown"),
+                "stops": max(len(stints) - 1, 0) if stints else None,
+                "stints": stints,
+            }
+        )
+    return strategy_rows
 
 
 def _build_post_race_summary(leaderboard):
@@ -577,6 +662,7 @@ def _empty_race():
     return {
         "race_summary": {},
         "race_story": {},
+        "strategy_rows": [],
     }
 
 
