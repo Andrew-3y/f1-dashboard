@@ -26,6 +26,7 @@ from data_handler import (
 import data_handler
 from driver_intel import _aggregate_driver_entries, _summarize_drivers, empty_driver_intelligence
 from season_form import _driver_form_rows, _team_form_rows, empty_season_form
+from scripts.verify_official_results import _official_rows, _result_table
 
 
 class PostRaceDataTests(unittest.TestCase):
@@ -166,6 +167,18 @@ class PostRaceDataTests(unittest.TestCase):
             self.assertEqual(_session_category(supplied), category)
         self.assertIsNone(normalize_session_type("warm-up"))
 
+    def test_official_source_parser_reads_driver_numbers_and_laps(self):
+        html = """
+        <table><thead><tr><th>Pos.</th><th>No.</th><th>Driver</th><th>Laps</th></tr></thead>
+        <tbody><tr><td>1</td><td>44</td><td>Lewis Hamilton</td><td>58</td></tr>
+        <tr><td>2</td><td>1</td><td>Max Verstappen</td><td>58</td></tr></tbody></table>
+        """
+        headers, rows = _result_table(html)
+        self.assertEqual(_official_rows(headers, rows), [
+            {"number": "44", "laps": 58, "position": "1"},
+            {"number": "1", "laps": 58, "position": "2"},
+        ])
+
     def test_every_public_session_type_uses_the_correct_fastf1_identifier(self):
         expected_identifiers = {
             "Practice 1": "FP1",
@@ -274,6 +287,7 @@ class PostRaceDataTests(unittest.TestCase):
                         "Q1": [pd.Timedelta(seconds=80), pd.NaT],
                         "Q2": [pd.NaT, pd.NaT],
                         "Q3": [pd.Timedelta(seconds=79), pd.NaT],
+                        "Laps": [17, 0],
                         "Status": ["Finished", "No time"],
                     }
                 )
@@ -291,6 +305,8 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual([row["driver"] for row in rows], ["AAA", "BBB"])
         self.assertEqual(rows[1]["best_lap_display"], "N/A")
         self.assertEqual(rows[1]["gap_display"], "No time")
+        self.assertEqual(rows[0]["total_laps"], 17)
+        self.assertEqual(rows[1]["total_laps"], 0)
 
     def test_qualifying_only_compares_q3_times_to_pole(self):
         session = type(
@@ -338,6 +354,18 @@ class PostRaceDataTests(unittest.TestCase):
         failed = validate_session_data(object(), laps, leaderboard, "Practice 1")
         self.assertFalse(failed["passed"])
         self.assertIn("invalid timing gap", failed["errors"][0])
+
+    def test_practice_validation_blocks_an_incomplete_timing_feed(self):
+        session = type(
+            "Session",
+            (),
+            {"results": pd.DataFrame({"Abbreviation": ["AAA", "BBB"]})},
+        )()
+        laps = pd.DataFrame({"Driver": ["AAA"], "LapTime": [pd.Timedelta(seconds=80)], "LapNumber": [1]})
+        leaderboard = [{"position": 1, "driver": "AAA", "best_lap": pd.Timedelta(seconds=80), "gap_seconds": 0.0}]
+        validation = validate_session_data(session, laps, leaderboard, "Practice 1")
+        self.assertFalse(validation["passed"])
+        self.assertTrue(any("does not include every listed session participant" in error for error in validation["errors"]))
 
 
 if __name__ == "__main__":

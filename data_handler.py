@@ -522,7 +522,11 @@ def _build_quali_leaderboard(session, laps):
                 "gap_seconds": round(gap, 3) if gap is not None else None,
                 "gap_display": "LEADER" if gap == 0 else (format_gap(gap) if gap is not None else segment_display),
                 "classification_segment": classification_segment,
-                "total_laps": int(driver_laps["LapNumber"].max()) if not driver_laps.empty else 0,
+                "total_laps": (
+                    int(row["Laps"])
+                    if pd.notna(row.get("Laps"))
+                    else int(driver_laps["LapNumber"].max()) if not driver_laps.empty else 0
+                ),
             }
         )
 
@@ -618,6 +622,18 @@ def validate_session_data(session, laps, leaderboard, session_type):
             errors.append("displayed positions do not match the official session classification")
 
     if normalized_type and normalized_type.startswith("Practice"):
+        result_participants = set()
+        if session is not None:
+            try:
+                source_results = session.results
+                if source_results is not None and "Abbreviation" in source_results.columns:
+                    result_participants = set(source_results["Abbreviation"].dropna().astype(str))
+            except Exception:
+                result_participants = set()
+        displayed_participants = {str(row.get("driver")) for row in rows if row.get("driver")}
+        if result_participants and displayed_participants != result_participants:
+            errors.append("practice timing does not include every listed session participant")
+
         lap_times = [row.get("best_lap") for row in rows]
         if any(pd.isna(lap_time) for lap_time in lap_times):
             errors.append("practice leaderboard contains a driver without a timed lap")
