@@ -26,7 +26,7 @@ from data_handler import (
 import data_handler
 from driver_intel import _aggregate_driver_entries, _summarize_drivers, empty_driver_intelligence
 from season_form import _driver_form_rows, _team_form_rows, empty_season_form
-from scripts.verify_official_results import _official_rows, _result_table
+from scripts.verify_official_results import _fia_exception, _official_rows, _result_table
 
 
 class PostRaceDataTests(unittest.TestCase):
@@ -178,6 +178,12 @@ class PostRaceDataTests(unittest.TestCase):
             {"number": "44", "laps": 58, "position": "1"},
             {"number": "1", "laps": 58, "position": "2"},
         ])
+
+    def test_fia_override_is_limited_to_recorded_final_classification_cases(self):
+        italian_gp = _fia_exception(2018, 14, "Race")
+        self.assertIn("fia.com", italian_gp["source_url"])
+        self.assertIsNone(_fia_exception(2018, 14, "Qualifying"))
+        self.assertIsNone(_fia_exception(2019, 14, "Race"))
 
     def test_every_public_session_type_uses_the_correct_fastf1_identifier(self):
         expected_identifiers = {

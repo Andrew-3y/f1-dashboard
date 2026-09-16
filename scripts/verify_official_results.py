@@ -24,10 +24,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from data_handler import build_leaderboard, load_session, normalize_session_type
+from data_handler import build_leaderboard, load_session, normalize_session_type, validate_session_data
 
 
 F1_BASE_URL = "https://www.formula1.com"
+FIA_EXCEPTIONS_PATH = PROJECT_ROOT / "data" / "fia_confirmed_exceptions.json"
+FIA_CONFIRMED_EXCEPTIONS = json.loads(FIA_EXCEPTIONS_PATH.read_text(encoding="utf-8"))
 F1_SESSION_PATHS = {
     "Practice 1": "practice/1",
     "Practice 2": "practice/2",
@@ -162,6 +164,11 @@ def _official_rows(headers, rows):
     ]
 
 
+def _fia_exception(year, round_number, session_type):
+    """Return an FIA-confirmed final-classification exception, if recorded."""
+    return FIA_CONFIRMED_EXCEPTIONS.get(f"{year}:{round_number}:{session_type}")
+
+
 def _compare_session(year, round_number, race_url, session_type):
     source_url = urljoin(f"{race_url.rsplit('/', 1)[0]}/", F1_SESSION_PATHS[session_type])
     try:
@@ -173,6 +180,7 @@ def _compare_session(year, round_number, race_url, session_type):
 
     session, laps = load_session(year, round_number, session_type)
     dashboard_rows = build_leaderboard(laps, session_type=session_type, session=session)
+    validation = validate_session_data(session, laps, dashboard_rows, session_type)
     number_map = _result_number_map(session)
     expected_numbers = [number_map.get(str(row["driver"])) for row in dashboard_rows]
     official = _official_rows(headers, rows)
@@ -181,7 +189,13 @@ def _compare_session(year, round_number, race_url, session_type):
     errors = []
     if None in expected_numbers:
         errors.append("FastF1 did not provide a driver number for every displayed row")
-    if expected_numbers != official_numbers:
+    qualifying_types = {"Qualifying", "Sprint Qualifying"}
+    extra_no_time_rows = (
+        session_type in qualifying_types
+        and expected_numbers[:len(official_numbers)] == official_numbers
+        and all(row.get("best_lap_display") == "N/A" for row in dashboard_rows[len(official_numbers):])
+    )
+    if expected_numbers != official_numbers and not extra_no_time_rows:
         errors.append("displayed driver order does not match Formula 1's official table")
 
     if session_type in {"Race", "Sprint"}:
@@ -193,20 +207,39 @@ def _compare_session(year, round_number, race_url, session_type):
             if expected_laps[number] != official_row["laps"]:
                 errors.append(f"lap count differs for car {number}")
 
+    status = "passed"
+    if session_type.startswith("Practice") and not validation["passed"]:
+        status = "blocked_incomplete_feed"
+    elif errors and session_type in {"Race", "Sprint"}:
+        status = "fia_review_required"
+    elif errors:
+        status = "mismatch"
+
+    fia_exception = _fia_exception(year, round_number, session_type)
+    if status == "fia_review_required" and fia_exception:
+        status = "fia_confirmed"
+
     report = {
-        "status": "passed" if not errors else "mismatch",
+        "status": status,
         "source_url": source_url,
         "official_rows": len(official),
         "dashboard_rows": len(dashboard_rows),
         "errors": errors,
     }
+    if extra_no_time_rows:
+        report["note"] = "Formula 1's table omits an officially listed driver with no recorded time."
+    if status == "blocked_incomplete_feed":
+        report["errors"] = validation["errors"]
+    if status == "fia_confirmed":
+        report["fia_source_url"] = fia_exception["source_url"]
+        report["note"] = fia_exception["reason"]
     if errors:
         report["official_driver_numbers"] = official_numbers
         report["dashboard_driver_numbers"] = expected_numbers
     return report
 
 
-def verify_year(year, max_sessions=None):
+def verify_year(year, max_sessions=None, start_round=None, end_round=None):
     """Verify all completed, scheduled dashboard session types for one year."""
     import fastf1
 
@@ -217,6 +250,10 @@ def verify_year(year, max_sessions=None):
 
     for (_, event), race_url in zip(events.iterrows(), race_urls):
         round_number = int(event["RoundNumber"])
+        if start_round is not None and round_number < start_round:
+            continue
+        if end_round is not None and round_number > end_round:
+            continue
         for index in range(1, 6):
             session_type = normalize_session_type(event.get(f"Session{index}"))
             session_date = event.get(f"Session{index}DateUtc")
@@ -246,6 +283,8 @@ def main():
     parser.add_argument("--start-year", type=int, default=2018)
     parser.add_argument("--end-year", type=int, default=dt.datetime.now().year)
     parser.add_argument("--max-sessions", type=int)
+    parser.add_argument("--start-round", type=int, help="First round to verify (inclusive).")
+    parser.add_argument("--end-round", type=int, help="Last round to verify (inclusive).")
     parser.add_argument("--output", type=Path, default=Path("verification-reports/official-results.json"))
     args = parser.parse_args()
     if args.start_year < 2018 or args.end_year < args.start_year:
@@ -253,7 +292,7 @@ def main():
 
     records = []
     for year in range(args.start_year, args.end_year + 1):
-        records.extend(verify_year(year, args.max_sessions))
+        records.extend(verify_year(year, args.max_sessions, args.start_round, args.end_round))
         if args.max_sessions and len(records) >= args.max_sessions:
             break
     summary = {status: sum(record["status"] == status for record in records) for status in {record["status"] for record in records}}
@@ -261,7 +300,7 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
-    raise SystemExit(1 if summary.get("mismatch") or summary.get("unavailable") else 0)
+    raise SystemExit(1 if summary.get("mismatch") or summary.get("unavailable") or summary.get("fia_review_required") else 0)
 
 
 if __name__ == "__main__":

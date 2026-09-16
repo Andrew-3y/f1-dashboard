@@ -1,0 +1,14 @@
+{
+  "2018:14:Race": {
+    "source_url": "https://www.fia.com/sites/default/files/doc_42_-_2018_italian_grand_prix_-_decision_-_protest_car_8_0.pdf",
+    "reason": "The FIA disqualified car 8 and amended the final Italian Grand Prix classification."
+  },
+  "2018:18:Race": {
+    "source_url": "https://www.fia.com/news/raikkonen-wins-austin-ahead-verstappen-hamilton-title-fight-goes-mexico",
+    "reason": "The FIA disqualified cars 20 and 31 after the United States Grand Prix; the final classification differs from Formula1.com's historical table."
+  },
+  "2018:20:Race": {
+    "source_url": "https://www.fia.com/events/fia-formula-one-world-championship/season-2018/race-classification-18",
+    "reason": "The FIA's final Brazilian Grand Prix race classification matches the dashboard ordering rather than Formula1.com's historical table."
+  }
+}
