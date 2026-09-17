@@ -29,6 +29,18 @@ from season_form import _driver_form_rows, _team_form_rows, empty_season_form
 
 
 class PostRaceDataTests(unittest.TestCase):
+    def test_api_returns_422_when_integrity_checks_withhold_a_session(self):
+        with patch(
+            "app.get_dashboard_data",
+            return_value={"error": "Session data failed integrity checks: incomplete timing feed"},
+        ):
+            response = flask_app.test_client().get(
+                "/api/data?year=2025&round=1&session_type=Practice%202"
+            )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.get_json()["error"], "Session data failed integrity checks: incomplete timing feed")
+
     def test_retirement_detection_uses_result_status(self):
         self.assertTrue(_is_retirement("Accident"))
         self.assertTrue(_is_retirement("Engine"))

@@ -872,7 +872,10 @@ def api_data():
         return jsonify({"error": str(exc)}), 500
 
     if data["error"]:
-        return jsonify({"error": data["error"]}), 500
+        # The request itself succeeded, but the selected session is not safe
+        # to publish (for example, incomplete timing data).  Do not report
+        # this as an application failure to API clients or uptime monitors.
+        return jsonify({"error": data["error"]}), 422
 
     session_category = _session_category(data["session_info"].get("session_type"))
     analysis = (
