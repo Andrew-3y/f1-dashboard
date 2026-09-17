@@ -195,6 +195,12 @@ class PostRaceDataTests(unittest.TestCase):
         finally:
             data_handler._session_cache.clear()
 
+    def test_schedule_lookup_never_uses_ergast_to_reject_a_sprint_session(self):
+        sprint_schedule = pd.DataFrame({"RoundNumber": [7], "Session1": ["Sprint"], "Session1DateUtc": [pd.Timestamp("2021-07-17", tz="UTC")]})
+        with patch("data_handler.fastf1.get_event_schedule", side_effect=[ValueError("unavailable"), sprint_schedule]) as get_schedule:
+            self.assertIs(data_handler._get_session_schedule(2021), sprint_schedule)
+        self.assertEqual([call.kwargs["backend"] for call in get_schedule.call_args_list], ["fastf1", "f1timing"])
+
     def test_sprint_qualifying_uses_official_classification_not_practice_order(self):
         session = type(
             "Session",

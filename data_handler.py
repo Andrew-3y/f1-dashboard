@@ -38,6 +38,27 @@ logger = logging.getLogger(__name__)
 # default so this also works on Windows, where "/tmp" is not writable.
 DEFAULT_CACHE_DIR = os.path.join(tempfile.gettempdir(), "fastf1_cache")
 CACHE_DIR = os.environ.get("FASTF1_CACHE", DEFAULT_CACHE_DIR)
+
+
+def _get_session_schedule(year):
+    """Return sprint-aware schedule metadata, or ``None`` when unavailable.
+
+    Ergast is useful as a calendar fallback but does not describe historic
+    sprint sessions. It must therefore never be used to reject a requested
+    session as unscheduled.
+    """
+    for backend in ("fastf1", "f1timing"):
+        try:
+            schedule = fastf1.get_event_schedule(
+                year,
+                include_testing=False,
+                backend=backend,
+            )
+            if schedule is not None and not schedule.empty:
+                return schedule
+        except Exception as exc:
+            logger.warning("%s schedule unavailable for %s: %s", backend, year, exc)
+    return None
 os.makedirs(CACHE_DIR, exist_ok=True)
 fastf1.Cache.enable_cache(CACHE_DIR)
 
@@ -119,7 +140,9 @@ def get_latest_session_info():
 
     for attempt_year in [year, year - 1]:
         try:
-            schedule = fastf1.get_event_schedule(attempt_year, include_testing=False)
+            schedule = _get_session_schedule(attempt_year)
+            if schedule is None:
+                continue
         except Exception as exc:
             logger.warning("Could not load %d schedule: %s", attempt_year, exc)
             continue
@@ -733,7 +756,7 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
             # Validate the requested round only if the schedule is available.
             # If the schedule request fails, continue and let FastF1 try.
             try:
-                schedule = fastf1.get_event_schedule(year, include_testing=False)
+                schedule = _get_session_schedule(year)
             except Exception as exc:
                 logger.warning("Schedule lookup failed for %s: %s", year, exc)
                 schedule = None
@@ -754,14 +777,19 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
 
                 session_complete = _session_is_safely_complete(schedule, round_number, session_type)
                 if session_complete is None:
-                    return {
-                        "session_info": None,
-                        "leaderboard": [],
-                        "session": None,
-                        "laps": pd.DataFrame(),
-                        "error": f"{session_type} is not scheduled for round {round_number} in {year}.",
-                    }
-                if not session_complete:
+                    # Historic FastF1 schedules can omit sprint labels even
+                    # when the underlying session data is available. Let the
+                    # source loader decide for these session types instead of
+                    # rejecting a real sprint weekend from stale metadata.
+                    if session_type not in {"Sprint", "Sprint Qualifying"}:
+                        return {
+                            "session_info": None,
+                            "leaderboard": [],
+                            "session": None,
+                            "laps": pd.DataFrame(),
+                            "error": f"{session_type} is not scheduled for round {round_number} in {year}.",
+                        }
+                if session_complete is False:
                     return {
                         "session_info": None,
                         "leaderboard": [],
