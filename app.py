@@ -170,6 +170,8 @@ _warm_cache = {
     "updated_at": None,
 }
 _warm_lock = threading.Lock()
+_latest_warmup_lock = threading.Lock()
+_latest_warmup_in_progress = False
 
 _season_warm_cache = {
     "key": None,
@@ -216,7 +218,10 @@ def _start_warmup(year, round_num, session_type):
     """Warm up a requested completed session in a background thread."""
     with _warm_lock:
         requested_key = (year, round_num, session_type)
-        if _warm_cache["in_progress"] and _warm_cache["key"] == requested_key:
+        # One warmup owns this shared cache at a time. Starting a second,
+        # different warmup used to replace the first key mid-load and could
+        # leave the dashboard retrying forever after a service restart.
+        if _warm_cache["in_progress"]:
             return
         _warm_cache["key"] = requested_key
         _warm_cache["data"] = None
@@ -251,6 +256,7 @@ def _start_warmup(year, round_num, session_type):
                     }
                 )
         except Exception as exc:
+            logger.exception("Dashboard warmup failed for %s", (year, round_num, session_type))
             with _warm_lock:
                 _warm_cache["error"] = str(exc)
         finally:
@@ -266,6 +272,30 @@ def _render_warmup(session_type=None):
         session_category=_session_category(session_type),
         error="WARMUP: Loading completed session data. This can take ~30s on a cold start. The page will refresh automatically.",
     )
+
+
+def _start_latest_warmup():
+    """Resolve and preload the latest completed race without an ambiguous cache key."""
+    global _latest_warmup_in_progress
+    with _latest_warmup_lock:
+        if _latest_warmup_in_progress:
+            return
+        _latest_warmup_in_progress = True
+
+    def _worker():
+        global _latest_warmup_in_progress
+        try:
+            info = get_latest_session_info()
+            if not info:
+                raise RuntimeError("No completed Grand Prix is available to preload.")
+            _start_warmup(info["year"], info["round_number"], info["session_type"])
+        except Exception:
+            logger.exception("Startup latest-session resolution failed")
+        finally:
+            with _latest_warmup_lock:
+                _latest_warmup_in_progress = False
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 def _read_season_warm_cache():
@@ -846,7 +876,8 @@ def index():
     requested_key = (year, round_num, session_type)
     warm_state = _read_warm_cache()
 
-    if warm_state["key"] == requested_key and warm_state["data"] and warm_state["analysis"]:
+    auto_request = not (year and round_num and session_type)
+    if (auto_request or warm_state["key"] == requested_key) and warm_state["data"] and warm_state["analysis"]:
         if warm_state["error"]:
             return _render_dashboard(
                 session_category=warm_state["session_category"],
@@ -888,9 +919,8 @@ def index():
     if warm_state["in_progress"] and warm_state["key"] == requested_key:
         return _render_warmup(session_type)
 
-    if not (year and round_num and session_type):
-        if not warm_state["in_progress"]:
-            _start_warmup(year, round_num, session_type)
+    if auto_request:
+        _start_latest_warmup()
         return _render_warmup(session_type)
 
     # Explicit session requests now warm in the background first so a slow
@@ -1108,10 +1138,7 @@ def _prewarm_latest_completed_race():
     This is deliberately opt-in so local development and the test suite do
     not make network calls merely by importing the Flask application.
     """
-    try:
-        _start_warmup(None, None, None)
-    except Exception as exc:
-        logger.info("Startup prewarm could not begin: %s", exc)
+    _start_latest_warmup()
 
 
 if os.environ.get("PREWARM_LATEST_SESSION", "").strip().lower() == "true":

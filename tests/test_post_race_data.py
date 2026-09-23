@@ -32,11 +32,11 @@ from season_form import _driver_form_rows, _team_form_rows, empty_season_form
 
 
 class PostRaceDataTests(unittest.TestCase):
-    def test_startup_prewarm_uses_the_existing_dashboard_warmup_path(self):
-        with patch("app._start_warmup") as start_warmup:
+    def test_startup_prewarm_resolves_the_latest_completed_session(self):
+        with patch("app._start_latest_warmup") as start_latest_warmup:
             _prewarm_latest_completed_race()
 
-        start_warmup.assert_called_once_with(None, None, None)
+        start_latest_warmup.assert_called_once_with()
 
     def test_api_returns_422_when_integrity_checks_withhold_a_session(self):
         with patch(
