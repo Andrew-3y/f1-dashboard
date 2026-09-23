@@ -81,25 +81,31 @@ def get_event_schedule(year):
     """
     year = int(year)
     logger.info("Resolving schedule for %s", year)
+    # Never hold this lock during file or network I/O.  FastF1's schedule
+    # lookup can take a while after a cold start; holding it for the whole
+    # operation made every other page in the same worker wait behind it.
     with _schedule_cache_lock:
         cached = _schedule_cache.get(year)
-        if cached is not None:
-            logger.info("Using in-memory schedule for %s", year)
-            return cached
+    if cached is not None:
+        logger.info("Using in-memory schedule for %s", year)
+        return cached
 
-        cache_file = _schedule_cache_file(year)
-        try:
-            schedule = pd.read_pickle(cache_file)
-            if schedule is not None and not schedule.empty:
-                _schedule_cache[year] = schedule
-                logger.info("Using persisted schedule for %s", year)
-                return schedule
-        except (OSError, EOFError, ValueError):
-            pass
-
-        schedule = _get_session_schedule(year)
+    cache_file = _schedule_cache_file(year)
+    try:
+        schedule = pd.read_pickle(cache_file)
         if schedule is not None and not schedule.empty:
-            _schedule_cache[year] = schedule
+            with _schedule_cache_lock:
+                cached = _schedule_cache.setdefault(year, schedule)
+            logger.info("Using persisted schedule for %s", year)
+            return cached
+    except (OSError, EOFError, ValueError):
+        pass
+
+    schedule = _get_session_schedule(year)
+    if schedule is not None and not schedule.empty:
+        with _schedule_cache_lock:
+            cached = _schedule_cache.setdefault(year, schedule)
+        if cached is schedule:
             logger.info("Fetched schedule for %s", year)
             temporary_path = f"{cache_file}.{os.getpid()}.{threading.get_ident()}.tmp"
             try:
@@ -111,7 +117,8 @@ def get_event_schedule(year):
                     os.remove(temporary_path)
                 except OSError:
                     pass
-        return schedule
+        return cached
+    return schedule
 os.makedirs(CACHE_DIR, exist_ok=True)
 fastf1.Cache.enable_cache(CACHE_DIR)
 
