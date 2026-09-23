@@ -445,6 +445,7 @@ def _start_season_warmup(year, window):
         _season_warm_cache["in_progress"] = True
         started_snapshot = dict(_season_warm_cache)
     _write_analysis_cache_snapshot(_season_warm_cache_file, started_snapshot)
+    logger.info("Starting season warmup for %s", requested_key)
 
     def _worker():
         try:
@@ -460,7 +461,9 @@ def _start_season_warmup(year, window):
                 )
                 completed_snapshot = dict(_season_warm_cache)
             _write_analysis_cache_snapshot(_season_warm_cache_file, completed_snapshot)
+            logger.info("Season warmup ready for %s", (year, window))
         except Exception as exc:
+            logger.exception("Season warmup failed for %s", (year, window))
             with _season_warm_lock:
                 _season_warm_cache["error"] = str(exc)
                 failed_snapshot = dict(_season_warm_cache)
@@ -520,6 +523,7 @@ def _start_circuit_warmup(year, round_num):
         _circuit_warm_cache["in_progress"] = True
         started_snapshot = dict(_circuit_warm_cache)
     _write_analysis_cache_snapshot(_circuit_warm_cache_file, started_snapshot)
+    logger.info("Starting circuit warmup for %s", requested_key)
 
     def _worker():
         try:
@@ -535,7 +539,9 @@ def _start_circuit_warmup(year, round_num):
                 )
                 completed_snapshot = dict(_circuit_warm_cache)
             _write_analysis_cache_snapshot(_circuit_warm_cache_file, completed_snapshot)
+            logger.info("Circuit warmup ready for %s", (year, round_num))
         except Exception as exc:
+            logger.exception("Circuit warmup failed for %s", (year, round_num))
             with _circuit_warm_lock:
                 _circuit_warm_cache["error"] = str(exc)
                 failed_snapshot = dict(_circuit_warm_cache)
@@ -592,6 +598,7 @@ def _start_driver_warmup(year, driver, window):
         _driver_warm_cache["in_progress"] = True
         started_snapshot = dict(_driver_warm_cache)
     _write_analysis_cache_snapshot(_driver_warm_cache_file, started_snapshot)
+    logger.info("Starting driver warmup for %s", requested_key)
 
     def _worker():
         try:
@@ -607,7 +614,9 @@ def _start_driver_warmup(year, driver, window):
                 )
                 completed_snapshot = dict(_driver_warm_cache)
             _write_analysis_cache_snapshot(_driver_warm_cache_file, completed_snapshot)
+            logger.info("Driver warmup ready for %s", (year, driver or "", window))
         except Exception as exc:
+            logger.exception("Driver warmup failed for %s", (year, driver or "", window))
             with _driver_warm_lock:
                 _driver_warm_cache["error"] = str(exc)
                 failed_snapshot = dict(_driver_warm_cache)
