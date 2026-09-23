@@ -80,9 +80,11 @@ def get_event_schedule(year):
     instance and serialize the first lookup to avoid duplicate requests.
     """
     year = int(year)
+    logger.info("Resolving schedule for %s", year)
     with _schedule_cache_lock:
         cached = _schedule_cache.get(year)
         if cached is not None:
+            logger.info("Using in-memory schedule for %s", year)
             return cached
 
         cache_file = _schedule_cache_file(year)
@@ -90,6 +92,7 @@ def get_event_schedule(year):
             schedule = pd.read_pickle(cache_file)
             if schedule is not None and not schedule.empty:
                 _schedule_cache[year] = schedule
+                logger.info("Using persisted schedule for %s", year)
                 return schedule
         except (OSError, EOFError, ValueError):
             pass
@@ -97,6 +100,7 @@ def get_event_schedule(year):
         schedule = _get_session_schedule(year)
         if schedule is not None and not schedule.empty:
             _schedule_cache[year] = schedule
+            logger.info("Fetched schedule for %s", year)
             temporary_path = f"{cache_file}.{os.getpid()}.{threading.get_ident()}.tmp"
             try:
                 schedule.to_pickle(temporary_path)
