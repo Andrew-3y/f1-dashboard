@@ -4,10 +4,9 @@ import logging
 import re
 import unicodedata
 
-import fastf1
 import pandas as pd
 
-from data_handler import load_sessions_concurrently
+from data_handler import get_event_schedule, load_sessions_concurrently
 
 
 logger = logging.getLogger(__name__)
@@ -55,7 +54,7 @@ def _normalize_name(value):
 
 def _schedule_event(year, round_number):
     """Return the schedule row for a year and round."""
-    schedule = fastf1.get_event_schedule(year, include_testing=False)
+    schedule = get_event_schedule(year)
     if schedule is None or schedule.empty:
         raise RuntimeError(f"No schedule available for {year}.")
 
@@ -105,7 +104,7 @@ def _recent_history(year, event_name, limit=3):
 
     for attempt_year in range(year, max(2018, year - 5), -1):
         try:
-            schedule = fastf1.get_event_schedule(attempt_year, include_testing=False)
+            schedule = get_event_schedule(attempt_year)
         except Exception as exc:
             logger.info("Skipping schedule lookup for %s: %s", attempt_year, exc)
             continue

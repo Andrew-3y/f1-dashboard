@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 # default so this also works on Windows, where "/tmp" is not writable.
 DEFAULT_CACHE_DIR = os.path.join(tempfile.gettempdir(), "fastf1_cache")
 CACHE_DIR = os.environ.get("FASTF1_CACHE", DEFAULT_CACHE_DIR)
+_schedule_cache = {}
+_schedule_cache_lock = threading.Lock()
 
 
 def _get_session_schedule(year):
@@ -61,6 +63,27 @@ def _get_session_schedule(year):
         except Exception as exc:
             logger.warning("%s schedule unavailable for %s: %s", backend, year, exc)
     return None
+
+
+def get_event_schedule(year):
+    """Return a season schedule, reusing the first successful lookup.
+
+    The dashboard resolves the current season schedule during startup.  The
+    secondary analysis pages need the same schedule, so sending each page
+    back to FastF1 can turn one cold request into several slow upstream
+    lookups.  Cache the small schedule dataframe for the lifetime of the free
+    instance and serialize the first lookup to avoid duplicate requests.
+    """
+    year = int(year)
+    with _schedule_cache_lock:
+        cached = _schedule_cache.get(year)
+        if cached is not None:
+            return cached
+
+        schedule = _get_session_schedule(year)
+        if schedule is not None and not schedule.empty:
+            _schedule_cache[year] = schedule
+        return schedule
 os.makedirs(CACHE_DIR, exist_ok=True)
 fastf1.Cache.enable_cache(CACHE_DIR)
 
@@ -142,7 +165,7 @@ def get_latest_session_info():
 
     for attempt_year in [year, year - 1]:
         try:
-            schedule = _get_session_schedule(attempt_year)
+            schedule = get_event_schedule(attempt_year)
             if schedule is None:
                 continue
         except Exception as exc:
@@ -818,7 +841,7 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
             # Validate the requested round only if the schedule is available.
             # If the schedule request fails, continue and let FastF1 try.
             try:
-                schedule = _get_session_schedule(year)
+                schedule = get_event_schedule(year)
             except Exception as exc:
                 logger.warning("Schedule lookup failed for %s: %s", year, exc)
                 schedule = None

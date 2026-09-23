@@ -4,10 +4,9 @@ import datetime
 import logging
 from statistics import mean
 
-import fastf1
 import pandas as pd
 
-from data_handler import load_sessions_concurrently
+from data_handler import get_event_schedule, load_sessions_concurrently
 
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,7 @@ def _battle_leader(score_a, score_b, driver_a, driver_b):
 
 def _completed_rounds(year):
     """Return completed grand prix rounds for a season."""
-    schedule = fastf1.get_event_schedule(year, include_testing=False)
+    schedule = get_event_schedule(year)
     now = pd.Timestamp(datetime.datetime.now(datetime.timezone.utc))
     rounds = []
 
