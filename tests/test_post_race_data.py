@@ -152,6 +152,30 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertNotIn("best_lap", payload["leaderboard"][0])
         self.assertNotIn("best_lap", payload["teammate_battles"][0]["first"])
 
+    def test_api_reuses_a_matching_warm_dashboard_snapshot(self):
+        warm_state = {
+            "key": (2025, 1, "Race"),
+            "data": {
+                "session_info": {"session_type": "Race"},
+                "validation": {"passed": True},
+                "leaderboard": [{"driver": "AAA", "best_lap": pd.Timedelta(seconds=80)}],
+            },
+            "analysis": {"race_summary": {"winner": "AAA"}},
+            "session_category": "race",
+        }
+        with patch("app._read_available_warm_cache", return_value=warm_state), patch(
+            "app.get_dashboard_data", side_effect=AssertionError("should use the warm snapshot")
+        ):
+            response = flask_app.test_client().get(
+                "/api/data?year=2025&round=1&session_type=Race"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["race_summary"]["winner"], "AAA")
+        self.assertEqual(payload["load_time"], 0)
+        self.assertNotIn("best_lap", payload["leaderboard"][0])
+
     def test_retirement_detection_uses_result_status(self):
         self.assertTrue(_is_retirement("Accident"))
         self.assertTrue(_is_retirement("Engine"))

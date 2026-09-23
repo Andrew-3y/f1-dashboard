@@ -1140,6 +1140,26 @@ def api_data():
     if year and round_num:
         session_type = normalize_session_type(session_type) or "Race"
 
+    requested_key = (year, round_num, session_type)
+    warm_state = _read_available_warm_cache()
+    if (
+        warm_state["key"] == requested_key
+        and warm_state["data"]
+        and warm_state["analysis"]
+    ):
+        return jsonify(
+            _json_safe(
+                {
+                    "session_info": warm_state["data"]["session_info"],
+                    "session_category": warm_state["session_category"],
+                    "validation": warm_state["data"].get("validation"),
+                    "leaderboard": warm_state["data"]["leaderboard"],
+                    **warm_state["analysis"],
+                    "load_time": 0,
+                }
+            )
+        )
+
     try:
         data = get_dashboard_data(year, round_num, session_type)
     except Exception as exc:
