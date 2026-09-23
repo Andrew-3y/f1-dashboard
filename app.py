@@ -25,6 +25,8 @@ import threading
 import logging
 import html
 import datetime
+import pickle
+import tempfile
 import pandas as pd
 from flask import Flask, render_template, request, jsonify
 from werkzeug.exceptions import HTTPException
@@ -172,6 +174,7 @@ _warm_cache = {
 _warm_lock = threading.Lock()
 _latest_warmup_lock = threading.Lock()
 _latest_warmup_in_progress = False
+_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-warm-cache.pkl")
 
 _season_warm_cache = {
     "key": None,
@@ -212,6 +215,68 @@ def _read_warm_cache():
             "in_progress": _warm_cache["in_progress"],
             "updated_at": _warm_cache["updated_at"],
         }
+
+
+def _write_warm_cache_snapshot(snapshot):
+    """Persist the renderable warm state for all Gunicorn request workers.
+
+    Render can hand a request to a different process than the one that ran a
+    background warmup. Keeping the small, render-ready portion of the cache in
+    the service's temporary filesystem prevents that handoff from falling back
+    to an empty loading screen. Raw FastF1 session and lap objects are omitted:
+    they are large and are not needed to render the dashboard.
+    """
+    if not snapshot.get("data") or not snapshot.get("analysis"):
+        return
+
+    render_data = {
+        key: snapshot["data"].get(key)
+        for key in ("session_info", "validation", "leaderboard")
+    }
+    payload = {
+        "key": snapshot.get("key"),
+        "data": render_data,
+        "analysis": snapshot.get("analysis"),
+        "session_category": snapshot.get("session_category"),
+        "error": snapshot.get("error"),
+        "updated_at": snapshot.get("updated_at"),
+    }
+    temporary_path = f"{_warm_cache_file}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        with open(temporary_path, "wb") as handle:
+            pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(temporary_path, _warm_cache_file)
+    except OSError:
+        logger.exception("Unable to persist the dashboard warm cache")
+        try:
+            os.remove(temporary_path)
+        except OSError:
+            pass
+
+
+def _read_warm_cache_snapshot():
+    """Read a completed renderable warm state written by another worker."""
+    try:
+        with open(_warm_cache_file, "rb") as handle:
+            snapshot = pickle.load(handle)
+    except (OSError, EOFError, pickle.UnpicklingError):
+        return None
+
+    required = {"key", "data", "analysis", "session_category"}
+    if not isinstance(snapshot, dict) or not required.issubset(snapshot):
+        return None
+    if not snapshot["key"] or not snapshot["data"] or not snapshot["analysis"]:
+        return None
+    snapshot["in_progress"] = False
+    return snapshot
+
+
+def _read_available_warm_cache():
+    """Prefer local state, then use a completed warmup from another worker."""
+    warm_state = _read_warm_cache()
+    if warm_state["data"] and warm_state["analysis"]:
+        return warm_state
+    return _read_warm_cache_snapshot() or warm_state
 
 
 def _start_warmup(year, round_num, session_type):
@@ -257,6 +322,8 @@ def _start_warmup(year, round_num, session_type):
                         "updated_at": time.time(),
                     }
                 )
+                completed_snapshot = dict(_warm_cache)
+            _write_warm_cache_snapshot(completed_snapshot)
             logger.info("Dashboard warmup ready for %s", (year, round_num, session_type))
         except Exception as exc:
             logger.exception("Dashboard warmup failed for %s", (year, round_num, session_type))
@@ -877,18 +944,9 @@ def index():
         session_type = normalize_session_type(session_type) or "Race"
 
     requested_key = (year, round_num, session_type)
-    warm_state = _read_warm_cache()
+    warm_state = _read_available_warm_cache()
 
     auto_request = not (year and round_num and session_type)
-    logger.info(
-        "Dashboard request cache state: auto=%s key=%s cached_key=%s has_data=%s has_analysis=%s in_progress=%s",
-        auto_request,
-        requested_key,
-        warm_state["key"],
-        bool(warm_state["data"]),
-        bool(warm_state["analysis"]),
-        warm_state["in_progress"],
-    )
     if (auto_request or warm_state["key"] == requested_key) and warm_state["data"] and warm_state["analysis"]:
         if warm_state["error"]:
             return _render_dashboard(

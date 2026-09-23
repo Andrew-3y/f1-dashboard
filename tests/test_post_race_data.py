@@ -1,5 +1,7 @@
 """Regression checks for factual post-race dashboard calculations."""
 
+import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -16,6 +18,8 @@ from app import (
     _build_session_summary,
     _is_retirement,
     _session_category,
+    _read_warm_cache_snapshot,
+    _write_warm_cache_snapshot,
 )
 from data_handler import (
     _build_quali_leaderboard,
@@ -32,6 +36,32 @@ from season_form import _driver_form_rows, _team_form_rows, empty_season_form
 
 
 class PostRaceDataTests(unittest.TestCase):
+    def test_completed_dashboard_warm_cache_is_available_across_workers(self):
+        snapshot = {
+            "key": (2025, 1, "Race"),
+            "data": {
+                "session_info": {"event_name": "Australian Grand Prix"},
+                "validation": {"passed": True},
+                "leaderboard": [{"driver": "Lando Norris"}],
+                "session": object(),
+                "laps": pd.DataFrame({"LapNumber": [1]}),
+            },
+            "analysis": {"race_summary": {"winner": "Lando Norris"}},
+            "session_category": "race",
+            "error": None,
+            "updated_at": 1.0,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cache_path = os.path.join(directory, "warm-cache.pkl")
+            with patch("app._warm_cache_file", cache_path):
+                _write_warm_cache_snapshot(snapshot)
+                restored = _read_warm_cache_snapshot()
+
+        self.assertEqual(restored["key"], (2025, 1, "Race"))
+        self.assertEqual(restored["data"]["leaderboard"], [{"driver": "Lando Norris"}])
+        self.assertNotIn("session", restored["data"])
+        self.assertNotIn("laps", restored["data"])
+
     def test_startup_prewarm_resolves_the_latest_completed_session(self):
         with patch("app._start_latest_warmup") as start_latest_warmup:
             _prewarm_latest_completed_race()
