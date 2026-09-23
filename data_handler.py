@@ -23,6 +23,7 @@ import logging
 import os
 import tempfile
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import fastf1
 import pandas as pd
@@ -189,6 +190,7 @@ def get_latest_session_info():
 # requests within the same Render wake cycle don't re-download.
 _session_cache = {}
 _session_cache_lock = threading.RLock()
+_session_load_locks = {}
 
 SUPPORTED_SESSION_TYPES = (
     "Practice 1",
@@ -264,33 +266,73 @@ def load_session(year, round_number, session_type, include_laps=True):
         logger.info("Returning cached session for %s", cache_key)
         return cached_session
 
-    logger.info("Loading session: %d Round %d %s …", year, round_number, session_type)
-
-    # Map friendly names to FastF1's expected identifiers
-    session_map = {
-        "Race": "R",
-        "Qualifying": "Q",
-        "Sprint Qualifying": "SQ",
-        "Sprint": "S",
-        "Practice": "FP1",
-        "Practice 1": "FP1",
-        "Practice 2": "FP2",
-        "Practice 3": "FP3",
-    }
-    identifier = session_map.get(session_type, session_type)
-
-    session = fastf1.get_session(year, round_number, identifier)
-    session.load(
-        laps=include_laps,
-        telemetry=False,   # skip heavy telemetry to stay within memory
-        weather=False,
-        messages=False,
-    )
-
-    laps = session.laps if include_laps else pd.DataFrame()
     with _session_cache_lock:
-        _session_cache[cache_key] = (session, laps)
-    return session, laps
+        session_lock = _session_load_locks.setdefault(cache_key, threading.Lock())
+
+    # Several pages can ask for the same completed session while warming. A
+    # per-session lock means one FastF1 request is shared instead of repeated.
+    with session_lock:
+        with _session_cache_lock:
+            cached_session = _session_cache.get(cache_key)
+        if cached_session is not None:
+            logger.info("Returning cached session for %s", cache_key)
+            return cached_session
+
+        logger.info("Loading session: %d Round %d %s …", year, round_number, session_type)
+
+        # Map friendly names to FastF1's expected identifiers
+        session_map = {
+            "Race": "R",
+            "Qualifying": "Q",
+            "Sprint Qualifying": "SQ",
+            "Sprint": "S",
+            "Practice": "FP1",
+            "Practice 1": "FP1",
+            "Practice 2": "FP2",
+            "Practice 3": "FP3",
+        }
+        identifier = session_map.get(session_type, session_type)
+
+        session = fastf1.get_session(year, round_number, identifier)
+        session.load(
+            laps=include_laps,
+            telemetry=False,   # skip heavy telemetry to stay within memory
+            weather=False,
+            messages=False,
+        )
+
+        laps = session.laps if include_laps else pd.DataFrame()
+        with _session_cache_lock:
+            _session_cache[cache_key] = (session, laps)
+        return session, laps
+
+
+def load_sessions_concurrently(session_requests, max_workers=3):
+    """Load independent completed sessions concurrently without losing errors.
+
+    ``session_requests`` contains ``(year, round, session_type, include_laps)``
+    tuples. The returned mapping keeps each request's result or exception so
+    callers can safely withhold only the unavailable session.
+    """
+    requests = list(dict.fromkeys(session_requests))
+    if not requests:
+        return {}
+
+    workers = min(max(int(max_workers), 1), len(requests))
+    loaded = {}
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="fastf1-result") as executor:
+        futures = {
+            executor.submit(load_session, year, round_number, session_type, include_laps): request_key
+            for request_key in requests
+            for year, round_number, session_type, include_laps in [request_key]
+        }
+        for future in as_completed(futures):
+            request_key = futures[future]
+            try:
+                loaded[request_key] = future.result()
+            except Exception as exc:
+                loaded[request_key] = exc
+    return loaded
 
 
 # ---------------------------------------------------------------------------

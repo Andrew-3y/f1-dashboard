@@ -7,7 +7,7 @@ import unicodedata
 import fastf1
 import pandas as pd
 
-from data_handler import load_session
+from data_handler import load_sessions_concurrently
 
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ def _result_summary(session, position=1):
 def _recent_history(year, event_name, limit=3):
     """Build official race-winner and pole history for the same Grand Prix."""
     target = _normalize_name(event_name)
-    history = []
+    candidates = []
 
     for attempt_year in range(year, max(2018, year - 5), -1):
         try:
@@ -122,35 +122,44 @@ def _recent_history(year, event_name, limit=3):
             if not round_number:
                 continue
 
-            winner = {}
-            pole = {}
-            try:
-                race_session, _ = load_session(
-                    attempt_year, round_number, "Race", include_laps=False
-                )
-                winner = _result_summary(race_session)
-            except Exception as exc:
-                logger.info("Skipping race history for %s round %s: %s", attempt_year, round_number, exc)
+            candidates.append((attempt_year, round_number))
+            break
 
-            try:
-                qualifying_session, _ = load_session(
-                    attempt_year, round_number, "Qualifying", include_laps=False
-                )
-                pole = _result_summary(qualifying_session)
-            except Exception as exc:
-                logger.info("Skipping qualifying history for %s round %s: %s", attempt_year, round_number, exc)
+        if len(candidates) >= limit:
+            break
 
-            history.append(
-                {
-                    "year": attempt_year,
-                    "winner": winner.get("driver", "-"),
-                    "winning_team": winner.get("team", "-"),
-                    "pole_sitter": pole.get("driver", "-"),
-                    "pole_team": pole.get("team", "-"),
-                }
-            )
-            if len(history) >= limit:
-                return history
+    result_sessions = load_sessions_concurrently(
+        [
+            (attempt_year, round_number, session_type, False)
+            for attempt_year, round_number in candidates
+            for session_type in ("Race", "Qualifying")
+        ]
+    )
+    history = []
+    for attempt_year, round_number in candidates:
+        winner = {}
+        pole = {}
+        race_result = result_sessions[(attempt_year, round_number, "Race", False)]
+        if isinstance(race_result, Exception):
+            logger.info("Skipping race history for %s round %s: %s", attempt_year, round_number, race_result)
+        else:
+            winner = _result_summary(race_result[0])
+
+        qualifying_result = result_sessions[(attempt_year, round_number, "Qualifying", False)]
+        if isinstance(qualifying_result, Exception):
+            logger.info("Skipping qualifying history for %s round %s: %s", attempt_year, round_number, qualifying_result)
+        else:
+            pole = _result_summary(qualifying_result[0])
+
+        history.append(
+            {
+                "year": attempt_year,
+                "winner": winner.get("driver", "-"),
+                "winning_team": winner.get("team", "-"),
+                "pole_sitter": pole.get("driver", "-"),
+                "pole_team": pole.get("team", "-"),
+            }
+        )
 
     return history
 

@@ -7,7 +7,7 @@ from statistics import mean
 import fastf1
 import pandas as pd
 
-from data_handler import load_session
+from data_handler import load_sessions_concurrently
 
 
 logger = logging.getLogger(__name__)
@@ -411,26 +411,31 @@ def build_season_form(year, window=5):
     # The view is explicitly labelled "Last N rounds". Loading twice that
     # sample then discarding half of it made first visits needlessly slow.
     rounds_to_load = completed_rounds[-window:]
+    result_sessions = load_sessions_concurrently(
+        [
+            (year, event["round_number"], session_type, False)
+            for event in rounds_to_load
+            for session_type in ("Qualifying", "Race")
+        ]
+    )
     snapshots = []
     for event in rounds_to_load:
         qualifying_rows = []
         race_rows = []
 
-        try:
-            qualifying_session, _ = load_session(
-                year, event["round_number"], "Qualifying", include_laps=False
-            )
+        qualifying_result = result_sessions[(year, event["round_number"], "Qualifying", False)]
+        if isinstance(qualifying_result, Exception):
+            logger.info("Skipping qualifying results for round %s: %s", event["round_number"], qualifying_result)
+        else:
+            qualifying_session, _ = qualifying_result
             qualifying_rows = _session_results_rows(qualifying_session)
-        except Exception as exc:
-            logger.info("Skipping qualifying results for round %s: %s", event["round_number"], exc)
 
-        try:
-            race_session, _ = load_session(
-                year, event["round_number"], "Race", include_laps=False
-            )
+        race_result = result_sessions[(year, event["round_number"], "Race", False)]
+        if isinstance(race_result, Exception):
+            logger.info("Skipping race results for round %s: %s", event["round_number"], race_result)
+        else:
+            race_session, _ = race_result
             race_rows = _session_results_rows(race_session)
-        except Exception as exc:
-            logger.info("Skipping race results for round %s: %s", event["round_number"], exc)
 
         if not qualifying_rows and not race_rows:
             continue

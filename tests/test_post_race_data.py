@@ -21,6 +21,7 @@ from data_handler import (
     _build_quali_leaderboard,
     _session_is_safely_complete,
     build_leaderboard,
+    load_sessions_concurrently,
     load_session,
     normalize_session_type,
     validate_session_data,
@@ -164,19 +165,25 @@ class PostRaceDataTests(unittest.TestCase):
             for number in range(1, 7)
         ]
         empty_session = type("Session", (), {"results": pd.DataFrame()})()
+        def result_only_loader(requests):
+            return {request: (empty_session, pd.DataFrame()) for request in requests}
+
         with patch("driver_intel._completed_rounds", return_value=rounds), patch(
-            "driver_intel.load_session", return_value=(empty_session, pd.DataFrame())
-        ) as load_session_mock:
+            "driver_intel.load_sessions_concurrently", side_effect=result_only_loader
+        ) as load_sessions_mock:
             completed, snapshots = _build_round_snapshots(2025, window=3)
 
         self.assertEqual(completed, rounds)
         self.assertEqual(snapshots, [])
-        self.assertEqual(load_session_mock.call_count, 6)
+        self.assertEqual(load_sessions_mock.call_count, 1)
         self.assertEqual(
-            [call.args[1] for call in load_session_mock.call_args_list],
-            [4, 4, 5, 5, 6, 6],
+            load_sessions_mock.call_args.args[0],
+            [
+                (2025, 4, "Qualifying", False), (2025, 4, "Race", False),
+                (2025, 5, "Qualifying", False), (2025, 5, "Race", False),
+                (2025, 6, "Qualifying", False), (2025, 6, "Race", False),
+            ],
         )
-        self.assertTrue(all(call.kwargs["include_laps"] is False for call in load_session_mock.call_args_list))
 
     def test_secondary_templates_render_without_subjective_metrics(self):
         season = empty_season_form()
@@ -270,6 +277,23 @@ class PostRaceDataTests(unittest.TestCase):
             self.assertFalse(data_handler.is_session_cached(2025, 1, "Race", include_laps=True))
         finally:
             data_handler._session_cache.clear()
+
+    def test_parallel_result_loader_keeps_each_session_result_or_error(self):
+        requests = [
+            (2025, 1, "Race", False),
+            (2025, 2, "Qualifying", False),
+        ]
+
+        def fake_loader(year, round_number, session_type, include_laps):
+            if round_number == 2:
+                raise RuntimeError("timing unavailable")
+            return ("session", pd.DataFrame())
+
+        with patch("data_handler.load_session", side_effect=fake_loader):
+            loaded = load_sessions_concurrently(requests, max_workers=2)
+
+        self.assertEqual(loaded[requests[0]][0], "session")
+        self.assertIsInstance(loaded[requests[1]], RuntimeError)
 
     def test_schedule_lookup_never_uses_ergast_to_reject_a_sprint_session(self):
         sprint_schedule = pd.DataFrame({"RoundNumber": [7], "Session1": ["Sprint"], "Session1DateUtc": [pd.Timestamp("2021-07-17", tz="UTC")]})
