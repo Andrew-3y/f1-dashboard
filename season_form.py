@@ -408,20 +408,26 @@ def build_season_form(year, window=5):
     if cache_key in _season_cache:
         return _season_cache[cache_key]
 
-    rounds_to_load = completed_rounds[-(window * 2):]
+    # The view is explicitly labelled "Last N rounds". Loading twice that
+    # sample then discarding half of it made first visits needlessly slow.
+    rounds_to_load = completed_rounds[-window:]
     snapshots = []
     for event in rounds_to_load:
         qualifying_rows = []
         race_rows = []
 
         try:
-            qualifying_session, _ = load_session(year, event["round_number"], "Qualifying")
+            qualifying_session, _ = load_session(
+                year, event["round_number"], "Qualifying", include_laps=False
+            )
             qualifying_rows = _session_results_rows(qualifying_session)
         except Exception as exc:
             logger.info("Skipping qualifying results for round %s: %s", event["round_number"], exc)
 
         try:
-            race_session, _ = load_session(year, event["round_number"], "Race")
+            race_session, _ = load_session(
+                year, event["round_number"], "Race", include_laps=False
+            )
             race_rows = _session_results_rows(race_session)
         except Exception as exc:
             logger.info("Skipping race results for round %s: %s", event["round_number"], exc)
@@ -501,3 +507,17 @@ def build_season_form(year, window=5):
 
     _season_cache[cache_key] = payload
     return payload
+
+
+def get_cached_season_form(year, window=5):
+    """Return a previously built season view without reloading sessions."""
+    window = max(3, min(int(window or 5), 8))
+    matching = [
+        (key, payload)
+        for key, payload in _season_cache.items()
+        if key[0] == int(year) and key[1] == window
+    ]
+    if not matching:
+        return None
+    # A larger completed-round key is always the fresher snapshot.
+    return max(matching, key=lambda item: item[0][2])[1]

@@ -153,7 +153,10 @@ def _build_round_snapshots(year, window):
     if not completed_rounds:
         return completed_rounds, []
 
-    rounds_to_load = completed_rounds[-(window * 2):]
+    # Keep the data sample aligned with the user-selected window. The former
+    # two-window load was discarded during aggregation and doubled cold-load
+    # time without adding any displayed information.
+    rounds_to_load = completed_rounds[-window:]
     snapshots = []
 
     for event in rounds_to_load:
@@ -161,13 +164,17 @@ def _build_round_snapshots(year, window):
         race_rows = []
 
         try:
-            qualifying_session, _ = load_session(year, event["round_number"], "Qualifying")
+            qualifying_session, _ = load_session(
+                year, event["round_number"], "Qualifying", include_laps=False
+            )
             qualifying_rows = _session_results_rows(qualifying_session)
         except Exception as exc:
             logger.info("Skipping driver-intel qualifying for round %s: %s", event["round_number"], exc)
 
         try:
-            race_session, _ = load_session(year, event["round_number"], "Race")
+            race_session, _ = load_session(
+                year, event["round_number"], "Race", include_laps=False
+            )
             race_rows = _session_results_rows(race_session)
         except Exception as exc:
             logger.info("Skipping driver-intel race for round %s: %s", event["round_number"], exc)
@@ -445,3 +452,10 @@ def build_driver_intelligence(year, driver=None, window=5):
 
     _driver_cache[cache_key] = payload
     return payload
+
+
+def get_cached_driver_intelligence(year, driver=None, window=5):
+    """Return an already-built driver view without triggering FastF1 work."""
+    window = max(3, min(int(window or 5), 8))
+    normalized_driver = str(driver).strip().upper() if driver else ""
+    return _driver_cache.get((int(year), normalized_driver, window))

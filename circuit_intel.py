@@ -125,13 +125,17 @@ def _recent_history(year, event_name, limit=3):
             winner = {}
             pole = {}
             try:
-                race_session, _ = load_session(attempt_year, round_number, "Race")
+                race_session, _ = load_session(
+                    attempt_year, round_number, "Race", include_laps=False
+                )
                 winner = _result_summary(race_session)
             except Exception as exc:
                 logger.info("Skipping race history for %s round %s: %s", attempt_year, round_number, exc)
 
             try:
-                qualifying_session, _ = load_session(attempt_year, round_number, "Qualifying")
+                qualifying_session, _ = load_session(
+                    attempt_year, round_number, "Qualifying", include_laps=False
+                )
                 pole = _result_summary(qualifying_session)
             except Exception as exc:
                 logger.info("Skipping qualifying history for %s round %s: %s", attempt_year, round_number, exc)
@@ -174,3 +178,11 @@ def build_circuit_intelligence(year, round_number):
 
     _circuit_cache[cache_key] = payload
     return payload
+
+
+def get_cached_circuit_intelligence(year, round_number):
+    """Return a previously built circuit view without another schedule lookup."""
+    for (cached_year, cached_round, _), payload in _circuit_cache.items():
+        if cached_year == int(year) and cached_round == int(round_number):
+            return payload
+    return None

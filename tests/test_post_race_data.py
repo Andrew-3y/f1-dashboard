@@ -11,6 +11,8 @@ from app import (
     _build_race_progression,
     _build_race_story,
     _build_strategy_rows,
+    _build_teammate_battles,
+    _prewarm_latest_completed_race,
     _build_session_summary,
     _is_retirement,
     _session_category,
@@ -24,11 +26,17 @@ from data_handler import (
     validate_session_data,
 )
 import data_handler
-from driver_intel import _aggregate_driver_entries, _summarize_drivers, empty_driver_intelligence
+from driver_intel import _aggregate_driver_entries, _build_round_snapshots, _summarize_drivers, empty_driver_intelligence
 from season_form import _driver_form_rows, _team_form_rows, empty_season_form
 
 
 class PostRaceDataTests(unittest.TestCase):
+    def test_startup_prewarm_uses_the_existing_dashboard_warmup_path(self):
+        with patch("app._start_warmup") as start_warmup:
+            _prewarm_latest_completed_race()
+
+        start_warmup.assert_called_once_with(None, None, None)
+
     def test_api_returns_422_when_integrity_checks_withhold_a_session(self):
         with patch(
             "app.get_dashboard_data",
@@ -99,6 +107,20 @@ class PostRaceDataTests(unittest.TestCase):
         ]
         self.assertEqual(_build_close_finishes(rows), [{"ahead_driver": "AAA", "ahead_position": 1, "behind_driver": "BBB", "behind_position": 2, "margin_seconds": 0.902, "margin_display": "0.902s"}])
 
+    def test_teammate_battles_use_only_the_selected_race_classification(self):
+        rows = [
+            {"team": "Alpha", "driver": "AAA", "position": 3, "grid_position": 5, "positions_gained": 2, "points": 15},
+            {"team": "Alpha", "driver": "BBB", "position": 7, "grid_position": 4, "positions_gained": -3, "points": 6},
+            {"team": "Solo", "driver": "CCC", "position": 9, "grid_position": 9, "positions_gained": 0, "points": 2},
+        ]
+
+        battles = _build_teammate_battles(rows)
+
+        self.assertEqual(len(battles), 1)
+        self.assertEqual(battles[0]["team"], "Alpha")
+        self.assertEqual(battles[0]["first"]["driver"], "AAA")
+        self.assertEqual(battles[0]["winner"], "AAA")
+
     def test_season_rows_rank_by_actual_window_points(self):
         snapshots = [
             {
@@ -135,6 +157,26 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual(summaries[0]["avg_gain"], 1)
         self.assertNotIn("form_index", summaries[0])
         self.assertNotIn("consistency", summaries[0])
+
+    def test_driver_snapshot_loader_uses_exactly_the_selected_round_window(self):
+        rounds = [
+            {"round_number": number, "event_name": f"Round {number}"}
+            for number in range(1, 7)
+        ]
+        empty_session = type("Session", (), {"results": pd.DataFrame()})()
+        with patch("driver_intel._completed_rounds", return_value=rounds), patch(
+            "driver_intel.load_session", return_value=(empty_session, pd.DataFrame())
+        ) as load_session_mock:
+            completed, snapshots = _build_round_snapshots(2025, window=3)
+
+        self.assertEqual(completed, rounds)
+        self.assertEqual(snapshots, [])
+        self.assertEqual(load_session_mock.call_count, 6)
+        self.assertEqual(
+            [call.args[1] for call in load_session_mock.call_args_list],
+            [4, 4, 5, 5, 6, 6],
+        )
+        self.assertTrue(all(call.kwargs["include_laps"] is False for call in load_session_mock.call_args_list))
 
     def test_secondary_templates_render_without_subjective_metrics(self):
         season = empty_season_form()
@@ -204,6 +246,28 @@ class PostRaceDataTests(unittest.TestCase):
                     load_session(2025, index, session_type)
                     self.assertEqual(get_session.call_args.args, (2025, index, identifier))
                 self.assertEqual(get_session.call_count, len(expected_identifiers))
+        finally:
+            data_handler._session_cache.clear()
+
+    def test_result_only_session_load_skips_lap_timing_download(self):
+        fake_session = type(
+            "Session",
+            (),
+            {
+                "laps": pd.DataFrame({"LapTime": [pd.Timedelta(seconds=80)]}),
+                "load": lambda self, **kwargs: self.load_kwargs.update(kwargs),
+                "load_kwargs": {},
+            },
+        )()
+        data_handler._session_cache.clear()
+        try:
+            with patch("data_handler.fastf1.get_session", return_value=fake_session):
+                _, laps = load_session(2025, 1, "Race", include_laps=False)
+
+            self.assertFalse(fake_session.load_kwargs["laps"])
+            self.assertTrue(laps.empty)
+            self.assertTrue(data_handler.is_session_cached(2025, 1, "Race", include_laps=False))
+            self.assertFalse(data_handler.is_session_cached(2025, 1, "Race", include_laps=True))
         finally:
             data_handler._session_cache.clear()
 

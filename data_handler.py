@@ -22,6 +22,7 @@ import datetime
 import logging
 import os
 import tempfile
+import threading
 
 import fastf1
 import pandas as pd
@@ -187,6 +188,7 @@ def get_latest_session_info():
 # We cache the last result in a module-level dict so that multiple
 # requests within the same Render wake cycle don't re-download.
 _session_cache = {}
+_session_cache_lock = threading.RLock()
 
 SUPPORTED_SESSION_TYPES = (
     "Practice 1",
@@ -223,7 +225,14 @@ def normalize_session_type(session_type):
     return aliases.get(normalized)
 
 
-def load_session(year, round_number, session_type):
+def is_session_cached(year, round_number, session_type, include_laps=True):
+    """Return whether a completed session is already resident in memory."""
+    normalized = normalize_session_type(session_type) or session_type
+    with _session_cache_lock:
+        return (year, round_number, normalized, bool(include_laps)) in _session_cache
+
+
+def load_session(year, round_number, session_type, include_laps=True):
     """
     Load a FastF1 session and return its lap data as a DataFrame.
 
@@ -232,6 +241,10 @@ def load_session(year, round_number, session_type):
     year : int
     round_number : int
     session_type : str   ('Race', 'Qualifying', 'Sprint', etc.)
+    include_laps : bool
+        Load lap-by-lap timing only when the caller needs it. Result-only
+        pages use the official classification without downloading this much
+        larger dataset.
 
     Returns
     -------
@@ -244,10 +257,12 @@ def load_session(year, round_number, session_type):
     - Subsequent calls with the same arguments return instantly from cache.
     """
     session_type = normalize_session_type(session_type) or session_type
-    cache_key = (year, round_number, session_type)
-    if cache_key in _session_cache:
+    cache_key = (year, round_number, session_type, bool(include_laps))
+    with _session_cache_lock:
+        cached_session = _session_cache.get(cache_key)
+    if cached_session is not None:
         logger.info("Returning cached session for %s", cache_key)
-        return _session_cache[cache_key]
+        return cached_session
 
     logger.info("Loading session: %d Round %d %s …", year, round_number, session_type)
 
@@ -266,13 +281,15 @@ def load_session(year, round_number, session_type):
 
     session = fastf1.get_session(year, round_number, identifier)
     session.load(
+        laps=include_laps,
         telemetry=False,   # skip heavy telemetry to stay within memory
         weather=False,
         messages=False,
     )
 
-    laps = session.laps
-    _session_cache[cache_key] = (session, laps)
+    laps = session.laps if include_laps else pd.DataFrame()
+    with _session_cache_lock:
+        _session_cache[cache_key] = (session, laps)
     return session, laps
 
 

@@ -22,9 +22,14 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    # The FastF1 and page-warmup caches are in-process. One threaded worker
+    # keeps them shared across reloads, unlike multiple worker processes that
+    # repeatedly warm the same session in separate memory spaces.
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --worker-class gthread --timeout 120
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
       - key: FASTF1_CACHE
         value: /tmp/fastf1_cache
+      - key: PREWARM_LATEST_SESSION
+        value: "true"

@@ -30,10 +30,10 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.exceptions import HTTPException
 
 # Our custom modules
-from data_handler import get_dashboard_data, get_latest_session_info, normalize_session_type
-from season_form import build_season_form, empty_season_form
-from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence
-from driver_intel import build_driver_intelligence, empty_driver_intelligence
+from data_handler import get_dashboard_data, get_latest_session_info, is_session_cached, normalize_session_type
+from season_form import build_season_form, empty_season_form, get_cached_season_form
+from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence, get_cached_circuit_intelligence
+from driver_intel import build_driver_intelligence, empty_driver_intelligence, get_cached_driver_intelligence
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -469,6 +469,7 @@ def _run_race_analysis(leaderboard=None, session=None, laps=None):
         "strategy_rows": strategy_rows,
         "race_progression": _build_race_progression(leaderboard, laps=laps),
         "close_finishes": _build_close_finishes(leaderboard),
+        "teammate_battles": _build_teammate_battles(leaderboard),
     }
 
 
@@ -745,6 +746,34 @@ def _build_close_finishes(leaderboard, limit=3):
     return sorted(close_finishes, key=lambda item: item["margin_seconds"])[:limit]
 
 
+def _build_teammate_battles(leaderboard):
+    """Pair each team's two classified drivers for the selected race only."""
+    teams = {}
+    for row in leaderboard or []:
+        team = row.get("team")
+        driver = row.get("driver")
+        position = row.get("position")
+        if not team or not driver or position is None:
+            continue
+        teams.setdefault(str(team), []).append(row)
+
+    battles = []
+    for team, drivers in teams.items():
+        if len(drivers) != 2:
+            continue
+        first, second = sorted(drivers, key=lambda row: row["position"])
+        battles.append(
+            {
+                "team": team,
+                "first": first,
+                "second": second,
+                "winner": first.get("driver", "—"),
+            }
+        )
+
+    return sorted(battles, key=lambda battle: battle["team"])
+
+
 def _build_post_race_summary(leaderboard):
     """Create headline facts from the official completed-race classification."""
     rows = leaderboard or []
@@ -786,6 +815,7 @@ def _empty_race():
         "strategy_rows": [],
         "race_progression": {"total_laps": 0, "max_position": 1, "drivers": []},
         "close_finishes": [],
+        "teammate_battles": [],
     }
 
 
@@ -830,6 +860,28 @@ def index():
             leaderboard=warm_state["data"]["leaderboard"],
             load_time=0,
             **warm_state["analysis"],
+        )
+
+    # A session already in FastF1's in-memory cache can be rendered directly.
+    # Previously it still went through the background warmup screen and its
+    # fixed retry delay even though no network fetch was needed.
+    if year and round_num and session_type and is_session_cached(year, round_num, session_type):
+        data = get_dashboard_data(year, round_num, session_type)
+        if data.get("error"):
+            return _render_dashboard(session_category=_session_category(session_type), error=data["error"])
+        session_category = _session_category(data["session_info"].get("session_type"))
+        analysis = (
+            _run_race_analysis(data.get("leaderboard"), session=data.get("session"), laps=data.get("laps"))
+            if session_category == "race"
+            else {"session_summary": _build_session_summary(data.get("leaderboard"))}
+        )
+        return _render_dashboard(
+            session_info=data["session_info"],
+            session_category=session_category,
+            validation=data.get("validation"),
+            leaderboard=data["leaderboard"],
+            load_time=0,
+            **analysis,
         )
 
     # Cold-start warmup path for both auto-detected and explicit requests.
@@ -931,6 +983,10 @@ def season_view():
     if warm_state["key"] == requested_key and warm_state["error"]:
         return _render_season_page(year=year, window=window, error=warm_state["error"], status_code=500)
 
+    cached_season = get_cached_season_form(year, window)
+    if cached_season is not None:
+        return _render_season_page(cached_season, year=year, window=window)
+
     if not warm_state["in_progress"] or warm_state["key"] != requested_key:
         _start_season_warmup(year, window)
 
@@ -970,6 +1026,10 @@ def circuit_view():
 
     if warm_state["key"] == requested_key and warm_state["error"]:
         return _render_circuit_page(year=year, round_num=round_num, error=warm_state["error"], status_code=500)
+
+    cached_circuit = get_cached_circuit_intelligence(year, round_num)
+    if cached_circuit is not None:
+        return _render_circuit_page(cached_circuit, year=year, round_num=round_num)
 
     if not warm_state["in_progress"] or warm_state["key"] != requested_key:
         _start_circuit_warmup(year, round_num)
@@ -1014,6 +1074,11 @@ def driver_view():
     if warm_state["key"] == requested_key and warm_state["error"]:
         return _render_driver_page(year=year, driver=driver, window=window, error=warm_state["error"], status_code=500)
 
+    cached_driver = get_cached_driver_intelligence(year, driver, window)
+    if cached_driver is not None:
+        loaded_driver = driver or cached_driver.get("meta", {}).get("driver")
+        return _render_driver_page(cached_driver, year=year, driver=loaded_driver, window=window)
+
     if not warm_state["in_progress"] or warm_state["key"] != requested_key:
         _start_driver_warmup(year, driver, window)
 
@@ -1035,6 +1100,22 @@ def health():
     Simple health check.  Render pings this to verify the app is running.
     """
     return jsonify({"status": "ok"}), 200
+
+
+def _prewarm_latest_completed_race():
+    """Start the latest-race fetch during service startup when enabled.
+
+    This is deliberately opt-in so local development and the test suite do
+    not make network calls merely by importing the Flask application.
+    """
+    try:
+        _start_warmup(None, None, None)
+    except Exception as exc:
+        logger.info("Startup prewarm could not begin: %s", exc)
+
+
+if os.environ.get("PREWARM_LATEST_SESSION", "").strip().lower() == "true":
+    _prewarm_latest_completed_race()
 
 
 # ---------------------------------------------------------------------------

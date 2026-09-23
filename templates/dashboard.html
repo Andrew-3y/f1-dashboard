@@ -382,7 +382,7 @@
             <h2>Loading session data</h2>
             <p>The completed session is being loaded. This page will retry automatically.</p>
             <div class="error-detail">{{ error.replace('WARMUP: ', '') }}</div>
-            <script>setTimeout(function () { location.reload(); }, 12000);</script>
+            <script>setTimeout(function () { location.reload(); }, 3000);</script>
             {% else %}
             <h2>Dashboard unavailable</h2>
             <p>Choose a completed session whose timing data has been published.</p>
@@ -505,6 +505,38 @@
                 </div>
                 {% else %}
                 <div class="empty">No comparable final-time gaps are available.</div>
+                {% endif %}
+            </div>
+        </section>
+
+        <div class="section-title">Team-mate Battles</div>
+        <section class="card">
+            <div class="card-header"><h2>Final Classification Head-to-Heads</h2><span class="badge">Official result</span></div>
+            <div class="card-body">
+                {% if teammate_battles %}
+                <table class="teammate-table">
+                    <thead><tr><th>Team</th><th>Driver</th><th>Grid</th><th>Finish</th><th>Change</th><th>Points</th><th>Driver</th><th>Grid</th><th>Finish</th><th>Change</th><th>Points</th><th>Higher Finisher</th></tr></thead>
+                    <tbody>
+                    {% for battle in teammate_battles %}
+                    <tr>
+                        <td class="team">{{ battle.team }}</td>
+                        <td class="driver">{{ battle.first.driver }}</td>
+                        <td>{% if battle.first.grid_position is not none and battle.first.grid_position > 0 %}P{{ battle.first.grid_position }}{% else %}Pit lane{% endif %}</td>
+                        <td class="position position-{{ battle.first.position }}">P{{ battle.first.position }}</td>
+                        <td>{% if battle.first.positions_gained is none %}<span class="muted">—</span>{% elif battle.first.positions_gained > 0 %}<span class="gain">+{{ battle.first.positions_gained }}</span>{% elif battle.first.positions_gained < 0 %}<span class="loss">{{ battle.first.positions_gained }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+                        <td class="metric">{{ battle.first.points }}</td>
+                        <td class="driver">{{ battle.second.driver }}</td>
+                        <td>{% if battle.second.grid_position is not none and battle.second.grid_position > 0 %}P{{ battle.second.grid_position }}{% else %}Pit lane{% endif %}</td>
+                        <td class="position position-{{ battle.second.position }}">P{{ battle.second.position }}</td>
+                        <td>{% if battle.second.positions_gained is none %}<span class="muted">—</span>{% elif battle.second.positions_gained > 0 %}<span class="gain">+{{ battle.second.positions_gained }}</span>{% elif battle.second.positions_gained < 0 %}<span class="loss">{{ battle.second.positions_gained }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+                        <td class="metric">{{ battle.second.points }}</td>
+                        <td class="driver">{{ battle.winner }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty">No complete two-driver team pair is available in this final classification.</div>
                 {% endif %}
             </div>
         </section>
