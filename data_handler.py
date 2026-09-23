@@ -44,6 +44,11 @@ _schedule_cache = {}
 _schedule_cache_lock = threading.Lock()
 
 
+def _schedule_cache_file(year):
+    """Return the small cross-process cache location for one season schedule."""
+    return os.path.join(tempfile.gettempdir(), f"f1-dashboard-schedule-{int(year)}.pkl")
+
+
 def _get_session_schedule(year):
     """Return sprint-aware schedule metadata, or ``None`` when unavailable.
 
@@ -80,9 +85,28 @@ def get_event_schedule(year):
         if cached is not None:
             return cached
 
+        cache_file = _schedule_cache_file(year)
+        try:
+            schedule = pd.read_pickle(cache_file)
+            if schedule is not None and not schedule.empty:
+                _schedule_cache[year] = schedule
+                return schedule
+        except (OSError, EOFError, ValueError):
+            pass
+
         schedule = _get_session_schedule(year)
         if schedule is not None and not schedule.empty:
             _schedule_cache[year] = schedule
+            temporary_path = f"{cache_file}.{os.getpid()}.{threading.get_ident()}.tmp"
+            try:
+                schedule.to_pickle(temporary_path)
+                os.replace(temporary_path, cache_file)
+            except OSError:
+                logger.exception("Unable to persist the %s season schedule", year)
+                try:
+                    os.remove(temporary_path)
+                except OSError:
+                    pass
         return schedule
 os.makedirs(CACHE_DIR, exist_ok=True)
 fastf1.Cache.enable_cache(CACHE_DIR)
