@@ -80,6 +80,23 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual(restored["data"], snapshot["data"])
         self.assertFalse(restored["in_progress"])
 
+    def test_in_progress_secondary_warm_cache_prevents_duplicate_builds(self):
+        snapshot = {
+            "key": (2026, 3),
+            "data": None,
+            "error": None,
+            "in_progress": True,
+            "updated_at": 1.0,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cache_path = os.path.join(directory, "analysis-cache.pkl")
+            _write_analysis_cache_snapshot(cache_path, snapshot)
+            restored = _read_analysis_cache_snapshot(cache_path)
+
+        self.assertEqual(restored["key"], (2026, 3))
+        self.assertIsNone(restored["data"])
+        self.assertTrue(restored["in_progress"])
+
     def test_startup_prewarm_resolves_the_latest_completed_session(self):
         with patch("app._start_latest_warmup") as start_latest_warmup:
             _prewarm_latest_completed_race()

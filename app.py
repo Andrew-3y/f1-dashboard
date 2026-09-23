@@ -208,13 +208,16 @@ _driver_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-driv
 
 
 def _write_analysis_cache_snapshot(cache_file, snapshot):
-    """Persist a completed secondary-page warmup for another request worker."""
-    if snapshot.get("data") is None and not snapshot.get("error"):
-        return
+    """Persist a secondary-page warmup state for another request worker.
 
+    The in-progress state matters as much as the finished result here.  A
+    loading page refresh can be handled by a different Gunicorn process; if
+    that process cannot see the existing warmup, it starts another identical
+    FastF1 download every few seconds.
+    """
     payload = {
         key: snapshot.get(key)
-        for key in ("key", "data", "error", "updated_at")
+        for key in ("key", "data", "error", "in_progress", "updated_at")
     }
     temporary_path = f"{cache_file}.{os.getpid()}.{threading.get_ident()}.tmp"
     try:
@@ -240,7 +243,11 @@ def _read_analysis_cache_snapshot(cache_file):
     required = {"key", "data", "error", "updated_at"}
     if not isinstance(snapshot, dict) or not required.issubset(snapshot) or not snapshot["key"]:
         return None
-    snapshot["in_progress"] = False
+    snapshot["in_progress"] = (
+        bool(snapshot.get("in_progress", False))
+        and snapshot["data"] is None
+        and not snapshot["error"]
+    )
     return snapshot
 
 def _read_warm_cache():
@@ -436,6 +443,8 @@ def _start_season_warmup(year, window):
         _season_warm_cache["data"] = None
         _season_warm_cache["error"] = None
         _season_warm_cache["in_progress"] = True
+        started_snapshot = dict(_season_warm_cache)
+    _write_analysis_cache_snapshot(_season_warm_cache_file, started_snapshot)
 
     def _worker():
         try:
@@ -509,6 +518,8 @@ def _start_circuit_warmup(year, round_num):
         _circuit_warm_cache["data"] = None
         _circuit_warm_cache["error"] = None
         _circuit_warm_cache["in_progress"] = True
+        started_snapshot = dict(_circuit_warm_cache)
+    _write_analysis_cache_snapshot(_circuit_warm_cache_file, started_snapshot)
 
     def _worker():
         try:
@@ -579,6 +590,8 @@ def _start_driver_warmup(year, driver, window):
         _driver_warm_cache["data"] = None
         _driver_warm_cache["error"] = None
         _driver_warm_cache["in_progress"] = True
+        started_snapshot = dict(_driver_warm_cache)
+    _write_analysis_cache_snapshot(_driver_warm_cache_file, started_snapshot)
 
     def _worker():
         try:
