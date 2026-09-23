@@ -880,6 +880,15 @@ def index():
     warm_state = _read_warm_cache()
 
     auto_request = not (year and round_num and session_type)
+    logger.info(
+        "Dashboard request cache state: auto=%s key=%s cached_key=%s has_data=%s has_analysis=%s in_progress=%s",
+        auto_request,
+        requested_key,
+        warm_state["key"],
+        bool(warm_state["data"]),
+        bool(warm_state["analysis"]),
+        warm_state["in_progress"],
+    )
     if (auto_request or warm_state["key"] == requested_key) and warm_state["data"] and warm_state["analysis"]:
         if warm_state["error"]:
             return _render_dashboard(
