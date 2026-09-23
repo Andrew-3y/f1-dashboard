@@ -300,10 +300,13 @@ def load_session(year, round_number, session_type, include_laps=True):
             weather=False,
             messages=False,
         )
+        logger.info("FastF1 session load finished: %s", cache_key)
 
         laps = session.laps if include_laps else pd.DataFrame()
+        logger.info("FastF1 laps are ready: %s (%d rows)", cache_key, len(laps))
         with _session_cache_lock:
             _session_cache[cache_key] = (session, laps)
+        logger.info("Session saved to in-memory cache: %s", cache_key)
         return session, laps
 
 

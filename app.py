@@ -233,6 +233,7 @@ def _start_warmup(year, round_num, session_type):
     def _worker():
         try:
             data = get_dashboard_data(year, round_num, session_type)
+            logger.info("Dashboard data prepared for %s", (year, round_num, session_type))
             session_category = _session_category(data.get("session_info", {}).get("session_type"))
             if data.get("error"):
                 analysis = _base_dashboard_context()
@@ -244,6 +245,7 @@ def _start_warmup(year, round_num, session_type):
                 )
             else:
                 analysis = {"session_summary": _build_session_summary(data.get("leaderboard"))}
+            logger.info("Dashboard analysis prepared for %s", (year, round_num, session_type))
             with _warm_lock:
                 _warm_cache.update(
                     {
@@ -255,6 +257,7 @@ def _start_warmup(year, round_num, session_type):
                         "updated_at": time.time(),
                     }
                 )
+            logger.info("Dashboard warmup ready for %s", (year, round_num, session_type))
         except Exception as exc:
             logger.exception("Dashboard warmup failed for %s", (year, round_num, session_type))
             with _warm_lock:
