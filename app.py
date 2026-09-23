@@ -25,6 +25,7 @@ import threading
 import logging
 import html
 import datetime
+import math
 import pickle
 import tempfile
 import pandas as pd
@@ -48,6 +49,36 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def _json_safe(value):
+    """Return API data without FastF1/Pandas-only values.
+
+    The HTML views can use Pandas ``Timedelta`` values directly while the
+    JSON endpoint cannot.  ``best_lap_display`` is the public timing field,
+    so omit the internal raw ``best_lap`` object everywhere in the response.
+    """
+    if isinstance(value, dict):
+        return {
+            str(key): _json_safe(item)
+            for key, item in value.items()
+            if key != "best_lap"
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if value is None or value is pd.NA or value is pd.NaT:
+        return None
+    if isinstance(value, pd.Timedelta):
+        return str(value)
+    if isinstance(value, (pd.Timestamp, datetime.datetime, datetime.date, datetime.time)):
+        return value.isoformat()
+    if hasattr(value, "item") and not isinstance(value, (str, bytes, bytearray)):
+        native_value = value.item()
+        if native_value is not value:
+            return _json_safe(native_value)
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
 
 
 def _base_dashboard_context():
@@ -1131,17 +1162,16 @@ def api_data():
     elapsed = round(time.time() - start_time, 2)
 
     return jsonify(
-        {
-            "session_info": data["session_info"],
-            "session_category": session_category,
-            "validation": data.get("validation"),
-            "leaderboard": [
-                {k: v for k, v in d.items() if k != "best_lap"}
-                for d in data["leaderboard"]
-            ],
-            **{k: v for k, v in analysis.items()},
-            "load_time": elapsed,
-        }
+        _json_safe(
+            {
+                "session_info": data["session_info"],
+                "session_category": session_category,
+                "validation": data.get("validation"),
+                "leaderboard": data["leaderboard"],
+                **analysis,
+                "load_time": elapsed,
+            }
+        )
     )
 
 

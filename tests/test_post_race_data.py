@@ -115,6 +115,43 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.get_json()["error"], "Session data failed integrity checks: incomplete timing feed")
 
+    def test_api_serializes_teammate_rows_without_raw_timing_objects(self):
+        leaderboard = [
+            {
+                "position": 1,
+                "driver": "AAA",
+                "team": "Alpha",
+                "best_lap": pd.Timedelta(seconds=80),
+                "best_lap_display": "1:20.000",
+            }
+        ]
+        with patch(
+            "app.get_dashboard_data",
+            return_value={
+                "error": None,
+                "session_info": {"session_type": "Race"},
+                "validation": {"passed": True},
+                "leaderboard": leaderboard,
+                "session": None,
+                "laps": pd.DataFrame(),
+            },
+        ), patch(
+            "app._run_race_analysis",
+            return_value={
+                "teammate_battles": [
+                    {"first": leaderboard[0], "second": leaderboard[0]}
+                ]
+            },
+        ):
+            response = flask_app.test_client().get(
+                "/api/data?year=2025&round=1&session_type=Race"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertNotIn("best_lap", payload["leaderboard"][0])
+        self.assertNotIn("best_lap", payload["teammate_battles"][0]["first"])
+
     def test_retirement_detection_uses_result_status(self):
         self.assertTrue(_is_retirement("Accident"))
         self.assertTrue(_is_retirement("Engine"))
