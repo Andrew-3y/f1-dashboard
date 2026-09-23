@@ -184,6 +184,7 @@ _season_warm_cache = {
     "updated_at": None,
 }
 _season_warm_lock = threading.Lock()
+_season_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-season-warm-cache.pkl")
 
 _circuit_warm_cache = {
     "key": None,
@@ -193,6 +194,7 @@ _circuit_warm_cache = {
     "updated_at": None,
 }
 _circuit_warm_lock = threading.Lock()
+_circuit_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-circuit-warm-cache.pkl")
 
 _driver_warm_cache = {
     "key": None,
@@ -202,6 +204,44 @@ _driver_warm_cache = {
     "updated_at": None,
 }
 _driver_warm_lock = threading.Lock()
+_driver_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-driver-warm-cache.pkl")
+
+
+def _write_analysis_cache_snapshot(cache_file, snapshot):
+    """Persist a completed secondary-page warmup for another request worker."""
+    if snapshot.get("data") is None and not snapshot.get("error"):
+        return
+
+    payload = {
+        key: snapshot.get(key)
+        for key in ("key", "data", "error", "updated_at")
+    }
+    temporary_path = f"{cache_file}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        with open(temporary_path, "wb") as handle:
+            pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(temporary_path, cache_file)
+    except OSError:
+        logger.exception("Unable to persist an analysis warm cache")
+        try:
+            os.remove(temporary_path)
+        except OSError:
+            pass
+
+
+def _read_analysis_cache_snapshot(cache_file):
+    """Read a completed secondary-page warmup written by another worker."""
+    try:
+        with open(cache_file, "rb") as handle:
+            snapshot = pickle.load(handle)
+    except (OSError, EOFError, pickle.UnpicklingError):
+        return None
+
+    required = {"key", "data", "error", "updated_at"}
+    if not isinstance(snapshot, dict) or not required.issubset(snapshot) or not snapshot["key"]:
+        return None
+    snapshot["in_progress"] = False
+    return snapshot
 
 def _read_warm_cache():
     """Return a snapshot of the warm cache."""
@@ -380,6 +420,12 @@ def _read_season_warm_cache():
         }
 
 
+def _read_available_season_warm_cache():
+    """Return local season data or a completed warmup from another worker."""
+    warm_state = _read_season_warm_cache()
+    return warm_state if warm_state["data"] is not None else (_read_analysis_cache_snapshot(_season_warm_cache_file) or warm_state)
+
+
 def _start_season_warmup(year, window):
     """Warm up season analysis in a background thread."""
     with _season_warm_lock:
@@ -403,9 +449,13 @@ def _start_season_warmup(year, window):
                         "updated_at": time.time(),
                     }
                 )
+                completed_snapshot = dict(_season_warm_cache)
+            _write_analysis_cache_snapshot(_season_warm_cache_file, completed_snapshot)
         except Exception as exc:
             with _season_warm_lock:
                 _season_warm_cache["error"] = str(exc)
+                failed_snapshot = dict(_season_warm_cache)
+            _write_analysis_cache_snapshot(_season_warm_cache_file, failed_snapshot)
         finally:
             with _season_warm_lock:
                 _season_warm_cache["in_progress"] = False
@@ -443,6 +493,12 @@ def _read_circuit_warm_cache():
         }
 
 
+def _read_available_circuit_warm_cache():
+    """Return local circuit data or a completed warmup from another worker."""
+    warm_state = _read_circuit_warm_cache()
+    return warm_state if warm_state["data"] is not None else (_read_analysis_cache_snapshot(_circuit_warm_cache_file) or warm_state)
+
+
 def _start_circuit_warmup(year, round_num):
     """Warm up circuit history in a background thread."""
     with _circuit_warm_lock:
@@ -466,9 +522,13 @@ def _start_circuit_warmup(year, round_num):
                         "updated_at": time.time(),
                     }
                 )
+                completed_snapshot = dict(_circuit_warm_cache)
+            _write_analysis_cache_snapshot(_circuit_warm_cache_file, completed_snapshot)
         except Exception as exc:
             with _circuit_warm_lock:
                 _circuit_warm_cache["error"] = str(exc)
+                failed_snapshot = dict(_circuit_warm_cache)
+            _write_analysis_cache_snapshot(_circuit_warm_cache_file, failed_snapshot)
         finally:
             with _circuit_warm_lock:
                 _circuit_warm_cache["in_progress"] = False
@@ -503,6 +563,12 @@ def _read_driver_warm_cache():
         }
 
 
+def _read_available_driver_warm_cache():
+    """Return local driver data or a completed warmup from another worker."""
+    warm_state = _read_driver_warm_cache()
+    return warm_state if warm_state["data"] is not None else (_read_analysis_cache_snapshot(_driver_warm_cache_file) or warm_state)
+
+
 def _start_driver_warmup(year, driver, window):
     """Warm up driver intelligence in a background thread."""
     with _driver_warm_lock:
@@ -526,9 +592,13 @@ def _start_driver_warmup(year, driver, window):
                         "updated_at": time.time(),
                     }
                 )
+                completed_snapshot = dict(_driver_warm_cache)
+            _write_analysis_cache_snapshot(_driver_warm_cache_file, completed_snapshot)
         except Exception as exc:
             with _driver_warm_lock:
                 _driver_warm_cache["error"] = str(exc)
+                failed_snapshot = dict(_driver_warm_cache)
+            _write_analysis_cache_snapshot(_driver_warm_cache_file, failed_snapshot)
         finally:
             with _driver_warm_lock:
                 _driver_warm_cache["in_progress"] = False
@@ -1075,7 +1145,7 @@ def season_view():
         year = datetime.datetime.now().year
 
     requested_key = (year, window)
-    warm_state = _read_season_warm_cache()
+    warm_state = _read_available_season_warm_cache()
 
     if warm_state["key"] == requested_key and warm_state["data"] is not None:
         return _render_season_page(warm_state["data"], year=year, window=window)
@@ -1119,7 +1189,7 @@ def circuit_view():
             round_num = round_num or 1
 
     requested_key = (year, round_num)
-    warm_state = _read_circuit_warm_cache()
+    warm_state = _read_available_circuit_warm_cache()
 
     if warm_state["key"] == requested_key and warm_state["data"] is not None:
         return _render_circuit_page(warm_state["data"], year=year, round_num=round_num)
@@ -1165,7 +1235,7 @@ def driver_view():
         year = datetime.datetime.now().year
 
     requested_key = (year, driver or "", window)
-    warm_state = _read_driver_warm_cache()
+    warm_state = _read_available_driver_warm_cache()
 
     if warm_state["key"] == requested_key and warm_state["data"] is not None:
         loaded_driver = driver or warm_state["data"].get("meta", {}).get("driver")

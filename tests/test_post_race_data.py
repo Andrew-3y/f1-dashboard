@@ -18,7 +18,9 @@ from app import (
     _build_session_summary,
     _is_retirement,
     _session_category,
+    _read_analysis_cache_snapshot,
     _read_warm_cache_snapshot,
+    _write_analysis_cache_snapshot,
     _write_warm_cache_snapshot,
 )
 from data_handler import (
@@ -61,6 +63,22 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual(restored["data"]["leaderboard"], [{"driver": "Lando Norris"}])
         self.assertNotIn("session", restored["data"])
         self.assertNotIn("laps", restored["data"])
+
+    def test_completed_secondary_warm_cache_is_available_across_workers(self):
+        snapshot = {
+            "key": (2026, 3),
+            "data": {"meta": {"event_name": "Japanese Grand Prix"}},
+            "error": None,
+            "updated_at": 1.0,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cache_path = os.path.join(directory, "analysis-cache.pkl")
+            _write_analysis_cache_snapshot(cache_path, snapshot)
+            restored = _read_analysis_cache_snapshot(cache_path)
+
+        self.assertEqual(restored["key"], (2026, 3))
+        self.assertEqual(restored["data"], snapshot["data"])
+        self.assertFalse(restored["in_progress"])
 
     def test_startup_prewarm_resolves_the_latest_completed_session(self):
         with patch("app._start_latest_warmup") as start_latest_warmup:
