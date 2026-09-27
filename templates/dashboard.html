@@ -192,30 +192,34 @@
         .compound-w { background: #1877f2; color: #fff; }
         .compound-unknown { background: var(--text-muted); color: #fff; }
         .stint-meta { color: var(--text-secondary); white-space: nowrap; }
-        .progression-controls {
+        .progression-controls { display: grid; gap: 0.65rem; margin-bottom: 0.85rem; }
+        .progression-control-label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+        .progression-choices { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .progression-choice {
             align-items: center;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.65rem;
-            justify-content: space-between;
-            margin-bottom: 0.85rem;
-        }
-        .progression-controls label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
-        .progression-controls select {
-            background: var(--bg-secondary);
+            background: rgba(255,255,255,0.025);
             border: 1px solid var(--border-color);
-            border-radius: 7px;
-            color: var(--text-primary);
-            font: inherit;
-            padding: 0.45rem 0.65rem;
+            border-radius: 999px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 0.74rem;
+            font-weight: 700;
+            gap: 0.32rem;
+            padding: 0.3rem 0.55rem;
         }
+        .progression-choice:has(input:checked) { border-color: var(--accent-cyan); color: var(--text-primary); }
+        .progression-choice input { accent-color: var(--accent-cyan); margin: 0; }
         .progression-summary { color: var(--text-secondary); font-size: 0.78rem; }
+        .progression-legend { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+        .progression-legend-item { align-items: center; color: var(--text-secondary); display: inline-flex; font-size: 0.74rem; font-weight: 700; gap: 0.32rem; }
+        .progression-swatch { border-radius:999px; height:0.55rem; width:0.55rem; }
         .progression-chart-wrap { background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
         .progression-chart { display: block; height: auto; width: 100%; }
         .chart-grid { stroke: rgba(255,255,255,0.1); stroke-width: 1; }
         .chart-axis-label { fill: var(--text-secondary); font-size: 11px; }
-        .chart-line { fill: none; stroke: var(--accent-cyan); stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
-        .chart-final-point { fill: var(--accent-red); stroke: var(--bg-card); stroke-width: 2; }
+        .chart-line { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
+        .chart-final-point { stroke: var(--bg-card); stroke-width: 2; }
         .progression-note { color: var(--text-muted); font-size: 0.74rem; margin: 0.7rem 0 0; }
         .battle-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .battle-item { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.85rem; }
@@ -330,8 +334,7 @@
             .story-item { border-bottom: 1px solid var(--border-color); border-right: none; }
             .story-item:last-child { border-bottom: none; }
             .battle-grid { grid-template-columns: 1fr; }
-            .progression-controls { align-items: stretch; }
-            .progression-controls select { width: 100%; }
+            .progression-choices { max-height: 11rem; overflow-y: auto; padding-right: 0.2rem; }
         }
     </style>
 </head>
@@ -471,17 +474,17 @@
             <div class="card-body">
                 {% if race_progression.drivers %}
                 <div class="progression-controls">
-                    <label for="progressionDriver">Driver
-                        <select id="progressionDriver" aria-label="Driver position progression">
-                            {% for item in race_progression.drivers %}
-                            <option value="{{ item.driver }}">{{ item.driver }} · {{ item.team }}</option>
-                            {% endfor %}
-                        </select>
-                    </label>
+                    <div class="progression-control-label">Drivers · select up to 3</div>
+                    <div class="progression-choices" id="progressionDriverChoices" aria-label="Drivers to compare">
+                        {% for item in race_progression.drivers %}
+                        <label class="progression-choice"><input type="checkbox" value="{{ item.driver }}" {% if loop.index <= 2 %}checked{% endif %}>{{ item.driver }} · {{ item.team }}</label>
+                        {% endfor %}
+                    </div>
                     <div class="progression-summary" id="progressionSummary"></div>
+                    <div class="progression-legend" id="progressionLegend" aria-label="Selected driver legend"></div>
                 </div>
                 <div class="progression-chart-wrap">
-                    <svg class="progression-chart" id="progressionChart" viewBox="0 0 760 330" role="img" aria-label="Selected driver's position after each completed lap"></svg>
+                    <svg class="progression-chart" id="progressionChart" viewBox="0 0 760 330" role="img" aria-label="Selected drivers' positions after each completed lap"></svg>
                 </div>
                 <p class="progression-note">Position at the end of each completed lap. P1 is at the top of the chart.</p>
                 {% else %}
@@ -617,13 +620,15 @@
         }
 
         const raceProgression = {{ race_progression|tojson }};
-        const progressionSelect = document.getElementById('progressionDriver');
+        const progressionChoices = Array.from(document.querySelectorAll('#progressionDriverChoices input'));
         const progressionChart = document.getElementById('progressionChart');
         const progressionSummary = document.getElementById('progressionSummary');
+        const progressionLegend = document.getElementById('progressionLegend');
 
-        if (progressionSelect && progressionChart && raceProgression.drivers.length) {
+        if (progressionChoices.length && progressionChart && raceProgression.drivers.length) {
             const svgNamespace = 'http://www.w3.org/2000/svg';
             const driverByCode = Object.fromEntries(raceProgression.drivers.map((item) => [item.driver, item]));
+            const comparisonColors = ['#00bcd4', '#ffd600', '#ff6d00'];
 
             function svgElement(tagName, attributes = {}, text = '') {
                 const element = document.createElementNS(svgNamespace, tagName);
@@ -632,8 +637,17 @@
                 return element;
             }
 
+            function selectedDrivers() {
+                let selected = progressionChoices.filter((choice) => choice.checked).map((choice) => driverByCode[choice.value]).filter(Boolean);
+                if (!selected.length) {
+                    progressionChoices[0].checked = true;
+                    selected = [raceProgression.drivers[0]];
+                }
+                return selected.slice(0, 3);
+            }
+
             function drawProgression() {
-                const driver = driverByCode[progressionSelect.value] || raceProgression.drivers[0];
+                const drivers = selectedDrivers();
                 const chartWidth = 760;
                 const chartHeight = 330;
                 const left = 46;
@@ -661,16 +675,37 @@
                     progressionChart.appendChild(svgElement('text', { x, y: chartHeight - 14, 'text-anchor': 'middle', class: 'chart-axis-label' }, `Lap ${lap}`));
                 });
 
-                const pathData = driver.points.map((point, index) => `${index ? 'L' : 'M'}${xForLap(point.lap).toFixed(2)},${yForPosition(point.position).toFixed(2)}`).join(' ');
-                progressionChart.appendChild(svgElement('path', { d: pathData, class: 'chart-line' }));
-                const finalPoint = driver.points[driver.points.length - 1];
-                progressionChart.appendChild(svgElement('circle', { cx: xForLap(finalPoint.lap), cy: yForPosition(finalPoint.position), r: 5, class: 'chart-final-point' }));
+                progressionLegend.replaceChildren();
+                drivers.forEach((driver, index) => {
+                    const color = comparisonColors[index];
+                    const pathData = driver.points.map((point, pointIndex) => `${pointIndex ? 'L' : 'M'}${xForLap(point.lap).toFixed(2)},${yForPosition(point.position).toFixed(2)}`).join(' ');
+                    progressionChart.appendChild(svgElement('path', { d: pathData, class: 'chart-line', style: `stroke:${color}` }));
+                    const finalPoint = driver.points[driver.points.length - 1];
+                    progressionChart.appendChild(svgElement('circle', { cx: xForLap(finalPoint.lap), cy: yForPosition(finalPoint.position), r: 5, class: 'chart-final-point', style: `fill:${color}` }));
 
-                const startText = driver.grid_position && driver.grid_position > 0 ? `Started P${driver.grid_position}` : 'Started from pit lane';
-                progressionSummary.textContent = `${startText} · finished P${driver.final_position}`;
+                    const legendItem = document.createElement('span');
+                    legendItem.className = 'progression-legend-item';
+                    const swatch = document.createElement('span');
+                    swatch.className = 'progression-swatch';
+                    swatch.style.backgroundColor = color;
+                    legendItem.append(swatch, document.createTextNode(`${driver.driver} · P${driver.final_position}`));
+                    progressionLegend.appendChild(legendItem);
+                });
+
+                progressionSummary.textContent = drivers.map((driver) => {
+                    const startText = driver.grid_position && driver.grid_position > 0 ? `P${driver.grid_position}` : 'pit lane';
+                    return `${driver.driver}: ${startText} → P${driver.final_position}`;
+                }).join(' · ');
             }
 
-            progressionSelect.addEventListener('change', drawProgression);
+            progressionChoices.forEach((choice) => choice.addEventListener('change', () => {
+                const selected = progressionChoices.filter((item) => item.checked);
+                if (selected.length > 3) {
+                    choice.checked = false;
+                    return;
+                }
+                drawProgression();
+            }));
             drawProgression();
         }
     </script>
