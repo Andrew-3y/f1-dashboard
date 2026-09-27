@@ -213,6 +213,9 @@ _warm_lock = threading.Lock()
 _latest_warmup_lock = threading.Lock()
 _latest_warmup_in_progress = False
 _warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-warm-cache.pkl")
+# Increment when the renderable dashboard analysis changes shape. Persisted
+# snapshots omit raw FastF1 data, so they cannot rebuild newly added sections.
+_DASHBOARD_WARM_CACHE_VERSION = 2
 
 _season_warm_cache = {
     "key": None,
@@ -330,6 +333,7 @@ def _write_warm_cache_snapshot(snapshot):
         for key in ("session_info", "validation", "leaderboard")
     }
     payload = {
+        "version": _DASHBOARD_WARM_CACHE_VERSION,
         "key": snapshot.get("key"),
         "data": render_data,
         "analysis": snapshot.get("analysis"),
@@ -358,8 +362,10 @@ def _read_warm_cache_snapshot():
     except (OSError, EOFError, pickle.UnpicklingError):
         return None
 
-    required = {"key", "data", "analysis", "session_category"}
+    required = {"version", "key", "data", "analysis", "session_category"}
     if not isinstance(snapshot, dict) or not required.issubset(snapshot):
+        return None
+    if snapshot["version"] != _DASHBOARD_WARM_CACHE_VERSION:
         return None
     if not snapshot["key"] or not snapshot["data"] or not snapshot["analysis"]:
         return None
@@ -985,6 +991,7 @@ def _build_race_story(leaderboard, session=None, laps=None):
         "leaders": [],
         "safety_cars": None,
         "virtual_safety_cars": None,
+        "race_control_events": [],
         "retirements": [
             {"driver": row.get("driver", "-"), "status": row.get("status", "Retired")}
             for row in rows
@@ -1012,6 +1019,7 @@ def _build_race_story(leaderboard, session=None, laps=None):
 
     track_status = getattr(session, "track_status", None) if session is not None else None
     if track_status is not None and not getattr(track_status, "empty", True):
+        story["race_control_events"] = _build_race_control_events(track_status, laps=laps)
         if "Message" in track_status.columns:
             messages = track_status["Message"].fillna("").astype(str).str.strip().str.upper()
             story["safety_cars"] = int((messages == "SCDEPLOYED").sum())
@@ -1022,6 +1030,87 @@ def _build_race_story(leaderboard, session=None, laps=None):
             story["virtual_safety_cars"] = int((status_codes == "6").sum())
 
     return story
+
+
+def _build_race_control_events(track_status, laps=None, limit=12):
+    """Return recorded Safety Car, VSC and red-flag changes for the timeline.
+
+    FastF1's track-status feed records an event time but not a lap number. For
+    legibility, each entry is referenced to the latest lap completed by the
+    race leader at that exact recorded time. The wording intentionally says
+    ``After L...`` rather than inventing an on-lap attribution.
+    """
+    if track_status is None or getattr(track_status, "empty", True):
+        return []
+
+    message_labels = {
+        "SCDEPLOYED": ("Safety Car deployed", "safety-car"),
+        "SCENDING": ("Safety Car ending", "safety-car"),
+        "VSCDEPLOYED": ("Virtual Safety Car deployed", "vsc"),
+        "VSCENDING": ("Virtual Safety Car ending", "vsc"),
+        "RED": ("Red flag", "red-flag"),
+        "REDFLAG": ("Red flag", "red-flag"),
+    }
+    status_labels = {
+        "4": ("Safety Car deployed", "safety-car"),
+        "5": ("Red flag", "red-flag"),
+        "6": ("Virtual Safety Car deployed", "vsc"),
+    }
+
+    events = []
+    previous_event = None
+    ordered_status = track_status.copy()
+    if "Time" in ordered_status.columns:
+        ordered_status = ordered_status.sort_values("Time")
+
+    for _, row in ordered_status.iterrows():
+        raw_message = str(row.get("Message") or "").strip().upper()
+        normalized_message = raw_message.replace(" ", "").replace("_", "").replace("-", "")
+        event = message_labels.get(normalized_message)
+        if event is None:
+            event = status_labels.get(str(row.get("Status") or "").strip())
+        if event is None:
+            previous_event = None
+            continue
+        if event[0] == previous_event:
+            continue
+
+        event_time = row.get("Time")
+        completed_lap = _latest_completed_lap(laps, event_time)
+        events.append(
+            {
+                "label": event[0],
+                "kind": event[1],
+                "lap_reference": f"After L{completed_lap}" if completed_lap is not None else "Before L1",
+            }
+        )
+        previous_event = event[0]
+        if len(events) >= limit:
+            break
+
+    return events
+
+
+def _latest_completed_lap(laps, event_time):
+    """Find the leader's latest completed lap at a recorded track-status time."""
+    if laps is None or getattr(laps, "empty", True):
+        return None
+    if not {"Time", "LapNumber"}.issubset(laps.columns):
+        return None
+    try:
+        event_time = pd.to_timedelta(event_time)
+    except (TypeError, ValueError):
+        return None
+    if pd.isna(event_time):
+        return None
+
+    timing = laps[["Time", "LapNumber"]].copy()
+    timing["Time"] = pd.to_timedelta(timing["Time"], errors="coerce")
+    timing["LapNumber"] = pd.to_numeric(timing["LapNumber"], errors="coerce")
+    timing = timing[timing["Time"].notna() & timing["LapNumber"].notna() & (timing["Time"] <= event_time)]
+    if timing.empty:
+        return None
+    return int(timing["LapNumber"].max())
 
 
 def _compound_display(compound):

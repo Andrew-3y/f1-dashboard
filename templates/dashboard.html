@@ -162,6 +162,14 @@
         }
         .story-value { margin-top: 0.35rem; font-size: 1.35rem; font-weight: 800; }
         .story-detail { margin-top: 0.2rem; color: var(--text-secondary); font-size: 0.78rem; }
+        .race-control-timeline { display: grid; gap: 0.65rem; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); padding: 1rem; }
+        .race-control-event { align-items: center; background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-left: 3px solid var(--accent-blue); border-radius: 8px; display: flex; gap: 0.65rem; min-width: 0; padding: 0.7rem 0.8rem; }
+        .race-control-event.safety-car { border-left-color: var(--accent-yellow); }
+        .race-control-event.vsc { border-left-color: var(--accent-cyan); }
+        .race-control-event.red-flag { border-left-color: var(--accent-red); }
+        .race-control-lap { color: var(--text-primary); font-size: 0.72rem; font-weight: 800; white-space: nowrap; }
+        .race-control-label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; min-width: 0; }
+        .race-control-note { color: var(--text-muted); font-size: 0.72rem; padding: 0 1rem 1rem; }
         .strategy-table { min-width: 720px; }
         .stint-sequence { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 340px; }
         .stint-pill {
@@ -429,6 +437,20 @@
                 </div>
             </div>
         </section>
+        {% if race_story.race_control_events %}
+        <section class="card" style="margin-top:0.8rem;" aria-label="Official race control timeline">
+            <div class="card-header"><h2>Race Control Timeline</h2><span class="badge">Official timing</span></div>
+            <div class="race-control-timeline">
+                {% for event in race_story.race_control_events %}
+                <div class="race-control-event {{ event.kind }}">
+                    <span class="race-control-lap">{{ event.lap_reference }}</span>
+                    <span class="race-control-label">{{ event.label }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="race-control-note">Lap references use the race leader’s latest completed lap when the official timing event was recorded.</div>
+        </section>
+        {% endif %}
 
         <div class="section-title">Race Strategy</div>
         <section class="card">

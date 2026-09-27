@@ -11,6 +11,7 @@ from app import (
     app as flask_app,
     _build_close_finishes,
     _build_race_progression,
+    _build_race_control_events,
     _build_race_story,
     _build_strategy_rows,
     _build_teammate_battles,
@@ -311,6 +312,29 @@ class PostRaceDataTests(unittest.TestCase):
         story = _build_race_story([], session=session)
         self.assertEqual(story["safety_cars"], 1)
         self.assertEqual(story["virtual_safety_cars"], 1)
+
+    def test_race_control_timeline_uses_recorded_events_and_completed_lap_references(self):
+        track_status = pd.DataFrame(
+            {
+                "Time": [pd.Timedelta(seconds=55), pd.Timedelta(seconds=65), pd.Timedelta(seconds=90), pd.Timedelta(seconds=130), pd.Timedelta(seconds=180)],
+                "Status": ["4", "4", "1", "6", "5"],
+                "Message": ["SCDeployed", "SCDeployed", "AllClear", "VSCDeployed", "Red"],
+            }
+        )
+        laps = pd.DataFrame(
+            {
+                "Time": [pd.Timedelta(seconds=50), pd.Timedelta(seconds=110), pd.Timedelta(seconds=170)],
+                "LapNumber": [1, 2, 3],
+            }
+        )
+
+        events = _build_race_control_events(track_status, laps=laps)
+
+        self.assertEqual(events, [
+            {"label": "Safety Car deployed", "kind": "safety-car", "lap_reference": "After L1"},
+            {"label": "Virtual Safety Car deployed", "kind": "vsc", "lap_reference": "After L2"},
+            {"label": "Red flag", "kind": "red-flag", "lap_reference": "After L3"},
+        ])
 
     def test_strategy_merges_same_compound_fragments_and_skips_generated_laps(self):
         laps = pd.DataFrame(
