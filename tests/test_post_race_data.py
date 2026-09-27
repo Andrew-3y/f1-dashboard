@@ -13,6 +13,8 @@ from app import (
     _build_race_progression,
     _build_race_control_events,
     _build_race_story,
+    _build_pit_stop_timeline,
+    _group_pit_stops,
     _build_strategy_rows,
     _build_teammate_battles,
     _build_weekend_results,
@@ -349,6 +351,43 @@ class PostRaceDataTests(unittest.TestCase):
         strategy = _build_strategy_rows([{"position": 1, "driver": "AAA", "team": "Team"}], laps)
         self.assertEqual(strategy[0]["stops"], 0)
         self.assertEqual(strategy[0]["stints"], [{"compound_code": "M", "compound": "Medium", "lap_count": 4, "lap_range": "L1–4"}])
+
+    def test_pit_stop_timeline_uses_only_recorded_pit_in_times_and_next_lap_compounds(self):
+        leaderboard = [
+            {"driver": "AAA", "team": "Alpha"},
+            {"driver": "BBB", "team": "Beta"},
+        ]
+        laps = pd.DataFrame(
+            {
+                "Driver": ["AAA", "AAA", "AAA", "BBB", "BBB"],
+                "LapNumber": [1, 9, 10, 4, 5],
+                "PitInTime": [pd.NaT, pd.Timedelta(seconds=900), pd.NaT, pd.Timedelta(seconds=450), pd.NaT],
+                "Compound": ["Medium", "Medium", "Hard", "Soft", "Intermediate"],
+                "FastF1Generated": [False, False, False, False, False],
+            }
+        )
+
+        stops = _build_pit_stop_timeline(leaderboard, laps)
+
+        self.assertEqual(stops, [
+            {"driver": "BBB", "team": "Beta", "lap_reference": "After L4", "compound_code": "I", "compound": "Intermediate", "pit_in_time": pd.Timedelta(seconds=450)},
+            {"driver": "AAA", "team": "Alpha", "lap_reference": "After L9", "compound_code": "H", "compound": "Hard", "pit_in_time": pd.Timedelta(seconds=900)},
+        ])
+
+    def test_pit_stop_timeline_groups_same_post_lap_window_without_dropping_stops(self):
+        stops = [
+            {"driver": "AAA", "lap_reference": "After L10"},
+            {"driver": "CCC", "lap_reference": "After L11"},
+            {"driver": "BBB", "lap_reference": "After L10"},
+        ]
+
+        windows = _group_pit_stops(stops)
+
+        self.assertEqual([(window["lap_reference"], window["count"]) for window in windows], [
+            ("After L10", 2),
+            ("After L11", 1),
+        ])
+        self.assertEqual([stop["driver"] for stop in windows[0]["stops"]], ["AAA", "BBB"])
 
     def test_progression_keeps_only_recorded_end_of_lap_positions(self):
         laps = pd.DataFrame(

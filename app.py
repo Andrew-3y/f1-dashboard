@@ -215,7 +215,7 @@ _latest_warmup_in_progress = False
 _warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-warm-cache.pkl")
 # Increment when the renderable dashboard analysis changes shape. Persisted
 # snapshots omit raw FastF1 data, so they cannot rebuild newly added sections.
-_DASHBOARD_WARM_CACHE_VERSION = 2
+_DASHBOARD_WARM_CACHE_VERSION = 5
 
 _season_warm_cache = {
     "key": None,
@@ -923,6 +923,7 @@ def _run_race_analysis(leaderboard=None, session=None, laps=None):
         "race_summary": _build_post_race_summary(leaderboard),
         "race_story": _build_race_story(leaderboard, session=session, laps=laps),
         "strategy_rows": strategy_rows,
+        "pit_stop_windows": _group_pit_stops(_build_pit_stop_timeline(leaderboard, laps=laps)),
         "race_progression": _build_race_progression(leaderboard, laps=laps),
         "close_finishes": _build_close_finishes(leaderboard),
         "teammate_battles": _build_teammate_battles(leaderboard),
@@ -1203,6 +1204,87 @@ def _build_strategy_rows(leaderboard, laps=None):
     return strategy_rows
 
 
+def _build_pit_stop_timeline(leaderboard, laps=None):
+    """List only pit stops explicitly recorded in FastF1 lap timing.
+
+    A compound sequence alone does not prove a conventional pit stop: a stint
+    can change after a suspension or a red-flag period. This view therefore
+    requires FastF1's recorded ``PitInTime`` and labels the stop after the lap
+    on which it was logged. The shown compound comes from the driver's next
+    recorded lap, rather than being guessed from a strategy rule.
+    """
+    if laps is None or getattr(laps, "empty", True):
+        return []
+    required_columns = {"Driver", "LapNumber", "PitInTime"}
+    if not required_columns.issubset(laps.columns):
+        return []
+
+    team_by_driver = {
+        str(row.get("driver")): str(row.get("team", "Unknown"))
+        for row in (leaderboard or [])
+        if row.get("driver")
+    }
+    timing_laps = laps.copy()
+    if "FastF1Generated" in timing_laps.columns:
+        timing_laps = timing_laps[~timing_laps["FastF1Generated"].eq(True)]
+    timing_laps["LapNumber"] = pd.to_numeric(timing_laps["LapNumber"], errors="coerce")
+    timing_laps["PitInTime"] = pd.to_timedelta(timing_laps["PitInTime"], errors="coerce")
+    timing_laps = timing_laps.dropna(subset=["Driver", "LapNumber"])
+    if timing_laps.empty:
+        return []
+
+    timeline = []
+    for driver, driver_laps in timing_laps.groupby("Driver", sort=False):
+        driver_laps = driver_laps.sort_values(["LapNumber", "PitInTime"], na_position="last")
+        stops = driver_laps[driver_laps["PitInTime"].notna()].drop_duplicates(
+            subset=["LapNumber", "PitInTime"], keep="first"
+        )
+        for stop_index, stop in stops.iterrows():
+            following_laps = driver_laps[driver_laps["LapNumber"] > stop["LapNumber"]]
+            next_compound = "Unknown"
+            if "Compound" in following_laps.columns and not following_laps.empty:
+                compounds = following_laps["Compound"].dropna().astype(str)
+                next_compound = next(
+                    (value for value in compounds if value.strip().upper() not in {"", "UNKNOWN", "NAN"}),
+                    "Unknown",
+                )
+            compound_code, compound_name = _compound_display(next_compound)
+            timeline.append(
+                {
+                    "driver": str(driver),
+                    "team": team_by_driver.get(str(driver), "Unknown"),
+                    "lap_reference": f"After L{int(stop['LapNumber'])}",
+                    "compound_code": compound_code,
+                    "compound": compound_name,
+                    "pit_in_time": stop["PitInTime"],
+                }
+            )
+
+    return sorted(timeline, key=lambda entry: (entry["pit_in_time"], entry["driver"]))
+
+
+def _group_pit_stops(stops):
+    """Group recorded pit stops by post-lap window without dropping entries."""
+    grouped_stops = {}
+    for stop in stops or []:
+        grouped_stops.setdefault(stop["lap_reference"], []).append(stop)
+
+    def lap_number(item):
+        reference = item[0]
+        try:
+            return int(str(reference).rsplit("L", maxsplit=1)[1])
+        except (IndexError, ValueError):
+            return math.inf
+
+    windows = [
+        {"lap_reference": reference, "stops": entries}
+        for reference, entries in sorted(grouped_stops.items(), key=lap_number)
+    ]
+    for window in windows:
+        window["count"] = len(window["stops"])
+    return windows
+
+
 def _build_race_progression(leaderboard, laps=None):
     """Return lap-by-lap classified positions for the selected completed race."""
     rows = leaderboard or []
@@ -1352,6 +1434,7 @@ def _empty_race():
         "race_summary": {},
         "race_story": {},
         "strategy_rows": [],
+        "pit_stop_windows": [],
         "race_progression": {"total_laps": 0, "max_position": 1, "drivers": []},
         "close_finishes": [],
         "teammate_battles": [],

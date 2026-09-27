@@ -200,6 +200,15 @@
         .compound-w { background: #1877f2; color: #fff; }
         .compound-unknown { background: var(--text-muted); color: #fff; }
         .stint-meta { color: var(--text-secondary); white-space: nowrap; }
+        .pit-stop-timeline { display: grid; gap: 0.65rem; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); padding: 1rem; }
+        .pit-stop-window { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; }
+        .pit-stop-window-header { align-items: center; display: flex; gap: 0.5rem; justify-content: space-between; margin-bottom: 0.55rem; }
+        .pit-stop-lap { color: var(--accent-cyan); font-size: 0.75rem; font-weight: 800; white-space: nowrap; }
+        .pit-stop-count { color: var(--text-muted); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; }
+        .pit-stop-drivers { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .pit-stop-driver { align-items: center; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-secondary); display: inline-flex; font-size: 0.7rem; font-weight: 700; gap: 0.25rem; padding: 0.22rem 0.35rem; }
+        .pit-stop-compound { align-items: center; border-radius: 999px; display: inline-flex; font-size: 0.58rem; font-weight: 800; height: 1rem; justify-content: center; width: 1rem; }
+        .pit-stop-note { color: var(--text-muted); font-size: 0.72rem; padding: 0 1rem 1rem; }
         .progression-controls { display: grid; gap: 0.65rem; margin-bottom: 0.85rem; }
         .progression-control-label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
         .progression-choices { display: flex; flex-wrap: wrap; gap: 0.4rem; }
@@ -489,6 +498,24 @@
                 {% endif %}
             </div>
         </section>
+        {% if pit_stop_windows %}
+        <section class="card" style="margin-top:0.8rem;" aria-label="Recorded pit stop timeline">
+            <div class="card-header"><h2>Pit Stop Timeline</h2><span class="badge">Official timing</span></div>
+            <div class="pit-stop-timeline">
+                {% for window in pit_stop_windows %}
+                <div class="pit-stop-window">
+                    <div class="pit-stop-window-header"><span class="pit-stop-lap">{{ window.lap_reference }}</span><span class="pit-stop-count">{{ window.count }} stop{{ '' if window.count == 1 else 's' }}</span></div>
+                    <div class="pit-stop-drivers">
+                    {% for stop in window.stops %}
+                    <span class="pit-stop-driver" title="{{ stop.team }} · next recorded compound: {{ stop.compound }}">{{ stop.driver }} <span class="pit-stop-compound compound-{{ stop.compound_code|lower if stop.compound_code != '—' else 'unknown' }}">{{ stop.compound_code }}</span></span>
+                    {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="pit-stop-note">A stop appears only when official timing records a pit-in time. Entries sharing a post-lap window are grouped; the compound is taken from each driver’s next recorded lap.</div>
+        </section>
+        {% endif %}
 
         <div class="section-title">Race Progression</div>
         <section class="card">
