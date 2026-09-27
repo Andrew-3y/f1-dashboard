@@ -210,6 +210,7 @@
         .pit-stop-compound { align-items: center; border-radius: 999px; display: inline-flex; font-size: 0.58rem; font-weight: 800; height: 1rem; justify-content: center; width: 1rem; }
         .pit-stop-note { color: var(--text-muted); font-size: 0.72rem; padding: 0 1rem 1rem; }
         .progression-controls { display: grid; gap: 0.65rem; margin-bottom: 0.85rem; }
+        .progression-control-row { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; }
         .progression-control-label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
         .progression-choices { display: flex; flex-wrap: wrap; gap: 0.4rem; }
         .progression-choice {
@@ -227,6 +228,20 @@
         }
         .progression-choice:has(input:checked) { border-color: var(--accent-cyan); color: var(--text-primary); }
         .progression-choice input { accent-color: var(--accent-cyan); margin: 0; }
+        .progression-team-select, .progression-reset {
+            background: rgba(255,255,255,0.025);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font: inherit;
+            font-size: 0.78rem;
+            font-weight: 700;
+            min-height: 2rem;
+            padding: 0.35rem 0.55rem;
+        }
+        .progression-team-select { min-width: 11rem; }
+        .progression-reset { cursor: pointer; }
+        .progression-reset:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
         .progression-summary { color: var(--text-secondary); font-size: 0.78rem; }
         .progression-legend { display: flex; flex-wrap: wrap; gap: 0.6rem; }
         .progression-legend-item { align-items: center; color: var(--text-secondary); display: inline-flex; font-size: 0.74rem; font-weight: 700; gap: 0.32rem; }
@@ -528,6 +543,13 @@
                         <label class="progression-choice"><input type="checkbox" value="{{ item.driver }}" {% if loop.index <= 2 %}checked{% endif %}>{{ item.driver }} · {{ item.team }}</label>
                         {% endfor %}
                     </div>
+                    <div class="progression-control-row">
+                        <label class="progression-control-label" for="progressionTeamFocus">Team focus</label>
+                        <select class="progression-team-select" id="progressionTeamFocus" aria-label="Show a team's drivers on the race progression chart">
+                            <option value="">Choose a team</option>
+                        </select>
+                        <button class="progression-reset" id="progressionReset" type="button">Reset comparison</button>
+                    </div>
                     <div class="progression-summary" id="progressionSummary"></div>
                     <div class="progression-legend" id="progressionLegend" aria-label="Selected driver legend"></div>
                 </div>
@@ -672,11 +694,21 @@
         const progressionChart = document.getElementById('progressionChart');
         const progressionSummary = document.getElementById('progressionSummary');
         const progressionLegend = document.getElementById('progressionLegend');
+        const progressionTeamFocus = document.getElementById('progressionTeamFocus');
+        const progressionReset = document.getElementById('progressionReset');
 
         if (progressionChoices.length && progressionChart && raceProgression.drivers.length) {
             const svgNamespace = 'http://www.w3.org/2000/svg';
             const driverByCode = Object.fromEntries(raceProgression.drivers.map((item) => [item.driver, item]));
             const comparisonColors = ['#00bcd4', '#ffd600', '#ff6d00'];
+            const defaultComparison = progressionChoices.filter((choice) => choice.checked).map((choice) => choice.value);
+
+            [...new Set(raceProgression.drivers.map((item) => item.team).filter(Boolean))].forEach((team) => {
+                const option = document.createElement('option');
+                option.value = team;
+                option.textContent = team;
+                progressionTeamFocus.appendChild(option);
+            });
 
             function svgElement(tagName, attributes = {}, text = '') {
                 const element = document.createElementNS(svgNamespace, tagName);
@@ -692,6 +724,14 @@
                     selected = [raceProgression.drivers[0]];
                 }
                 return selected.slice(0, 3);
+            }
+
+            function chooseDrivers(driverCodes) {
+                const selectedCodes = new Set(driverCodes.slice(0, 3));
+                progressionChoices.forEach((choice) => {
+                    choice.checked = selectedCodes.has(choice.value);
+                });
+                drawProgression();
             }
 
             function drawProgression() {
@@ -754,6 +794,15 @@
                 }
                 drawProgression();
             }));
+            progressionTeamFocus.addEventListener('change', () => {
+                const team = progressionTeamFocus.value;
+                if (!team) return;
+                chooseDrivers(raceProgression.drivers.filter((driver) => driver.team === team).map((driver) => driver.driver));
+            });
+            progressionReset.addEventListener('click', () => {
+                progressionTeamFocus.value = '';
+                chooseDrivers(defaultComparison);
+            });
             drawProgression();
         }
     </script>
