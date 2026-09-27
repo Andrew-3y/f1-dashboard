@@ -555,7 +555,7 @@ def build_leaderboard(laps, session_type="Race", session=None):
     elif normalized_type in ("Qualifying", "Sprint Qualifying"):
         return _build_quali_leaderboard(session, laps)
     elif normalized_type and normalized_type.startswith("Practice"):
-        return _build_practice_leaderboard(laps)
+        return _build_practice_leaderboard(laps, session=session)
 
     return []
 
@@ -676,9 +676,14 @@ def _build_quali_leaderboard(session, laps):
     return leaderboard
 
 
-def _build_practice_leaderboard(laps):
+def _build_practice_leaderboard(laps, session=None):
     """
-    Practice leaderboard: sort by fastest single lap time.
+    Practice leaderboard: sort timed drivers by fastest single lap time.
+
+    A driver may appear in FastF1's official participant list without a valid
+    timed lap (for example after an early stoppage). Keep that driver as a
+    clearly unranked ``No time`` row instead of silently dropping them or
+    inventing a position.
     """
     valid_laps = _valid_laps(laps)
     total_laps = (
@@ -719,6 +724,31 @@ def _build_practice_leaderboard(laps):
             }
         )
 
+    recorded_drivers = {str(row["driver"]) for row in leaderboard}
+    source_results = getattr(session, "results", None) if session is not None else None
+    if source_results is not None and not source_results.empty and "Abbreviation" in source_results.columns:
+        for _, result in source_results.iterrows():
+            driver = result.get("Abbreviation")
+            if pd.isna(driver) or str(driver) in recorded_drivers:
+                continue
+            driver = str(driver)
+            driver_laps = laps[laps["Driver"] == driver] if "Driver" in laps.columns else pd.DataFrame()
+            lap_count = int(driver_laps["LapNumber"].nunique()) if not driver_laps.empty and "LapNumber" in driver_laps.columns else 0
+            status = result.get("Status")
+            no_time_label = str(status) if pd.notna(status) and str(status).strip() else "No time"
+            leaderboard.append(
+                {
+                    "position": None,
+                    "driver": driver,
+                    "team": result.get("TeamName") if pd.notna(result.get("TeamName")) else "Unknown",
+                    "best_lap": pd.NaT,
+                    "best_lap_display": "N/A",
+                    "gap_seconds": None,
+                    "gap_display": no_time_label,
+                    "total_laps": lap_count,
+                }
+            )
+
     return leaderboard
 
 
@@ -742,8 +772,16 @@ def validate_session_data(session, laps, leaderboard, session_type):
         errors.append("no leaderboard rows were produced")
 
     positions = [row.get("position") for row in rows]
-    expected_positions = list(range(1, len(rows) + 1))
-    if positions and positions != expected_positions:
+    is_practice = bool(normalized_type and normalized_type.startswith("Practice"))
+    ranked_positions = [position for position in positions if position is not None]
+    expected_positions = list(range(1, len(ranked_positions) + 1))
+    if is_practice:
+        if ranked_positions and ranked_positions != expected_positions:
+            errors.append("practice timing positions are not a contiguous fastest-lap order")
+        first_unranked = next((index for index, position in enumerate(positions) if position is None), len(positions))
+        if any(position is not None for position in positions[first_unranked:]):
+            errors.append("unranked practice participants appear before timed drivers")
+    elif positions and positions != list(range(1, len(rows) + 1)):
         errors.append("leaderboard positions are not a contiguous official order")
 
     for row in rows:
@@ -764,7 +802,7 @@ def validate_session_data(session, laps, leaderboard, session_type):
         elif positions != official_positions:
             errors.append("displayed positions do not match the official session classification")
 
-    if normalized_type and normalized_type.startswith("Practice"):
+    if is_practice:
         result_participants = set()
         if session is not None:
             try:
@@ -777,10 +815,8 @@ def validate_session_data(session, laps, leaderboard, session_type):
         if result_participants and displayed_participants != result_participants:
             errors.append("practice timing does not include every listed session participant")
 
-        lap_times = [row.get("best_lap") for row in rows]
-        if any(pd.isna(lap_time) for lap_time in lap_times):
-            errors.append("practice leaderboard contains a driver without a timed lap")
-        elif lap_times != sorted(lap_times):
+        timed_lap_times = [row.get("best_lap") for row in rows if pd.notna(row.get("best_lap"))]
+        if timed_lap_times != sorted(timed_lap_times):
             errors.append("practice leaderboard is not sorted by fastest lap")
 
     if normalized_type in {"Qualifying", "Sprint Qualifying"}:

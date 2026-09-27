@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Weekend Results</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+    <style>
+        :root { --bg-primary:#0a0a0f; --bg-secondary:#12121a; --bg-card:#1a1a2e; --bg-card-hover:#22223a; --text-primary:#e8e8f0; --text-secondary:#9595ad; --text-muted:#66667c; --accent-red:#e10600; --accent-blue:#3366ff; --accent-green:#00c853; --accent-yellow:#ffd600; --accent-orange:#ff6d00; --border-color:#2a2a40; --radius:12px; --shadow:0 4px 24px rgba(0,0,0,.35); --transition:all .2s ease; }
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { background:var(--bg-primary); color:var(--text-primary); font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; line-height:1.6; min-height:100vh; }
+        .header { align-items:center; background:linear-gradient(135deg,var(--accent-red),#8b0000); display:flex; flex-wrap:wrap; gap:1rem; justify-content:space-between; padding:1.4rem 2rem; }
+        .header h1 { color:#fff; font-size:1.6rem; font-weight:800; letter-spacing:-.5px; }
+        .header h1 span { font-weight:300; opacity:.85; }
+        .header-meta { display:flex; flex-wrap:wrap; gap:.75rem; }
+        .meta-badge { background:rgba(255,255,255,.15); border-radius:20px; color:#fff; font-size:.78rem; font-weight:600; padding:.35rem .9rem; }
+        .toolbar { align-items:center; background:var(--bg-secondary); border-bottom:1px solid var(--border-color); display:flex; flex-wrap:wrap; gap:.75rem; padding:.8rem 2rem; }
+        .toolbar label { color:var(--text-secondary); font-size:.8rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
+        .toolbar input, .toolbar button, .toolbar a { background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; color:var(--text-primary); font-family:inherit; font-size:.82rem; padding:.45rem .7rem; text-decoration:none; }
+        .toolbar button { background:var(--accent-red); border-color:var(--accent-red); color:#fff; cursor:pointer; font-weight:700; }
+        .toolbar button:hover { transform:translateY(-1px); }
+        .toolbar .secondary-link { background:var(--accent-blue); border-color:var(--accent-blue); color:#fff; font-weight:700; }
+        .analysis-nav { align-items:center; display:flex; flex-wrap:wrap; gap:.6rem; margin:0 auto; max-width:1440px; padding:.9rem 1.5rem 0; }
+        .analysis-nav-label { color:var(--text-muted); font-size:.72rem; font-weight:700; letter-spacing:.7px; text-transform:uppercase; }
+        .analysis-link { border:1px solid var(--border-color); border-radius:999px; color:var(--text-secondary); font-size:.76rem; font-weight:600; padding:.35rem .65rem; text-decoration:none; transition:var(--transition); }
+        .analysis-link:hover, .analysis-link.current { border-color:var(--accent-blue); color:var(--text-primary); }
+        .analysis-link.current { background:rgba(51,102,255,.13); }
+        .container { margin:0 auto; max-width:1440px; padding:1.5rem; }
+        .section-title { border-bottom:1px solid var(--border-color); color:var(--text-secondary); font-size:.84rem; font-weight:700; letter-spacing:1px; margin:0 0 1rem; padding-bottom:.45rem; text-transform:uppercase; }
+        .card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius); overflow:hidden; }
+        .card-header { align-items:center; border-bottom:1px solid var(--border-color); display:flex; gap:.75rem; justify-content:space-between; padding:.85rem 1.1rem; }
+        .card-header h2 { font-size:.95rem; font-weight:700; }
+        .badge { background:var(--accent-red); border-radius:999px; color:#fff; font-size:.68rem; font-weight:700; padding:.15rem .55rem; }
+        .card-body { overflow-x:auto; }
+        table { border-collapse:collapse; min-width:800px; width:100%; }
+        th { background:var(--bg-secondary); color:var(--text-secondary); font-size:.68rem; font-weight:700; letter-spacing:.5px; padding:.65rem .8rem; text-align:left; text-transform:uppercase; }
+        td { border-bottom:1px solid rgba(255,255,255,.04); font-size:.82rem; padding:.7rem .8rem; }
+        tr:hover td { background:rgba(255,255,255,.03); }
+        .driver { font-weight:700; }
+        .team, .muted { color:var(--text-secondary); }
+        .result { color:var(--text-primary); display:block; font-variant-numeric:tabular-nums; font-weight:800; text-align:center; text-decoration:none; }
+        .result:hover { color:var(--accent-yellow); text-decoration:underline; }
+        .empty-cell { color:var(--text-muted); display:block; text-align:center; }
+        .empty { color:var(--text-secondary); font-size:.82rem; padding:2rem 1rem; text-align:center; }
+        .availability { color:var(--text-secondary); display:flex; flex-wrap:wrap; font-size:.76rem; gap:.45rem; margin:0 0 1rem; }
+        .availability span { border:1px solid var(--border-color); border-radius:999px; padding:.25rem .55rem; }
+        .availability .published { border-color:rgba(0,200,83,.45); color:var(--accent-green); }
+        .availability .withheld { border-color:rgba(255,109,0,.45); color:var(--accent-orange); }
+        .error-box { background:rgba(225,6,0,.1); border:1px solid rgba(225,6,0,.25); border-radius:12px; color:#ffd3d1; padding:1rem 1.1rem; }
+        .error-box h2 { font-size:1rem; margin-bottom:.35rem; }
+        .error-box p, .error-detail { color:var(--text-secondary); font-size:.8rem; }
+        .error-detail { font-family:Consolas,monospace; margin-top:.5rem; }
+        .footer { background:var(--bg-secondary); border-top:1px solid var(--border-color); color:var(--text-secondary); font-size:.72rem; margin-top:1.5rem; padding:1rem 1.5rem; text-align:center; }
+        @media (max-width:700px) { .header,.toolbar,.analysis-nav,.container { padding-left:1rem; padding-right:1rem; } .toolbar { align-items:stretch; } .toolbar label { width:100%; } .toolbar input,.toolbar button,.toolbar a { width:100%; } }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>F1 <span>Weekend Results</span></h1>
+        <div class="header-meta">
+            {% if weekend_meta.year %}<span class="meta-badge">{{ weekend_meta.year }}</span>{% endif %}
+            {% if weekend_meta.round_number %}<span class="meta-badge">Round {{ weekend_meta.round_number }}</span>{% endif %}
+            {% if weekend_meta.event_name %}<span class="meta-badge">{{ weekend_meta.event_name }}</span>{% endif %}
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <label for="yearInput">Season:</label>
+        <input type="number" id="yearInput" aria-label="Season" min="2018" max="2030" value="{{ weekend_meta.year or '' }}" style="width:90px;">
+        <label for="roundInput">Round:</label>
+        <input type="number" id="roundInput" aria-label="Round" min="1" max="30" value="{{ weekend_meta.round_number or '' }}" style="width:80px;">
+        <button onclick="loadWeekend()">Load Weekend</button>
+        <a class="secondary-link" href="/?year={{ weekend_meta.year }}&round={{ weekend_meta.round_number }}&session_type=Race">Race Dashboard</a>
+    </div>
+
+    <nav class="analysis-nav" aria-label="More analysis">
+        <span class="analysis-nav-label">More analysis</span>
+        <a class="analysis-link current" href="/weekend{% if weekend_meta.year %}?year={{ weekend_meta.year }}&round={{ weekend_meta.round_number }}{% endif %}">Weekend Results</a>
+        <a class="analysis-link" href="/season{% if weekend_meta.year %}?year={{ weekend_meta.year }}{% endif %}">Season Form</a>
+        <a class="analysis-link" href="/circuit{% if weekend_meta.year %}?year={{ weekend_meta.year }}&round={{ weekend_meta.round_number }}{% endif %}">Circuit History</a>
+        <a class="analysis-link" href="/driver{% if weekend_meta.year %}?year={{ weekend_meta.year }}{% endif %}">Driver Intel</a>
+    </nav>
+
+    <main class="container">
+        {% if loading %}
+        <div class="error-box">
+            <h2>Loading weekend results</h2>
+            <p>Official classifications are being checked session by session.</p>
+            <div class="error-detail">{{ error }}</div>
+        </div>
+        <script>setTimeout(function () { location.reload(); }, 3000);</script>
+        {% elif error %}
+        <div class="error-box">
+            <h2>Weekend Results unavailable</h2>
+            <p>No incomplete or unverified session is shown.</p>
+            <div class="error-detail">{{ error }}</div>
+        </div>
+        {% else %}
+        <div class="section-title">Completed Session Matrix</div>
+        <div class="availability" aria-label="Published sessions">
+            {% for session in weekend_data.sessions %}<span class="published">{{ session.short_name }} published</span>{% endfor %}
+            {% for session in weekend_data.withheld_sessions %}<span class="withheld">{{ session.short_name }} withheld</span>{% endfor %}
+        </div>
+        <section class="card">
+            <div class="card-header"><h2>Session-by-Session Classification</h2><span class="badge">{{ weekend_data.rows|length }} drivers</span></div>
+            <div class="card-body">
+                {% if weekend_data.rows %}
+                <table>
+                    <thead><tr><th>Driver</th><th>Team</th>{% for session in weekend_data.sessions %}<th title="{{ session.name }}">{{ session.short_name }}</th>{% endfor %}</tr></thead>
+                    <tbody>
+                    {% for row in weekend_data.rows %}
+                    <tr>
+                        <td class="driver">{{ row.driver }}</td>
+                        <td class="team">{{ row.team }}</td>
+                        {% for session in weekend_data.sessions %}
+                        {% set result = row.sessions.get(session.name) %}
+                        <td>{% if result and result.position is not none %}<a class="result" href="{{ result.url }}">P{{ result.position }}</a>{% else %}<span class="empty-cell">—</span>{% endif %}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty">No verified completed-session classifications are available.</div>
+                {% endif %}
+            </div>
+        </section>
+    {% endif %}
+    </main>
+
+    <footer class="footer">Session positions are sourced from FastF1’s official timing and classification data. Select a position to open that session.</footer>
+    <script>
+        function loadWeekend() {
+            const year = document.getElementById('yearInput').value;
+            const round = document.getElementById('roundInput').value;
+            if (year && round) location.href = '/weekend?year=' + encodeURIComponent(year) + '&round=' + encodeURIComponent(round);
+        }
+    </script>
+</body>
+</html>

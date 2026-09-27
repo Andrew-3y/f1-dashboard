@@ -176,6 +176,7 @@
         <input type="number" id="roundInput" min="1" max="30" value="{{ circuit_meta.round_number or '' }}" style="width:80px;">
         <button onclick="loadCircuit()">Load History</button>
         <a class="secondary-link" href="/">Return to Dashboard</a>
+        <a class="secondary-link" href="/weekend{% if circuit_meta.year %}?year={{ circuit_meta.year }}&round={{ circuit_meta.round_number }}{% endif %}">Weekend Results</a>
     </div>
 
     <main class="container">

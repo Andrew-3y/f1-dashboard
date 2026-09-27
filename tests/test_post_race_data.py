@@ -14,7 +14,9 @@ from app import (
     _build_race_story,
     _build_strategy_rows,
     _build_teammate_battles,
+    _build_weekend_results,
     _prewarm_latest_completed_race,
+    _scheduled_weekend_sessions,
     _build_session_summary,
     _is_retirement,
     _session_category,
@@ -38,6 +40,114 @@ from season_form import _driver_form_rows, _team_form_rows, empty_season_form
 
 
 class PostRaceDataTests(unittest.TestCase):
+    def test_weekend_session_matrix_uses_only_scheduled_validated_sessions(self):
+        schedule = pd.DataFrame(
+            [{
+                "RoundNumber": 1,
+                "EventName": "Australian Grand Prix",
+                "Session1": "Practice 1",
+                "Session2": "Practice 2",
+                "Session3": "Practice 3",
+                "Session4": "Qualifying",
+                "Session5": "Race",
+            }]
+        )
+
+        def completed_session(year, round_num, session_name):
+            position = {"Practice 1": 3, "Practice 2": 2, "Practice 3": 1, "Qualifying": 2, "Race": 1}[session_name]
+            return {
+                "error": None,
+                "session_info": {"event_name": "Australian Grand Prix"},
+                "leaderboard": [{"driver": "AAA", "team": "Alpha", "position": position}],
+            }
+
+        with patch("app.get_event_schedule", return_value=schedule), patch(
+            "app.get_dashboard_data", side_effect=completed_session
+        ):
+            weekend = _build_weekend_results(2025, 1)
+
+        self.assertEqual([session["name"] for session in weekend["sessions"]], [
+            "Practice 1", "Practice 2", "Practice 3", "Qualifying", "Race",
+        ])
+        self.assertNotIn("Sprint", [session["name"] for session in weekend["sessions"]])
+        self.assertEqual(weekend["rows"][0]["sessions"]["Race"]["position"], 1)
+        self.assertEqual(weekend["rows"][0]["sessions"]["Qualifying"]["position"], 2)
+
+    def test_weekend_session_matrix_includes_sprint_format_and_withholds_failed_session(self):
+        schedule = pd.DataFrame(
+            [{
+                "RoundNumber": 6,
+                "EventName": "Miami Grand Prix",
+                "Session1": "Practice 1",
+                "Session2": "Sprint Shootout",
+                "Session3": "Sprint",
+                "Session4": "Qualifying",
+                "Session5": "Race",
+            }]
+        )
+
+        def session_data(year, round_num, session_name):
+            if session_name == "Sprint":
+                return {"error": "Session data failed integrity checks: incomplete timing feed"}
+            return {
+                "error": None,
+                "session_info": {"event_name": "Miami Grand Prix"},
+                "leaderboard": [{"driver": "BBB", "team": "Beta", "position": 1}],
+            }
+
+        with patch("app.get_event_schedule", return_value=schedule), patch(
+            "app.get_dashboard_data", side_effect=session_data
+        ):
+            weekend = _build_weekend_results(2025, 6)
+
+        self.assertEqual([session["name"] for session in weekend["sessions"]], [
+            "Practice 1", "Sprint Qualifying", "Qualifying", "Race",
+        ])
+        self.assertEqual(weekend["withheld_sessions"], [{"name": "Sprint", "short_name": "Sprint"}])
+
+    def test_weekend_session_schedule_uses_sprint_shootout_alias(self):
+        schedule = pd.DataFrame(
+            [{
+                "RoundNumber": 2,
+                "EventName": "Sprint Grand Prix",
+                "Session1": "Practice 1",
+                "Session2": "Sprint Shootout",
+                "Session3": "Sprint",
+                "Session4": "Qualifying",
+                "Session5": "Race",
+            }]
+        )
+        with patch("app.get_event_schedule", return_value=schedule):
+            sessions, event_name = _scheduled_weekend_sessions(2025, 2)
+
+        self.assertEqual(event_name, "Sprint Grand Prix")
+        self.assertEqual(sessions, ["Practice 1", "Sprint Qualifying", "Sprint", "Qualifying", "Race"])
+
+    def test_weekend_page_renders_a_position_matrix_from_warmed_data(self):
+        warm_state = {
+            "key": (1, 2025, 1),
+            "data": {
+                "meta": {"year": 2025, "round_number": 1, "event_name": "Australian Grand Prix"},
+                "sessions": [{"name": "Practice 1", "short_name": "FP1", "rows": []}],
+                "withheld_sessions": [],
+                "rows": [{
+                    "driver": "AAA",
+                    "team": "Alpha",
+                    "sessions": {"Practice 1": {"position": 1, "url": "/?year=2025"}},
+                }],
+            },
+            "error": None,
+            "in_progress": False,
+            "updated_at": 1.0,
+        }
+        with patch("app._read_available_weekend_warm_cache", return_value=warm_state):
+            response = flask_app.test_client().get("/weekend?year=2025&round=1")
+
+        html = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Session-by-Session Classification", html)
+        self.assertIn(">P1<", html)
+
     def test_completed_dashboard_warm_cache_is_available_across_workers(self):
         snapshot = {
             "key": (2025, 1, "Race"),
@@ -585,6 +695,38 @@ class PostRaceDataTests(unittest.TestCase):
         validation = validate_session_data(session, laps, leaderboard, "Practice 1")
         self.assertFalse(validation["passed"])
         self.assertTrue(any("does not include every listed session participant" in error for error in validation["errors"]))
+
+    def test_practice_keeps_a_listed_driver_without_a_timed_lap_unranked(self):
+        session = type(
+            "Session",
+            (),
+            {
+                "results": pd.DataFrame(
+                    {
+                        "Abbreviation": ["AAA", "BBB"],
+                        "TeamName": ["Alpha", "Beta"],
+                        "Status": ["", "No time"],
+                    }
+                )
+            },
+        )()
+        laps = pd.DataFrame(
+            {
+                "Driver": ["AAA", "BBB"],
+                "Team": ["Alpha", "Beta"],
+                "LapTime": [pd.Timedelta(seconds=80), pd.NaT],
+                "LapNumber": [1, 1],
+                "Deleted": [False, False],
+            }
+        )
+
+        rows = build_leaderboard(laps, "Practice 1", session)
+
+        self.assertEqual([row["driver"] for row in rows], ["AAA", "BBB"])
+        self.assertEqual(rows[0]["position"], 1)
+        self.assertIsNone(rows[1]["position"])
+        self.assertEqual(rows[1]["gap_display"], "No time")
+        self.assertTrue(validate_session_data(session, laps, rows, "Practice 1")["passed"])
 
 
 if __name__ == "__main__":

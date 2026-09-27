@@ -33,7 +33,14 @@ from flask import Flask, render_template, request, jsonify
 from werkzeug.exceptions import HTTPException
 
 # Our custom modules
-from data_handler import get_dashboard_data, get_latest_session_info, is_session_cached, normalize_session_type
+from data_handler import (
+    SUPPORTED_SESSION_TYPES,
+    get_dashboard_data,
+    get_event_schedule,
+    get_latest_session_info,
+    is_session_cached,
+    normalize_session_type,
+)
 from season_form import build_season_form, empty_season_form, get_cached_season_form
 from circuit_intel import build_circuit_intelligence, empty_circuit_intelligence, get_cached_circuit_intelligence
 from driver_intel import build_driver_intelligence, empty_driver_intelligence, get_cached_driver_intelligence
@@ -236,6 +243,17 @@ _driver_warm_cache = {
 }
 _driver_warm_lock = threading.Lock()
 _driver_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-driver-warm-cache.pkl")
+
+_weekend_warm_cache = {
+    "key": None,
+    "data": None,
+    "error": None,
+    "in_progress": False,
+    "updated_at": None,
+}
+_weekend_warm_lock = threading.Lock()
+_weekend_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-weekend-warm-cache.pkl")
+_WEEKEND_CACHE_VERSION = 1
 
 
 def _write_analysis_cache_snapshot(cache_file, snapshot):
@@ -681,6 +699,201 @@ def _render_driver_page(driver_data=None, *, year=None, driver=None, window=5, e
 
 
 # ---------------------------------------------------------------------------
+# Weekend Results
+# ---------------------------------------------------------------------------
+_WEEKEND_SESSION_SHORT_NAMES = {
+    "Practice 1": "FP1",
+    "Practice 2": "FP2",
+    "Practice 3": "FP3",
+    "Qualifying": "Q",
+    "Sprint Qualifying": "SQ",
+    "Sprint": "Sprint",
+    "Race": "Race",
+}
+
+
+def _scheduled_weekend_sessions(year, round_num):
+    """Return only the supported sessions scheduled for one actual event.
+
+    The FastF1 schedule is the source for the weekend format.  This avoids
+    displaying sprint columns at conventional weekends or inventing sessions
+    when a format changed historically.
+    """
+    schedule = get_event_schedule(year)
+    if schedule is None or schedule.empty or "RoundNumber" not in schedule:
+        raise RuntimeError("The event schedule is unavailable, so the weekend format cannot be verified.")
+
+    event_rows = schedule[schedule["RoundNumber"].astype(int) == int(round_num)]
+    if event_rows.empty:
+        raise RuntimeError(f"Round {round_num} does not exist in the {year} schedule.")
+
+    event = event_rows.iloc[0]
+    sessions = []
+    for index in range(1, 6):
+        session_name = normalize_session_type(event.get(f"Session{index}"))
+        if session_name in SUPPORTED_SESSION_TYPES and session_name not in sessions:
+            sessions.append(session_name)
+    # Session1–Session5 already encode the real event sequence.  Preserve it:
+    # sprint formats changed over time, so a fixed universal ordering would be
+    # factually wrong for part of the archive.
+    return sessions, event.get("EventName")
+
+
+def _build_weekend_results(year, round_num):
+    """Build a factual session-by-session classification matrix.
+
+    Each cell is taken from the same validated session data used by the main
+    dashboard.  A session that is unfinished or fails integrity checks is not
+    included in the matrix, rather than being shown with a guessed result.
+    """
+    scheduled_sessions, scheduled_event_name = _scheduled_weekend_sessions(year, round_num)
+    if not scheduled_sessions:
+        raise RuntimeError("No supported sessions are recorded for this event in the FastF1 schedule.")
+    completed = []
+    withheld = []
+
+    # Session loads are independent.  Run a small number in parallel so a
+    # first weekend request does not wait for every FastF1 download in series.
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    with ThreadPoolExecutor(max_workers=min(3, len(scheduled_sessions)), thread_name_prefix="weekend-results") as executor:
+        futures = {
+            executor.submit(get_dashboard_data, year, round_num, session_name): session_name
+            for session_name in scheduled_sessions
+        }
+        results_by_session = {}
+        for future in as_completed(futures):
+            session_name = futures[future]
+            try:
+                results_by_session[session_name] = future.result()
+            except Exception as exc:
+                results_by_session[session_name] = {"error": str(exc)}
+
+    event_name = scheduled_event_name or f"Round {round_num}"
+    for session_name in scheduled_sessions:
+        result = results_by_session[session_name]
+        if result.get("error"):
+            withheld.append({"name": session_name, "short_name": _WEEKEND_SESSION_SHORT_NAMES[session_name]})
+            continue
+        session_info = result.get("session_info") or {}
+        event_name = session_info.get("event_name") or event_name
+        completed.append(
+            {
+                "name": session_name,
+                "short_name": _WEEKEND_SESSION_SHORT_NAMES[session_name],
+                "category": _session_category(session_name),
+                "rows": result.get("leaderboard") or [],
+            }
+        )
+
+    driver_rows = {}
+    sort_positions = {}
+    sort_preference = ["Race", "Sprint", "Qualifying", "Sprint Qualifying", "Practice 3", "Practice 2", "Practice 1"]
+    for preferred_session in sort_preference:
+        matching = next((session for session in completed if session["name"] == preferred_session), None)
+        if matching:
+            sort_positions = {row.get("driver"): row.get("position", 999) for row in matching["rows"]}
+            break
+
+    for session in completed:
+        for result in session["rows"]:
+            driver = result.get("driver")
+            if not driver:
+                continue
+            driver_row = driver_rows.setdefault(
+                driver,
+                {
+                    "driver": driver,
+                    "team": result.get("team", "Unknown"),
+                    "sessions": {},
+                },
+            )
+            driver_row["team"] = result.get("team") or driver_row["team"]
+            driver_row["sessions"][session["name"]] = {
+                "position": result.get("position"),
+                "url": f"/?year={year}&round={round_num}&session_type={session['name'].replace(' ', '%20')}",
+            }
+
+    rows = sorted(
+        driver_rows.values(),
+        key=lambda row: (sort_positions.get(row["driver"], 999), row["driver"]),
+    )
+    if not completed:
+        raise RuntimeError("No completed session passed the data integrity checks for this weekend.")
+
+    return {
+        "meta": {
+            "year": year,
+            "round_number": round_num,
+            "event_name": event_name,
+        },
+        "sessions": completed,
+        "withheld_sessions": withheld,
+        "rows": rows,
+    }
+
+
+def _read_weekend_warm_cache():
+    """Return an in-memory snapshot of the Weekend Results warmup."""
+    with _weekend_warm_lock:
+        return dict(_weekend_warm_cache)
+
+
+def _read_available_weekend_warm_cache():
+    """Use a completed cross-worker warmup when this worker has no result."""
+    warm_state = _read_weekend_warm_cache()
+    return warm_state if warm_state["data"] is not None else (_read_analysis_cache_snapshot(_weekend_warm_cache_file) or warm_state)
+
+
+def _start_weekend_warmup(year, round_num):
+    """Build a completed event's session matrix in the background."""
+    requested_key = (_WEEKEND_CACHE_VERSION, year, round_num)
+    with _weekend_warm_lock:
+        if _weekend_warm_cache["in_progress"]:
+            return
+        _weekend_warm_cache.update(
+            {"key": requested_key, "data": None, "error": None, "in_progress": True, "updated_at": None}
+        )
+        started_snapshot = dict(_weekend_warm_cache)
+    _write_analysis_cache_snapshot(_weekend_warm_cache_file, started_snapshot)
+
+    def _worker():
+        try:
+            data = _build_weekend_results(year, round_num)
+            with _weekend_warm_lock:
+                _weekend_warm_cache.update({"data": data, "error": None, "updated_at": time.time()})
+                completed_snapshot = dict(_weekend_warm_cache)
+            _write_analysis_cache_snapshot(_weekend_warm_cache_file, completed_snapshot)
+            logger.info("Weekend Results warmup ready for %s", requested_key)
+        except Exception as exc:
+            logger.exception("Weekend Results warmup failed for %s", requested_key)
+            with _weekend_warm_lock:
+                _weekend_warm_cache["error"] = str(exc)
+                failed_snapshot = dict(_weekend_warm_cache)
+            _write_analysis_cache_snapshot(_weekend_warm_cache_file, failed_snapshot)
+        finally:
+            with _weekend_warm_lock:
+                _weekend_warm_cache["in_progress"] = False
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def _render_weekend_page(weekend_data=None, *, year=None, round_num=None, error=None, loading=False, status_code=200):
+    """Render Weekend Results with a predictable context."""
+    payload = weekend_data or {"meta": {}, "sessions": [], "withheld_sessions": [], "rows": []}
+    meta = dict(payload.get("meta") or {})
+    meta["year"] = year if year is not None else meta.get("year")
+    meta["round_number"] = round_num if round_num is not None else meta.get("round_number")
+    return render_template(
+        "weekend.html",
+        weekend_data=payload,
+        weekend_meta=meta,
+        error=error,
+        loading=loading,
+    ), status_code
+
+
+# ---------------------------------------------------------------------------
 # Helper: build the post-race summary
 # ---------------------------------------------------------------------------
 def _run_race_analysis(leaderboard=None, session=None, laps=None):
@@ -719,7 +932,7 @@ def _build_session_summary(leaderboard):
         "top_three": " · ".join(row.get("driver", "—") for row in rows[:3]) if rows else "—",
         "fastest_lap_driver": fastest.get("driver", "—") if fastest else "—",
         "fastest_lap_time": fastest.get("best_lap_display", "—") if fastest else "—",
-        "timed_drivers": len(rows),
+        "timed_drivers": sum(1 for row in rows if pd.notna(row.get("best_lap"))),
     }
 
 
@@ -1192,6 +1405,44 @@ def api_data():
                 "load_time": elapsed,
             }
         )
+    )
+
+
+# ---------------------------------------------------------------------------
+# ROUTE: Weekend Results
+# ---------------------------------------------------------------------------
+@app.route("/weekend")
+def weekend_view():
+    """Render factual results across every completed session of one event."""
+    if request.method == "HEAD":
+        return ("", 200)
+
+    year = request.args.get("year", type=int)
+    round_num = request.args.get("round", type=int)
+    if year is None or round_num is None:
+        try:
+            latest = get_latest_session_info()
+            year = year or latest.get("year")
+            round_num = round_num or latest.get("round_number")
+        except Exception:
+            year = year or datetime.datetime.now().year
+            round_num = round_num or 1
+
+    requested_key = (_WEEKEND_CACHE_VERSION, year, round_num)
+    warm_state = _read_available_weekend_warm_cache()
+    if warm_state["key"] == requested_key and warm_state["data"] is not None:
+        return _render_weekend_page(warm_state["data"], year=year, round_num=round_num)
+    if warm_state["key"] == requested_key and warm_state["error"]:
+        return _render_weekend_page(year=year, round_num=round_num, error=warm_state["error"], status_code=500)
+
+    if not warm_state["in_progress"]:
+        _start_weekend_warmup(year, round_num)
+
+    return _render_weekend_page(
+        year=year,
+        round_num=round_num,
+        loading=True,
+        error="Loading official classifications for this completed event.",
     )
 
 

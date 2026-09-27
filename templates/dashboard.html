@@ -370,6 +370,7 @@
 
     <nav class="analysis-nav" aria-label="More race analysis">
         <span class="analysis-nav-label">More analysis</span>
+        <a class="analysis-link" href="/weekend{% if session_info %}?year={{ session_info.year }}&round={{ session_info.round_number }}{% endif %}">Weekend Results</a>
         <a class="analysis-link" href="/season{% if session_info %}?year={{ session_info.year }}{% endif %}">Season Form</a>
         <a class="analysis-link" href="/circuit{% if session_info %}?year={{ session_info.year }}&round={{ session_info.round_number }}{% endif %}">Circuit History</a>
         <a class="analysis-link" href="/driver{% if session_info %}?year={{ session_info.year }}{% endif %}">Driver Intel</a>
@@ -551,7 +552,7 @@
                     <tbody>
                     {% for d in leaderboard %}
                     <tr>
-                        <td class="position position-{{ d.position }}">{{ d.position }}</td>
+                        <td class="position position-{{ d.position if d.position is not none else 'unknown' }}">{{ d.position if d.position is not none else '—' }}</td>
                         <td class="driver">{{ d.driver }}</td>
                         <td class="team">{{ d.team }}</td>
                         <td>{% if d.grid_position is not none and d.grid_position > 0 %}P{{ d.grid_position }}{% else %}Pit lane{% endif %}</td>
@@ -586,7 +587,7 @@
                     <tbody>
                     {% for d in leaderboard %}
                     <tr>
-                        <td class="position position-{{ d.position }}">{{ d.position }}</td>
+                        <td class="position position-{{ d.position if d.position is not none else 'unknown' }}">{{ d.position if d.position is not none else '—' }}</td>
                         <td class="driver">{{ d.driver }}</td>
                         <td class="team">{{ d.team }}</td>
                         <td class="metric">{{ d.gap_display }}</td>
