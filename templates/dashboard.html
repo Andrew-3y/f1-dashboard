@@ -523,6 +523,40 @@
             </div>
         </section>
 
+        <div class="section-title">Race Finish</div>
+        <section class="card" aria-label="Recorded final phase position changes">
+            <div class="card-header"><h2>Final 10 Laps</h2><span class="badge">Official timing</span></div>
+            <div class="card-body">
+                <div class="race-start-grid">
+                    <div class="race-start-column">
+                        <div class="race-start-heading gained">Largest gains</div>
+                        {% for item in race_finish.gainers %}
+                        <div class="race-start-item">
+                            <div class="race-start-change gained">+{{ item.change }}</div>
+                            <div><div class="race-start-driver">{{ item.driver }}</div><div class="race-start-team">{{ item.team }}</div></div>
+                            <div class="race-start-positions">P{{ item.reference_position }} → P{{ item.final_position }}</div>
+                        </div>
+                        {% else %}
+                        <div class="race-start-empty">No recorded gains in the final 10 laps.</div>
+                        {% endfor %}
+                    </div>
+                    <div class="race-start-column">
+                        <div class="race-start-heading lost">Largest losses</div>
+                        {% for item in race_finish.losers %}
+                        <div class="race-start-item">
+                            <div class="race-start-change lost">{{ item.change }}</div>
+                            <div><div class="race-start-driver">{{ item.driver }}</div><div class="race-start-team">{{ item.team }}</div></div>
+                            <div class="race-start-positions">P{{ item.reference_position }} → P{{ item.final_position }}</div>
+                        </div>
+                        {% else %}
+                        <div class="race-start-empty">No recorded losses in the final 10 laps.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <p class="progression-note">Position at the end of lap {{ race_finish.reference_lap|default('—', true) }} compared with the final recorded lap {{ race_finish.final_lap|default('—', true) }}. Drivers without both recorded positions are excluded.</p>
+            </div>
+        </section>
+
         <div class="section-title">Race Strategy</div>
         <section class="card">
             <div class="card-header"><h2>Compound Sequence</h2><span class="badge">Official timing</span></div>
