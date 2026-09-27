@@ -10,6 +10,7 @@ import pandas as pd
 from app import (
     app as flask_app,
     _build_close_finishes,
+    _build_race_start,
     _build_race_progression,
     _build_race_control_events,
     _build_race_story,
@@ -400,6 +401,27 @@ class PostRaceDataTests(unittest.TestCase):
         )
         progression = _build_race_progression([{"position": 1, "driver": "AAA", "team": "Team"}], laps)
         self.assertEqual(progression["drivers"][0]["points"], [{"lap": 1, "position": 2}, {"lap": 2, "position": 1}])
+
+    def test_race_start_uses_recorded_lap_one_positions_and_excludes_pit_lane_starters(self):
+        laps = pd.DataFrame(
+            {
+                "Driver": ["AAA", "BBB", "CCC", "AAA"],
+                "LapNumber": [1, 1, 1, 1],
+                "Position": [6, 5, 1, 7],
+                "FastF1Generated": [False, False, False, True],
+            }
+        )
+        leaderboard = [
+            {"driver": "AAA", "team": "Alpha", "grid_position": 10},
+            {"driver": "BBB", "team": "Beta", "grid_position": 2},
+            {"driver": "CCC", "team": "Gamma", "grid_position": 0},
+            {"driver": "DDD", "team": "Delta", "grid_position": 5},
+        ]
+
+        race_start = _build_race_start(leaderboard, laps)
+
+        self.assertEqual(race_start["gainers"], [{"driver": "AAA", "team": "Alpha", "grid_position": 10, "lap_one_position": 6, "change": 4}])
+        self.assertEqual(race_start["losers"], [{"driver": "BBB", "team": "Beta", "grid_position": 2, "lap_one_position": 5, "change": -3}])
 
     def test_close_finishes_exclude_non_numeric_classification_gaps(self):
         rows = [

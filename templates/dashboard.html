@@ -209,6 +209,19 @@
         .pit-stop-driver { align-items: center; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-secondary); display: inline-flex; font-size: 0.7rem; font-weight: 700; gap: 0.25rem; padding: 0.22rem 0.35rem; }
         .pit-stop-compound { align-items: center; border-radius: 999px; display: inline-flex; font-size: 0.58rem; font-weight: 800; height: 1rem; justify-content: center; width: 1rem; }
         .pit-stop-note { color: var(--text-muted); font-size: 0.72rem; padding: 0 1rem 1rem; }
+        .race-start-grid { display: grid; gap: 0.8rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .race-start-column { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+        .race-start-heading { color: var(--text-secondary); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.07em; padding: 0.7rem 0.8rem; text-transform: uppercase; }
+        .race-start-heading.gained { color: var(--accent-green); }
+        .race-start-heading.lost { color: var(--accent-orange); }
+        .race-start-item { align-items: center; border-top: 1px solid var(--border-color); display: grid; gap: 0.55rem; grid-template-columns: 2rem 1fr auto; padding: 0.65rem 0.8rem; }
+        .race-start-change { font-size: 1rem; font-weight: 800; text-align: center; }
+        .race-start-change.gained { color: var(--accent-green); }
+        .race-start-change.lost { color: var(--accent-orange); }
+        .race-start-driver { color: var(--text-primary); font-size: 0.82rem; font-weight: 800; }
+        .race-start-team { color: var(--text-muted); font-size: 0.7rem; margin-top: 0.1rem; }
+        .race-start-positions { color: var(--text-secondary); font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+        .race-start-empty { border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.75rem; padding: 0.65rem 0.8rem; }
         .progression-controls { display: grid; gap: 0.65rem; margin-bottom: 0.85rem; }
         .progression-control-row { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; }
         .progression-control-label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -365,6 +378,7 @@
             .toolbar input, .toolbar select, .toolbar button, .toolbar a { width: 100%; }
             .story-item { border-bottom: 1px solid var(--border-color); border-right: none; }
             .story-item:last-child { border-bottom: none; }
+            .race-start-grid { grid-template-columns: 1fr; }
             .battle-grid { grid-template-columns: 1fr; }
             .progression-choices { max-height: 11rem; overflow-y: auto; padding-right: 0.2rem; }
         }
@@ -474,6 +488,40 @@
             <div class="race-control-note">Lap references use the race leader’s latest completed lap when the official timing event was recorded.</div>
         </section>
         {% endif %}
+
+        <div class="section-title">Race Start</div>
+        <section class="card" aria-label="Recorded opening lap position changes">
+            <div class="card-header"><h2>Grid to Lap One</h2><span class="badge">Official timing</span></div>
+            <div class="card-body">
+                <div class="race-start-grid">
+                    <div class="race-start-column">
+                        <div class="race-start-heading gained">Largest gains</div>
+                        {% for item in race_start.gainers %}
+                        <div class="race-start-item">
+                            <div class="race-start-change gained">+{{ item.change }}</div>
+                            <div><div class="race-start-driver">{{ item.driver }}</div><div class="race-start-team">{{ item.team }}</div></div>
+                            <div class="race-start-positions">P{{ item.grid_position }} → P{{ item.lap_one_position }}</div>
+                        </div>
+                        {% else %}
+                        <div class="race-start-empty">No recorded gains from the grid to lap one.</div>
+                        {% endfor %}
+                    </div>
+                    <div class="race-start-column">
+                        <div class="race-start-heading lost">Largest losses</div>
+                        {% for item in race_start.losers %}
+                        <div class="race-start-item">
+                            <div class="race-start-change lost">{{ item.change }}</div>
+                            <div><div class="race-start-driver">{{ item.driver }}</div><div class="race-start-team">{{ item.team }}</div></div>
+                            <div class="race-start-positions">P{{ item.grid_position }} → P{{ item.lap_one_position }}</div>
+                        </div>
+                        {% else %}
+                        <div class="race-start-empty">No recorded losses from the grid to lap one.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <p class="progression-note">Position at the end of the first completed lap. Pit-lane starters are excluded because they do not have a numbered grid position.</p>
+            </div>
+        </section>
 
         <div class="section-title">Race Strategy</div>
         <section class="card">

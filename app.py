@@ -215,7 +215,7 @@ _latest_warmup_in_progress = False
 _warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-warm-cache.pkl")
 # Increment when the renderable dashboard analysis changes shape. Persisted
 # snapshots omit raw FastF1 data, so they cannot rebuild newly added sections.
-_DASHBOARD_WARM_CACHE_VERSION = 5
+_DASHBOARD_WARM_CACHE_VERSION = 6
 
 _season_warm_cache = {
     "key": None,
@@ -922,6 +922,7 @@ def _run_race_analysis(leaderboard=None, session=None, laps=None):
     return {
         "race_summary": _build_post_race_summary(leaderboard),
         "race_story": _build_race_story(leaderboard, session=session, laps=laps),
+        "race_start": _build_race_start(leaderboard, laps=laps),
         "strategy_rows": strategy_rows,
         "pit_stop_windows": _group_pit_stops(_build_pit_stop_timeline(leaderboard, laps=laps)),
         "race_progression": _build_race_progression(leaderboard, laps=laps),
@@ -1340,6 +1341,63 @@ def _build_race_progression(leaderboard, laps=None):
     return {"total_laps": total_laps, "max_position": max_position, "drivers": drivers}
 
 
+def _build_race_start(leaderboard, laps=None, limit=3):
+    """Return the largest recorded position changes from the grid to lap one."""
+    empty_start = {"gainers": [], "losers": []}
+    rows = leaderboard or []
+    if laps is None or getattr(laps, "empty", True):
+        return empty_start
+    required_columns = {"Driver", "LapNumber", "Position"}
+    if not required_columns.issubset(laps.columns):
+        return empty_start
+
+    opening_laps = laps.dropna(subset=["Driver", "LapNumber", "Position"]).copy()
+    if "FastF1Generated" in opening_laps.columns:
+        opening_laps = opening_laps[~opening_laps["FastF1Generated"].eq(True)]
+    opening_laps["LapNumber"] = pd.to_numeric(opening_laps["LapNumber"], errors="coerce")
+    opening_laps["Position"] = pd.to_numeric(opening_laps["Position"], errors="coerce")
+    opening_laps = opening_laps.dropna(subset=["LapNumber", "Position"])
+    opening_laps = opening_laps[opening_laps["LapNumber"] == 1]
+    if opening_laps.empty:
+        return empty_start
+
+    lap_one_positions = (
+        opening_laps.drop_duplicates("Driver", keep="last")
+        .set_index("Driver")["Position"]
+        .to_dict()
+    )
+    movements = []
+    for result in rows:
+        driver = result.get("driver")
+        grid_position = pd.to_numeric(result.get("grid_position"), errors="coerce")
+        lap_one_position = pd.to_numeric(lap_one_positions.get(driver), errors="coerce")
+        if pd.isna(grid_position) or pd.isna(lap_one_position) or grid_position <= 0 or lap_one_position <= 0:
+            continue
+        change = int(grid_position) - int(lap_one_position)
+        if not change:
+            continue
+        movements.append(
+            {
+                "driver": driver,
+                "team": result.get("team", "Unknown"),
+                "grid_position": int(grid_position),
+                "lap_one_position": int(lap_one_position),
+                "change": change,
+            }
+        )
+
+    return {
+        "gainers": sorted(
+            (item for item in movements if item["change"] > 0),
+            key=lambda item: (-item["change"], item["lap_one_position"], item["driver"]),
+        )[:limit],
+        "losers": sorted(
+            (item for item in movements if item["change"] < 0),
+            key=lambda item: (item["change"], item["lap_one_position"], item["driver"]),
+        )[:limit],
+    }
+
+
 def _build_close_finishes(leaderboard, limit=3):
     """Return the closest adjacent classified finishers by final time gap."""
     rows = leaderboard or []
@@ -1433,6 +1491,7 @@ def _empty_race():
     return {
         "race_summary": {},
         "race_story": {},
+        "race_start": {"gainers": [], "losers": []},
         "strategy_rows": [],
         "pit_stop_windows": [],
         "race_progression": {"total_laps": 0, "max_position": 1, "drivers": []},
