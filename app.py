@@ -253,7 +253,7 @@ _weekend_warm_cache = {
 }
 _weekend_warm_lock = threading.Lock()
 _weekend_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-weekend-warm-cache.pkl")
-_WEEKEND_CACHE_VERSION = 1
+_WEEKEND_CACHE_VERSION = 2
 
 
 def _write_analysis_cache_snapshot(cache_file, snapshot):
@@ -813,6 +813,20 @@ def _build_weekend_results(year, round_num):
                 "position": result.get("position"),
                 "url": f"/?year={year}&round={round_num}&session_type={session['name'].replace(' ', '%20')}",
             }
+
+    # A change is only calculated against the immediately preceding session.
+    # If either session has no recorded position, leave it blank rather than
+    # implying a comparison that the timing data cannot support.
+    for driver_row in driver_rows.values():
+        previous_position = None
+        for session in completed:
+            cell = driver_row["sessions"].get(session["name"])
+            position = cell.get("position") if cell else None
+            if cell is not None and position is not None and previous_position is not None:
+                cell["change"] = previous_position - position
+            elif cell is not None:
+                cell["change"] = None
+            previous_position = position
 
     rows = sorted(
         driver_rows.values(),

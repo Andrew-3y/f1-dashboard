@@ -72,6 +72,8 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertNotIn("Sprint", [session["name"] for session in weekend["sessions"]])
         self.assertEqual(weekend["rows"][0]["sessions"]["Race"]["position"], 1)
         self.assertEqual(weekend["rows"][0]["sessions"]["Qualifying"]["position"], 2)
+        self.assertEqual(weekend["rows"][0]["sessions"]["Practice 2"]["change"], 1)
+        self.assertEqual(weekend["rows"][0]["sessions"]["Race"]["change"], 1)
 
     def test_weekend_session_matrix_includes_sprint_format_and_withholds_failed_session(self):
         schedule = pd.DataFrame(
@@ -125,7 +127,7 @@ class PostRaceDataTests(unittest.TestCase):
 
     def test_weekend_page_renders_a_position_matrix_from_warmed_data(self):
         warm_state = {
-            "key": (1, 2025, 1),
+            "key": (2, 2025, 1),
             "data": {
                 "meta": {"year": 2025, "round_number": 1, "event_name": "Australian Grand Prix"},
                 "sessions": [{"name": "Practice 1", "short_name": "FP1", "rows": []}],

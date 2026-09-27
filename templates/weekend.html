@@ -34,20 +34,37 @@
         .card-header h2 { font-size:.95rem; font-weight:700; }
         .badge { background:var(--accent-red); border-radius:999px; color:#fff; font-size:.68rem; font-weight:700; padding:.15rem .55rem; }
         .card-body { overflow-x:auto; }
-        table { border-collapse:collapse; min-width:800px; width:100%; }
+        table { border-collapse:separate; border-spacing:0; min-width:800px; width:100%; }
         th { background:var(--bg-secondary); color:var(--text-secondary); font-size:.68rem; font-weight:700; letter-spacing:.5px; padding:.65rem .8rem; text-align:left; text-transform:uppercase; }
         td { border-bottom:1px solid rgba(255,255,255,.04); font-size:.82rem; padding:.7rem .8rem; }
         tr:hover td { background:rgba(255,255,255,.03); }
+        th:nth-child(1), td:nth-child(1) { left:0; min-width:96px; position:sticky; }
+        th:nth-child(2), td:nth-child(2) { left:96px; min-width:150px; position:sticky; }
+        th:nth-child(-n+2) { z-index:3; }
+        td:nth-child(-n+2) { background:var(--bg-card); z-index:2; }
+        tr:hover td:nth-child(-n+2) { background:var(--bg-card-hover); }
         .driver { font-weight:700; }
         .team, .muted { color:var(--text-secondary); }
+        .session-head { min-width:88px; text-align:center; }
+        .session-practice { border-bottom:2px solid var(--accent-blue); }
+        .session-qualifying { border-bottom:2px solid var(--accent-yellow); }
+        .session-race { border-bottom:2px solid var(--accent-red); }
         .result { color:var(--text-primary); display:block; font-variant-numeric:tabular-nums; font-weight:800; text-align:center; text-decoration:none; }
         .result:hover { color:var(--accent-yellow); text-decoration:underline; }
+        .position-change { display:block; font-size:.68rem; font-weight:700; line-height:1.15; margin-top:.1rem; min-height:.78rem; }
+        .gain { color:var(--accent-green); }
+        .loss { color:var(--accent-orange); }
+        .neutral { color:var(--text-muted); }
         .empty-cell { color:var(--text-muted); display:block; text-align:center; }
         .empty { color:var(--text-secondary); font-size:.82rem; padding:2rem 1rem; text-align:center; }
         .availability { color:var(--text-secondary); display:flex; flex-wrap:wrap; font-size:.76rem; gap:.45rem; margin:0 0 1rem; }
         .availability span { border:1px solid var(--border-color); border-radius:999px; padding:.25rem .55rem; }
         .availability .published { border-color:rgba(0,200,83,.45); color:var(--accent-green); }
         .availability .withheld { border-color:rgba(255,109,0,.45); color:var(--accent-orange); }
+        .matrix-tools { align-items:center; display:flex; flex-wrap:wrap; gap:.7rem; justify-content:space-between; margin:0 0 .8rem; }
+        .matrix-tools label { color:var(--text-secondary); font-size:.76rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+        .matrix-tools input { background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:7px; color:var(--text-primary); font:inherit; margin-left:.45rem; padding:.45rem .65rem; width:min(260px, 100%); }
+        .filter-count { color:var(--text-secondary); font-size:.76rem; }
         .error-box { background:rgba(225,6,0,.1); border:1px solid rgba(225,6,0,.25); border-radius:12px; color:#ffd3d1; padding:1rem 1.1rem; }
         .error-box h2 { font-size:1rem; margin-bottom:.35rem; }
         .error-box p, .error-detail { color:var(--text-secondary); font-size:.8rem; }
@@ -103,20 +120,24 @@
             {% for session in weekend_data.sessions %}<span class="published">{{ session.short_name }} published</span>{% endfor %}
             {% for session in weekend_data.withheld_sessions %}<span class="withheld">{{ session.short_name }} withheld</span>{% endfor %}
         </div>
+        <div class="matrix-tools">
+            <label for="matrixFilter">Filter driver or team <input id="matrixFilter" type="search" placeholder="e.g. NOR or McLaren" autocomplete="off"></label>
+            <span class="filter-count" id="filterCount">{{ weekend_data.rows|length }} drivers</span>
+        </div>
         <section class="card">
             <div class="card-header"><h2>Session-by-Session Classification</h2><span class="badge">{{ weekend_data.rows|length }} drivers</span></div>
             <div class="card-body">
                 {% if weekend_data.rows %}
                 <table>
-                    <thead><tr><th>Driver</th><th>Team</th>{% for session in weekend_data.sessions %}<th title="{{ session.name }}">{{ session.short_name }}</th>{% endfor %}</tr></thead>
-                    <tbody>
+                    <thead><tr><th>Driver</th><th>Team</th>{% for session in weekend_data.sessions %}<th class="session-head session-{{ session.category }}" title="{{ session.name }}">{{ session.short_name }}</th>{% endfor %}</tr></thead>
+                    <tbody id="weekendRows">
                     {% for row in weekend_data.rows %}
-                    <tr>
+                    <tr data-driver="{{ row.driver|lower }}" data-team="{{ row.team|lower }}">
                         <td class="driver">{{ row.driver }}</td>
                         <td class="team">{{ row.team }}</td>
                         {% for session in weekend_data.sessions %}
                         {% set result = row.sessions.get(session.name) %}
-                        <td>{% if result and result.position is not none %}<a class="result" href="{{ result.url }}">P{{ result.position }}</a>{% else %}<span class="empty-cell">—</span>{% endif %}</td>
+                        <td>{% if result and result.position is not none %}{% set change = result.get('change') %}<a class="result" href="{{ result.url }}">P{{ result.position }}{% if change is not none %}<span class="position-change {% if change > 0 %}gain{% elif change < 0 %}loss{% else %}neutral{% endif %}">{% if change > 0 %}+{% endif %}{{ change }}</span>{% endif %}</a>{% else %}<span class="empty-cell">—</span>{% endif %}</td>
                         {% endfor %}
                     </tr>
                     {% endfor %}
@@ -136,6 +157,21 @@
             const year = document.getElementById('yearInput').value;
             const round = document.getElementById('roundInput').value;
             if (year && round) location.href = '/weekend?year=' + encodeURIComponent(year) + '&round=' + encodeURIComponent(round);
+        }
+        const matrixFilter = document.getElementById('matrixFilter');
+        const matrixRows = Array.from(document.querySelectorAll('#weekendRows tr'));
+        const filterCount = document.getElementById('filterCount');
+        if (matrixFilter && filterCount) {
+            matrixFilter.addEventListener('input', function () {
+                const query = matrixFilter.value.trim().toLowerCase();
+                let visible = 0;
+                matrixRows.forEach(function (row) {
+                    const matches = !query || row.dataset.driver.includes(query) || row.dataset.team.includes(query);
+                    row.hidden = !matches;
+                    if (matches) visible += 1;
+                });
+                filterCount.textContent = visible + (visible === 1 ? ' driver' : ' drivers');
+            });
         }
     </script>
 </body>
