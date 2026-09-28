@@ -215,7 +215,7 @@ _latest_warmup_in_progress = False
 _warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-warm-cache.pkl")
 # Increment when the renderable dashboard analysis changes shape. Persisted
 # snapshots omit raw FastF1 data, so they cannot rebuild newly added sections.
-_DASHBOARD_WARM_CACHE_VERSION = 11
+_DASHBOARD_WARM_CACHE_VERSION = 12
 
 _championship_impact_cache = {}
 _championship_impact_lock = threading.Lock()
@@ -1144,13 +1144,15 @@ def _build_race_conditions(session, laps=None):
     if active_period is not None:
         rain_periods.append(active_period)
 
-    def _lap_reference(event_time):
+    def _observed_lap(event_time):
         completed_lap = _latest_completed_lap(laps, event_time)
-        return f"After L{completed_lap}" if completed_lap is not None else "Before L1"
+        return int(completed_lap) + 1 if completed_lap is not None else 1
 
     for period in rain_periods:
-        period["start_reference"] = _lap_reference(period.pop("start_time"))
-        period["end_reference"] = _lap_reference(period.pop("end_time"))
+        start_time = period.pop("start_time")
+        end_time = period.pop("end_time")
+        period["first_observed_lap"] = _observed_lap(start_time)
+        period["last_observed_lap"] = _observed_lap(end_time)
 
     return {
         "start": _snapshot(readings.iloc[0]),
@@ -1301,9 +1303,9 @@ def _build_race_control_events(track_status, laps=None, limit=12):
     """Return recorded Safety Car, VSC and red-flag changes for the timeline.
 
     FastF1's track-status feed records an event time but not a lap number. For
-    legibility, each entry is referenced to the latest lap completed by the
-    race leader at that exact recorded time. The wording intentionally says
-    ``After L...`` rather than inventing an on-lap attribution.
+    legibility, each entry identifies the race leader's active lap at that
+    exact recorded time. The feed does not establish a more precise on-lap
+    attribution.
     """
     if track_status is None or getattr(track_status, "empty", True):
         return []
@@ -1346,7 +1348,7 @@ def _build_race_control_events(track_status, laps=None, limit=12):
             {
                 "label": event[0],
                 "kind": event[1],
-                "lap_reference": f"After L{completed_lap}" if completed_lap is not None else "Before L1",
+                "lap_reference": f"L{int(completed_lap) + 1}" if completed_lap is not None else "Before L1",
             }
         )
         previous_event = event[0]
@@ -1517,7 +1519,7 @@ def _build_pit_stop_timeline(leaderboard, laps=None):
                 {
                     "driver": str(driver),
                     "team": team_by_driver.get(str(driver), "Unknown"),
-                    "lap_reference": f"After L{int(stop['LapNumber'])}",
+                    "lap_reference": f"L{int(stop['LapNumber'])}",
                     "compound_code": compound_code,
                     "compound": compound_name,
                     "pit_in_time": stop["PitInTime"],
@@ -1528,7 +1530,7 @@ def _build_pit_stop_timeline(leaderboard, laps=None):
 
 
 def _group_pit_stops(stops):
-    """Group recorded pit stops by post-lap window without dropping entries."""
+    """Group recorded pit stops by the lap on which they were recorded."""
     grouped_stops = {}
     for stop in stops or []:
         grouped_stops.setdefault(stop["lap_reference"], []).append(stop)

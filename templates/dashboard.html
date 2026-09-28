@@ -416,7 +416,7 @@
             <span class="meta-badge">Round {{ session_info.round_number }}</span>
             <span class="meta-badge">{{ session_info.event_name }}</span>
             <span class="meta-badge">{{ session_info.session_type }}</span>
-            {% if validation and validation.passed %}<span class="meta-badge">Integrity checks passed</span>{% endif %}
+            {% if validation and validation.passed %}<span class="meta-badge">Data checks passed</span>{% endif %}
             {% endif %}
         </div>
     </header>
@@ -485,7 +485,7 @@
                 {% endif %}
                 {% if race_story.safety_cars is not none %}
                 <div class="story-item">
-                    <div class="story-label">Neutralisations</div>
+                    <div class="story-label">Safety Cars &amp; VSCs</div>
                     <div class="story-value" style="color:var(--accent-yellow);">{{ race_story.safety_cars + race_story.virtual_safety_cars }}</div>
                     <div class="story-detail">Safety car {{ race_story.safety_cars }} · VSC {{ race_story.virtual_safety_cars }}</div>
                 </div>
@@ -599,13 +599,13 @@
             {% if race_conditions.rain_periods %}
             <div class="rain-periods">
                 {% for period in race_conditions.rain_periods %}
-                <div class="rain-period"><strong>Rain recorded</strong><span>{{ period.start_reference }}{% if period.end_reference != period.start_reference %} → {{ period.end_reference }}{% endif %}</span></div>
+                <div class="rain-period"><strong>Rain recorded</strong><span>L{{ period.first_observed_lap }}{% if period.last_observed_lap != period.first_observed_lap %}–L{{ period.last_observed_lap }}{% endif %}</span></div>
                 {% endfor %}
             </div>
             {% else %}
             <div class="championship-note">No rainfall was recorded in the available race weather feed.</div>
             {% endif %}
-            <div class="championship-note">Start and finish use the earliest and latest recorded weather readings. Rain references use the race leader’s latest completed lap at each recorded reading.</div>
+            <div class="championship-note">Weather at the start and finish. Rain labels show laps with a recorded wet-weather reading.</div>
         </section>
         {% endif %}
         {% if race_story.race_control_events %}
@@ -619,7 +619,7 @@
                 </div>
                 {% endfor %}
             </div>
-            <div class="race-control-note">Lap references use the race leader’s latest completed lap when the official timing event was recorded.</div>
+            <div class="race-control-note">Lap labels show the leader's active lap when each timing event was recorded.</div>
         </section>
         {% endif %}
         {% if retirement_details %}
@@ -668,7 +668,7 @@
                         {% endfor %}
                     </div>
                 </div>
-                <p class="progression-note">Position at the end of the first completed lap. Pit-lane starters are excluded because they do not have a numbered grid position.</p>
+                <p class="progression-note">Positions at the end of lap 1. Pit-lane starters are not included because they have no numbered grid position.</p>
             </div>
         </section>
 
@@ -702,17 +702,17 @@
                         {% endfor %}
                     </div>
                 </div>
-                <p class="progression-note">Position at the end of lap {{ race_finish.reference_lap|default('—', true) }} compared with the final recorded lap {{ race_finish.final_lap|default('—', true) }}. Drivers without both recorded positions are excluded.</p>
+                <p class="progression-note">Position after lap {{ race_finish.reference_lap|default('—', true) }} compared with the final recorded position. Drivers missing either position are not shown.</p>
             </div>
         </section>
 
-        <div class="section-title">Race Strategy</div>
+        <div class="section-title">Tyre Strategy</div>
         <section class="card">
-            <div class="card-header"><h2>Compound Sequence</h2><span class="badge">Official timing</span></div>
+            <div class="card-header"><h2>Tyre Stints</h2><span class="badge">Official timing</span></div>
             <div class="card-body">
                 {% if strategy_rows %}
                 <table class="strategy-table">
-                    <thead><tr><th>Pos</th><th>Driver</th><th>Team</th><th>Compound Changes</th><th>Compound Sequence</th></tr></thead>
+                    <thead><tr><th>Pos</th><th>Driver</th><th>Team</th><th>Pit Stops</th><th>Tyre Stints</th></tr></thead>
                     <tbody>
                     {% for row in strategy_rows %}
                     <tr>
@@ -739,7 +739,7 @@
                     </tbody>
                 </table>
                 {% else %}
-                <div class="empty">No tyre-stint data is available for this session.</div>
+                <div class="empty">No tyre strategy data is available for this session.</div>
                 {% endif %}
             </div>
         </section>
@@ -758,7 +758,7 @@
                 </div>
                 {% endfor %}
             </div>
-            <div class="pit-stop-note">A stop appears only when official timing records a pit-in time. Entries sharing a post-lap window are grouped; the compound is taken from each driver’s next recorded lap.</div>
+            <div class="pit-stop-note">A stop appears when official timing records pit-lane entry. Stops on the same lap are grouped; the tyre shown is from each driver's next recorded lap.</div>
         </section>
         {% endif %}
 
@@ -804,7 +804,7 @@
                     <article class="battle-item">
                         <div class="battle-competitors"><span>P{{ battle.ahead_position }}</span> {{ battle.ahead_driver }} <span>vs P{{ battle.behind_position }}</span> {{ battle.behind_driver }}</div>
                         <div class="battle-margin">{{ battle.margin_display }}</div>
-                        <div class="battle-detail">Final classified margin</div>
+                        <div class="battle-detail">Gap at the finish</div>
                     </article>
                     {% endfor %}
                 </div>
@@ -816,7 +816,7 @@
 
         <div class="section-title">Team-mate Battles</div>
         <section class="card">
-            <div class="card-header"><h2>Final Classification Head-to-Heads</h2><span class="badge">Official result</span></div>
+            <div class="card-header"><h2>Team-mate Results</h2><span class="badge">Official result</span></div>
             <div class="card-body">
                 {% if teammate_battles %}
                 <table class="teammate-table">
@@ -879,7 +879,7 @@
         <section class="stats-row" aria-label="Session summary">
             <div class="stat-card"><div class="stat-value">{{ session_summary.leader|default('—') }}</div><div class="stat-detail">{{ session_summary.top_three|default('—') }}</div><div class="stat-label">{% if session_category == 'qualifying' %}P1 · Top 3{% else %}Fastest · Top 3{% endif %}</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--accent-cyan);">{{ session_summary.fastest_lap_driver|default('—') }}</div><div class="stat-detail">{{ session_summary.fastest_lap_time|default('—') }}</div><div class="stat-label">Best Session Lap</div></div>
-            <div class="stat-card"><div class="stat-value" style="color:var(--accent-green);">{{ session_summary.timed_drivers|default(0) }}</div><div class="stat-label">Timed Drivers</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--accent-green);">{{ session_summary.timed_drivers|default(0) }}</div><div class="stat-label">Drivers with a timed lap</div></div>
         </section>
 
         <section class="card">
@@ -887,7 +887,7 @@
             <div class="card-body">
                 {% if leaderboard %}
                 <table>
-                    <thead><tr><th>Pos</th><th>Driver</th><th>Team</th><th>{% if session_category == 'qualifying' %}Segment{% else %}Gap{% endif %}</th><th>{% if session_category == 'qualifying' %}Class. Time{% else %}Best Lap{% endif %}</th></tr></thead>
+                    <thead><tr><th>Pos</th><th>Driver</th><th>Team</th><th>{% if session_category == 'qualifying' %}Segment{% else %}Gap{% endif %}</th><th>{% if session_category == 'qualifying' %}Classification Time{% else %}Best Lap{% endif %}</th></tr></thead>
                     <tbody>
                     {% for d in leaderboard %}
                     <tr>

@@ -383,9 +383,9 @@ class PostRaceDataTests(unittest.TestCase):
         events = _build_race_control_events(track_status, laps=laps)
 
         self.assertEqual(events, [
-            {"label": "Safety Car deployed", "kind": "safety-car", "lap_reference": "After L1"},
-            {"label": "Virtual Safety Car deployed", "kind": "vsc", "lap_reference": "After L2"},
-            {"label": "Red flag", "kind": "red-flag", "lap_reference": "After L3"},
+            {"label": "Safety Car deployed", "kind": "safety-car", "lap_reference": "L2"},
+            {"label": "Virtual Safety Car deployed", "kind": "vsc", "lap_reference": "L3"},
+            {"label": "Red flag", "kind": "red-flag", "lap_reference": "L4"},
         ])
 
     def test_strategy_merges_same_compound_fragments_and_skips_generated_laps(self):
@@ -420,22 +420,22 @@ class PostRaceDataTests(unittest.TestCase):
         stops = _build_pit_stop_timeline(leaderboard, laps)
 
         self.assertEqual(stops, [
-            {"driver": "BBB", "team": "Beta", "lap_reference": "After L4", "compound_code": "I", "compound": "Intermediate", "pit_in_time": pd.Timedelta(seconds=450)},
-            {"driver": "AAA", "team": "Alpha", "lap_reference": "After L9", "compound_code": "H", "compound": "Hard", "pit_in_time": pd.Timedelta(seconds=900)},
+            {"driver": "BBB", "team": "Beta", "lap_reference": "L4", "compound_code": "I", "compound": "Intermediate", "pit_in_time": pd.Timedelta(seconds=450)},
+            {"driver": "AAA", "team": "Alpha", "lap_reference": "L9", "compound_code": "H", "compound": "Hard", "pit_in_time": pd.Timedelta(seconds=900)},
         ])
 
     def test_pit_stop_timeline_groups_same_post_lap_window_without_dropping_stops(self):
         stops = [
-            {"driver": "AAA", "lap_reference": "After L10"},
-            {"driver": "CCC", "lap_reference": "After L11"},
-            {"driver": "BBB", "lap_reference": "After L10"},
+            {"driver": "AAA", "lap_reference": "L10"},
+            {"driver": "CCC", "lap_reference": "L11"},
+            {"driver": "BBB", "lap_reference": "L10"},
         ]
 
         windows = _group_pit_stops(stops)
 
         self.assertEqual([(window["lap_reference"], window["count"]) for window in windows], [
-            ("After L10", 2),
-            ("After L11", 1),
+            ("L10", 2),
+            ("L11", 1),
         ])
         self.assertEqual([stop["driver"] for stop in windows[0]["stops"]], ["AAA", "BBB"])
 
@@ -573,7 +573,7 @@ class PostRaceDataTests(unittest.TestCase):
 
         self.assertEqual(conditions["start"], {"air_temp": 20.0, "track_temp": 30.0, "humidity": 40.0, "wind_speed": 1.0})
         self.assertEqual(conditions["finish"]["track_temp"], 24.0)
-        self.assertEqual(conditions["rain_periods"], [{"samples": 2, "start_reference": "After L1", "end_reference": "After L2"}])
+        self.assertEqual(conditions["rain_periods"], [{"samples": 2, "first_observed_lap": 2, "last_observed_lap": 3}])
 
     def test_close_finishes_exclude_non_numeric_classification_gaps(self):
         rows = [
