@@ -832,13 +832,16 @@ def _build_weekend_results(year, round_num):
     completed = []
     withheld = []
 
-    # Session loads are independent.  Run a small number in parallel so a
-    # first weekend request does not wait for every FastF1 download in series.
+    # This view only displays official positions, so do not download full lap
+    # data for every session. The compact FastF1 classifications are both the
+    # source of truth here and substantially quicker on a fresh instance.
+    # Session loads are independent; run a small number in parallel so a
+    # first request does not wait for every upstream result in series.
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     with ThreadPoolExecutor(max_workers=min(3, len(scheduled_sessions)), thread_name_prefix="weekend-results") as executor:
         futures = {
-            executor.submit(get_dashboard_data, year, round_num, session_name): session_name
+            executor.submit(get_dashboard_data, year, round_num, session_name, include_laps=False): session_name
             for session_name in scheduled_sessions
         }
         results_by_session = {}

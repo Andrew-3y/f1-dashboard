@@ -38,11 +38,13 @@ from app import (
 from data_handler import (
     _build_quali_leaderboard,
     _session_is_safely_complete,
+    build_result_only_leaderboard,
     build_leaderboard,
     load_sessions_concurrently,
     load_session,
     normalize_session_type,
     validate_session_data,
+    validate_result_only_data,
 )
 import data_handler
 from driver_intel import _aggregate_driver_entries, _build_round_snapshots, _summarize_drivers, empty_driver_intelligence
@@ -63,7 +65,8 @@ class PostRaceDataTests(unittest.TestCase):
             }]
         )
 
-        def completed_session(year, round_num, session_name):
+        def completed_session(year, round_num, session_name, **kwargs):
+            self.assertFalse(kwargs.get("include_laps", True))
             position = {"Practice 1": 3, "Practice 2": 2, "Practice 3": 1, "Qualifying": 2, "Race": 1}[session_name]
             return {
                 "error": None,
@@ -98,7 +101,8 @@ class PostRaceDataTests(unittest.TestCase):
             }]
         )
 
-        def session_data(year, round_num, session_name):
+        def session_data(year, round_num, session_name, **kwargs):
+            self.assertFalse(kwargs.get("include_laps", True))
             if session_name == "Sprint":
                 return {"error": "Session data failed integrity checks: incomplete timing feed"}
             return {
@@ -824,6 +828,26 @@ class PostRaceDataTests(unittest.TestCase):
         rows = build_leaderboard(laps, "Sprint Qualifying", session)
         self.assertEqual([row["driver"] for row in rows], ["AAA", "BBB"])
         self.assertEqual(rows[1]["gap_display"], "+0.200s")
+
+    def test_result_only_leaderboard_uses_the_official_classification(self):
+        session = type(
+            "Session",
+            (),
+            {
+                "results": pd.DataFrame(
+                    {
+                        "DriverNumber": ["2", "1"],
+                        "Position": [2, 1],
+                        "Abbreviation": ["BBB", "AAA"],
+                        "TeamName": ["Beta", "Alpha"],
+                    }
+                )
+            },
+        )()
+
+        rows = build_result_only_leaderboard(session)
+        self.assertEqual([(row["position"], row["driver"]) for row in rows], [(1, "AAA"), (2, "BBB")])
+        self.assertTrue(validate_result_only_data(session, rows)["passed"])
 
     def test_completion_check_accepts_sprint_qualifying_schedule_alias(self):
         schedule = pd.DataFrame(

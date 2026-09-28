@@ -289,7 +289,12 @@ def is_session_cached(year, round_number, session_type, include_laps=True):
     """Return whether a completed session is already resident in memory."""
     normalized = normalize_session_type(session_type) or session_type
     with _session_cache_lock:
-        return (year, round_number, normalized, bool(include_laps)) in _session_cache
+        if (year, round_number, normalized, bool(include_laps)) in _session_cache:
+            return True
+        # A full dashboard load already includes the official result. A
+        # result-only page can safely reuse it instead of requesting the same
+        # session from FastF1 again.
+        return not include_laps and (year, round_number, normalized, True) in _session_cache
 
 
 def load_session(year, round_number, session_type, include_laps=True):
@@ -320,6 +325,10 @@ def load_session(year, round_number, session_type, include_laps=True):
     cache_key = (year, round_number, session_type, bool(include_laps))
     with _session_cache_lock:
         cached_session = _session_cache.get(cache_key)
+        if cached_session is None and not include_laps:
+            full_session = _session_cache.get((year, round_number, session_type, True))
+            if full_session is not None:
+                return full_session[0], pd.DataFrame()
     if cached_session is not None:
         logger.info("Returning cached session for %s", cache_key)
         return cached_session
@@ -332,6 +341,10 @@ def load_session(year, round_number, session_type, include_laps=True):
     with session_lock:
         with _session_cache_lock:
             cached_session = _session_cache.get(cache_key)
+            if cached_session is None and not include_laps:
+                full_session = _session_cache.get((year, round_number, session_type, True))
+                if full_session is not None:
+                    return full_session[0], pd.DataFrame()
         if cached_session is not None:
             logger.info("Returning cached session for %s", cache_key)
             return cached_session
@@ -453,6 +466,62 @@ def _session_results_rows(session):
 
     rows["Position"] = rows["Position"].astype(int)
     return rows.sort_values("Position").reset_index(drop=True)
+
+
+def build_result_only_leaderboard(session):
+    """Build a compact, official classification without downloading laps.
+
+    Archive views such as Weekend Results need each driver's classified
+    position, not lap-by-lap analysis. FastF1 provides that classification in
+    ``session.results`` when a session is loaded with ``laps=False``. Keeping
+    this separate from the full dashboard leaderboard avoids pretending that
+    result-only data contains tyre, pace, or lap-time detail.
+    """
+    result_rows = _session_results_rows(session)
+    if result_rows.empty:
+        return []
+
+    rows = []
+    for _, result in result_rows.iterrows():
+        driver = result.get("Abbreviation") or result.get("BroadcastName") or result.get("DriverNumber")
+        if pd.isna(driver):
+            continue
+        team = result.get("TeamName")
+        rows.append(
+            {
+                "position": int(result["Position"]),
+                "driver": str(driver),
+                "team": str(team) if pd.notna(team) else "Unknown",
+            }
+        )
+    return rows
+
+
+def validate_result_only_data(session, leaderboard):
+    """Validate a compact official classification used by archive pages."""
+    rows = leaderboard or []
+    source_rows = _session_results_rows(session)
+    errors = []
+    if session is None:
+        errors.append("session was not loaded")
+    if source_rows.empty:
+        errors.append("official session classification is unavailable")
+    if not rows:
+        errors.append("no official classification rows were produced")
+
+    positions = [row.get("position") for row in rows]
+    source_positions = source_rows["Position"].astype(int).tolist() if not source_rows.empty else []
+    if positions != source_positions:
+        errors.append("displayed positions do not match the official session classification")
+    if any(not row.get("driver") for row in rows):
+        errors.append("official classification contains a row without a driver")
+
+    return {
+        "passed": not errors,
+        "checks": ["session loaded", "official classification match"],
+        "errors": errors,
+        "source": "FastF1",
+    }
 
 
 def _final_elapsed_time(driver_laps):
@@ -882,7 +951,7 @@ def _session_is_safely_complete(schedule, round_number, session_type):
     return None
 
 
-def get_dashboard_data(year=None, round_number=None, session_type=None):
+def get_dashboard_data(year=None, round_number=None, session_type=None, *, include_laps=True):
     """
     High-level entry point: fetch, process, and return everything the
     dashboard needs.
@@ -967,14 +1036,18 @@ def get_dashboard_data(year=None, round_number=None, session_type=None):
             info = get_latest_session_info()
 
         session, laps = load_session(
-            info["year"], info["round_number"], info["session_type"]
+            info["year"], info["round_number"], info["session_type"], include_laps=include_laps
         )
 
         # Update event name from loaded session (more accurate)
         info["event_name"] = session.event["EventName"]
 
-        leaderboard = build_leaderboard(laps, session_type=info["session_type"], session=session)
-        validation = validate_session_data(session, laps, leaderboard, info["session_type"])
+        if include_laps:
+            leaderboard = build_leaderboard(laps, session_type=info["session_type"], session=session)
+            validation = validate_session_data(session, laps, leaderboard, info["session_type"])
+        else:
+            leaderboard = build_result_only_leaderboard(session)
+            validation = validate_result_only_data(session, leaderboard)
         if not validation["passed"]:
             return {
                 "session_info": info,
