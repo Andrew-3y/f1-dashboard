@@ -11,6 +11,7 @@ import app as dashboard_app
 from app import (
     app as flask_app,
     _build_close_finishes,
+    _build_championship_impact_from_standings,
     _build_race_finish,
     _build_retirement_details,
     _build_race_start,
@@ -512,6 +513,36 @@ class PostRaceDataTests(unittest.TestCase):
             {"driver": "AAA", "team": "Alpha", "status": "Engine", "last_recorded_lap": 11},
             {"driver": "BBB", "team": "Beta", "status": "Collision", "last_recorded_lap": 21},
         ])
+
+    def test_championship_impact_uses_published_before_and_after_standings(self):
+        driver_before = pd.DataFrame([
+            {"position": 1, "driverId": "alpha", "driverCode": "AAA", "points": 100},
+            {"position": 2, "driverId": "beta", "driverCode": "BBB", "points": 99},
+        ])
+        driver_after = pd.DataFrame([
+            {"position": 1, "driverId": "beta", "driverCode": "BBB", "points": 124},
+            {"position": 2, "driverId": "alpha", "driverCode": "AAA", "points": 110},
+        ])
+        constructor_before = pd.DataFrame([
+            {"position": 1, "constructorId": "alpha", "constructorName": "Alpha", "points": 150},
+            {"position": 2, "constructorId": "beta", "constructorName": "Beta", "points": 149},
+        ])
+        constructor_after = pd.DataFrame([
+            {"position": 1, "constructorId": "beta", "constructorName": "Beta", "points": 184},
+            {"position": 2, "constructorId": "alpha", "constructorName": "Alpha", "points": 160},
+        ])
+
+        impact = _build_championship_impact_from_standings(
+            driver_before, driver_after, constructor_before, constructor_after
+        )
+
+        self.assertEqual(impact["driver_leader"]["name"], "BBB")
+        self.assertEqual(impact["driver_biggest_rise"], {
+            "name": "BBB", "before_position": 2, "after_position": 1,
+            "position_change": 1, "weekend_points": 25.0, "season_points": 124.0,
+        })
+        self.assertEqual(impact["constructor_leader"]["name"], "Beta")
+        self.assertEqual(impact["constructor_biggest_rise"]["weekend_points"], 35.0)
 
     def test_close_finishes_exclude_non_numeric_classification_gaps(self):
         rows = [

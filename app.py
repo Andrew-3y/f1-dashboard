@@ -215,7 +215,10 @@ _latest_warmup_in_progress = False
 _warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-warm-cache.pkl")
 # Increment when the renderable dashboard analysis changes shape. Persisted
 # snapshots omit raw FastF1 data, so they cannot rebuild newly added sections.
-_DASHBOARD_WARM_CACHE_VERSION = 8
+_DASHBOARD_WARM_CACHE_VERSION = 10
+
+_championship_impact_cache = {}
+_championship_impact_lock = threading.Lock()
 
 _season_warm_cache = {
     "key": None,
@@ -409,6 +412,8 @@ def _start_warmup(year, round_num, session_type):
                     data.get("leaderboard"),
                     session=data.get("session"),
                     laps=data.get("laps"),
+                    year=year,
+                    round_num=round_num,
                 )
             else:
                 analysis = {"session_summary": _build_session_summary(data.get("leaderboard"))}
@@ -936,12 +941,13 @@ def _render_weekend_page(weekend_data=None, *, year=None, round_num=None, error=
 # ---------------------------------------------------------------------------
 # Helper: build the post-race summary
 # ---------------------------------------------------------------------------
-def _run_race_analysis(leaderboard=None, session=None, laps=None):
+def _run_race_analysis(leaderboard=None, session=None, laps=None, year=None, round_num=None):
     """Build factual headline statistics from the final classification."""
     strategy_rows = _build_strategy_rows(leaderboard, laps=laps)
     return {
         "race_summary": _build_post_race_summary(leaderboard),
         "race_story": _build_race_story(leaderboard, session=session, laps=laps),
+        "championship_impact": _build_championship_impact(year, round_num),
         "retirement_details": _build_retirement_details(leaderboard, laps=laps),
         "race_start": _build_race_start(leaderboard, laps=laps),
         "race_finish": _build_race_finish(leaderboard, laps=laps),
@@ -951,6 +957,137 @@ def _run_race_analysis(leaderboard=None, session=None, laps=None):
         "close_finishes": _build_close_finishes(leaderboard),
         "teammate_battles": _build_teammate_battles(leaderboard),
     }
+
+
+def _standing_number(value, *, integer=False):
+    """Return a safe standings value without exposing a guessed fallback."""
+    value = pd.to_numeric(value, errors="coerce")
+    if pd.isna(value):
+        return None
+    return int(value) if integer else float(value)
+
+
+def _standings_rows(after, before, *, id_field, name_field):
+    """Compare published standings before and after one completed event."""
+    after_records = after.to_dict("records") if isinstance(after, pd.DataFrame) else []
+    before_records = before.to_dict("records") if isinstance(before, pd.DataFrame) else []
+    before_by_id = {
+        str(row.get(id_field)): row
+        for row in before_records
+        if row.get(id_field) is not None
+    }
+    rows = []
+    for row in after_records:
+        entity_id = row.get(id_field)
+        if entity_id is None:
+            continue
+        previous = before_by_id.get(str(entity_id), {})
+        after_position = _standing_number(row.get("position"), integer=True)
+        before_position = _standing_number(previous.get("position"), integer=True)
+        after_points = _standing_number(row.get("points"))
+        before_points = _standing_number(previous.get("points")) or 0.0
+        weekend_points = None if after_points is None else round(after_points - before_points, 1)
+        rows.append(
+            {
+                "name": str(row.get(name_field) or entity_id),
+                "before_position": before_position,
+                "after_position": after_position,
+                "position_change": (
+                    before_position - after_position
+                    if before_position is not None and after_position is not None
+                    else None
+                ),
+                "weekend_points": weekend_points,
+                "season_points": round(after_points, 1) if after_points is not None else None,
+            }
+        )
+    return sorted(rows, key=lambda item: (item["after_position"] is None, item["after_position"] or 999, item["name"]))
+
+
+def _build_championship_impact_from_standings(driver_before, driver_after, constructor_before, constructor_after):
+    """Build a factual event-impact view from published season standings."""
+    drivers = _standings_rows(driver_after, driver_before, id_field="driverId", name_field="driverCode")
+    constructors = _standings_rows(
+        constructor_after,
+        constructor_before,
+        id_field="constructorId",
+        name_field="constructorName",
+    )
+    if not drivers and not constructors:
+        return {}
+
+    def _leader(rows):
+        return rows[0] if rows else None
+
+    def _largest_rise(rows):
+        improved = [row for row in rows if (row.get("position_change") or 0) > 0]
+        return max(improved, key=lambda row: (row["position_change"], -row["after_position"])) if improved else None
+
+    return {
+        "drivers": drivers,
+        "constructors": constructors,
+        "driver_leader": _leader(drivers),
+        "constructor_leader": _leader(constructors),
+        "driver_biggest_rise": _largest_rise(drivers),
+        "constructor_biggest_rise": _largest_rise(constructors),
+    }
+
+
+def _build_championship_impact(year, round_num):
+    """Fetch published standings before and after a completed race weekend.
+
+    The difference in cumulative points is the event total, so Sprint points
+    are included when that weekend used the Sprint format. If the standings
+    source is unavailable, the dashboard omits this optional section instead
+    of inferring an unofficial table from partial data.
+    """
+    if year is None or round_num is None:
+        return {}
+    cache_key = (int(year), int(round_num))
+    with _championship_impact_lock:
+        cached = _championship_impact_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        from fastf1.ergast import Ergast
+
+        def _fetch(kind, standing_round):
+            client = Ergast()
+            response = (
+                client.get_driver_standings(season=year, round=standing_round, result_type="pandas")
+                if kind == "driver"
+                else client.get_constructor_standings(season=year, round=standing_round, result_type="pandas")
+            )
+            return response.content[0] if getattr(response, "content", None) else pd.DataFrame()
+
+        requests = [("driver_after", "driver", int(round_num)), ("constructor_after", "constructor", int(round_num))]
+        if int(round_num) > 1:
+            requests.extend(
+                [("driver_before", "driver", int(round_num) - 1), ("constructor_before", "constructor", int(round_num) - 1)]
+            )
+        # FastF1's HTTP cache is SQLite-backed.  Keeping these small requests
+        # sequential avoids concurrent writers contending for that cache on a
+        # cold Render instance; its own response cache makes later requests
+        # near-instant without risking a safely withheld section.
+        standings = {
+            name: _fetch(kind, standing_round)
+            for name, kind, standing_round in requests
+        }
+
+        impact = _build_championship_impact_from_standings(
+            standings.get("driver_before", pd.DataFrame()),
+            standings.get("driver_after", pd.DataFrame()),
+            standings.get("constructor_before", pd.DataFrame()),
+            standings.get("constructor_after", pd.DataFrame()),
+        )
+    except Exception:
+        logger.exception("Championship impact unavailable for %s", cache_key)
+        impact = {}
+
+    with _championship_impact_lock:
+        _championship_impact_cache[cache_key] = impact
+    return impact
 
 
 def _session_category(session_type):
@@ -1618,6 +1755,7 @@ def _empty_race():
     return {
         "race_summary": {},
         "race_story": {},
+        "championship_impact": {},
         "retirement_details": [],
         "race_start": {"gainers": [], "losers": []},
         "race_finish": {"reference_lap": None, "final_lap": None, "gainers": [], "losers": []},
@@ -1682,7 +1820,13 @@ def index():
             return _render_dashboard(session_category=_session_category(session_type), error=data["error"])
         session_category = _session_category(data["session_info"].get("session_type"))
         analysis = (
-            _run_race_analysis(data.get("leaderboard"), session=data.get("session"), laps=data.get("laps"))
+            _run_race_analysis(
+                data.get("leaderboard"),
+                session=data.get("session"),
+                laps=data.get("laps"),
+                year=year,
+                round_num=round_num,
+            )
             if session_category == "race"
             else {"session_summary": _build_session_summary(data.get("leaderboard"))}
         )
@@ -1761,7 +1905,13 @@ def api_data():
 
     session_category = _session_category(data["session_info"].get("session_type"))
     analysis = (
-        _run_race_analysis(data.get("leaderboard"), session=data.get("session"), laps=data.get("laps"))
+        _run_race_analysis(
+            data.get("leaderboard"),
+            session=data.get("session"),
+            laps=data.get("laps"),
+            year=year,
+            round_num=round_num,
+        )
         if session_category == "race"
         else {"session_summary": _build_session_summary(data.get("leaderboard"))}
     )

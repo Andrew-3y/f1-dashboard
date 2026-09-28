@@ -176,6 +176,14 @@
         .retirement-team { color: var(--text-muted); font-size: 0.72rem; }
         .retirement-status { color: var(--accent-orange); font-size: 0.76rem; font-weight: 700; margin-top: 0.25rem; }
         .retirement-lap { color: var(--text-secondary); font-size: 0.72rem; }
+        .championship-grid { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); padding: 1rem; }
+        .championship-panel { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-radius: 8px; min-width: 0; overflow-x: auto; }
+        .championship-panel h3 { color: var(--text-primary); font-size: 0.9rem; padding: 0.8rem 0.9rem 0.5rem; }
+        .championship-panel table { min-width: 560px; }
+        .standings-rise { color: var(--accent-green); font-weight: 800; }
+        .standings-fall { color: var(--accent-orange); font-weight: 800; }
+        .standings-steady { color: var(--text-muted); }
+        .championship-note { color: var(--text-muted); font-size: 0.72rem; padding: 0 1rem 1rem; }
         .strategy-table { min-width: 720px; }
         .stint-sequence { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 340px; }
         .stint-pill {
@@ -480,6 +488,81 @@
                 </div>
             </div>
         </section>
+        {% if championship_impact %}
+        <div class="section-title" style="margin-top:1.5rem;">Championship Impact</div>
+        <section class="card" aria-label="Championship standings impact">
+            <div class="card-header"><h2>Standings After This Weekend</h2><span class="badge">Published standings</span></div>
+            <div class="story-grid">
+                {% if championship_impact.driver_leader %}
+                <div class="story-item">
+                    <div class="story-label">Driver Leader</div>
+                    <div class="story-value">{{ championship_impact.driver_leader.name }}</div>
+                    <div class="story-detail">P{{ championship_impact.driver_leader.after_position }} · {{ championship_impact.driver_leader.season_points }} pts</div>
+                </div>
+                {% endif %}
+                {% if championship_impact.constructor_leader %}
+                <div class="story-item">
+                    <div class="story-label">Constructor Leader</div>
+                    <div class="story-value">{{ championship_impact.constructor_leader.name }}</div>
+                    <div class="story-detail">P{{ championship_impact.constructor_leader.after_position }} · {{ championship_impact.constructor_leader.season_points }} pts</div>
+                </div>
+                {% endif %}
+                {% if championship_impact.driver_biggest_rise %}
+                <div class="story-item">
+                    <div class="story-label">Biggest Driver Rise</div>
+                    <div class="story-value" style="color:var(--accent-green);">{{ championship_impact.driver_biggest_rise.name }}</div>
+                    <div class="story-detail">+{{ championship_impact.driver_biggest_rise.position_change }} place{% if championship_impact.driver_biggest_rise.position_change != 1 %}s{% endif %} · P{{ championship_impact.driver_biggest_rise.after_position }}</div>
+                </div>
+                {% endif %}
+                {% if championship_impact.constructor_biggest_rise %}
+                <div class="story-item">
+                    <div class="story-label">Biggest Team Rise</div>
+                    <div class="story-value" style="color:var(--accent-green);">{{ championship_impact.constructor_biggest_rise.name }}</div>
+                    <div class="story-detail">+{{ championship_impact.constructor_biggest_rise.position_change }} place{% if championship_impact.constructor_biggest_rise.position_change != 1 %}s{% endif %} · P{{ championship_impact.constructor_biggest_rise.after_position }}</div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="championship-grid">
+                <article class="championship-panel">
+                    <h3>Driver standings</h3>
+                    <table>
+                        <thead><tr><th>Driver</th><th>Before</th><th>After</th><th>Change</th><th>Weekend Pts</th><th>Season Pts</th></tr></thead>
+                        <tbody>
+                        {% for row in championship_impact.drivers %}
+                            <tr>
+                                <td class="driver">{{ row.name }}</td>
+                                <td>{% if row.before_position is not none %}P{{ row.before_position }}{% else %}Season start{% endif %}</td>
+                                <td class="position position-{{ row.after_position if row.after_position is not none else 'unknown' }}">{% if row.after_position is not none %}P{{ row.after_position }}{% else %}—{% endif %}</td>
+                                <td>{% if row.position_change is none %}<span class="standings-steady">—</span>{% elif row.position_change > 0 %}<span class="standings-rise">+{{ row.position_change }}</span>{% elif row.position_change < 0 %}<span class="standings-fall">{{ row.position_change }}</span>{% else %}<span class="standings-steady">0</span>{% endif %}</td>
+                                <td class="metric">{% if row.weekend_points is not none %}{{ row.weekend_points }}{% else %}—{% endif %}</td>
+                                <td class="metric">{% if row.season_points is not none %}{{ row.season_points }}{% else %}—{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </article>
+                <article class="championship-panel">
+                    <h3>Constructor standings</h3>
+                    <table>
+                        <thead><tr><th>Team</th><th>Before</th><th>After</th><th>Change</th><th>Weekend Pts</th><th>Season Pts</th></tr></thead>
+                        <tbody>
+                        {% for row in championship_impact.constructors %}
+                            <tr>
+                                <td class="team">{{ row.name }}</td>
+                                <td>{% if row.before_position is not none %}P{{ row.before_position }}{% else %}Season start{% endif %}</td>
+                                <td class="position position-{{ row.after_position if row.after_position is not none else 'unknown' }}">{% if row.after_position is not none %}P{{ row.after_position }}{% else %}—{% endif %}</td>
+                                <td>{% if row.position_change is none %}<span class="standings-steady">—</span>{% elif row.position_change > 0 %}<span class="standings-rise">+{{ row.position_change }}</span>{% elif row.position_change < 0 %}<span class="standings-fall">{{ row.position_change }}</span>{% else %}<span class="standings-steady">0</span>{% endif %}</td>
+                                <td class="metric">{% if row.weekend_points is not none %}{{ row.weekend_points }}{% else %}—{% endif %}</td>
+                                <td class="metric">{% if row.season_points is not none %}{{ row.season_points }}{% else %}—{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </article>
+            </div>
+            <div class="championship-note">Weekend points are the difference between published standings before and after this event, including Sprint points where awarded.</div>
+        </section>
+        {% endif %}
         {% if race_story.race_control_events %}
         <section class="card" style="margin-top:0.8rem;" aria-label="Official race control timeline">
             <div class="card-header"><h2>Race Control Timeline</h2><span class="badge">Official timing</span></div>
