@@ -453,9 +453,20 @@
         <div class="error-box">
             {% if error.startswith('WARMUP:') %}
             <h2>Loading session data</h2>
-            <p>The completed session is being loaded. This page will retry automatically.</p>
-            <div class="error-detail">{{ error.replace('WARMUP: ', '') }}</div>
-            <script>setTimeout(function () { location.reload(); }, 3000);</script>
+            <p>The completed session is being loaded. This page will check again for up to one minute.</p>
+            <div class="error-detail" id="warmup-status">{{ error.replace('WARMUP: ', '') }}</div>
+            <script>
+                (function () {
+                    const key = 'f1-warmup:' + location.pathname + location.search;
+                    const retries = Number(sessionStorage.getItem(key) || 0);
+                    if (retries >= 12) {
+                        document.getElementById('warmup-status').textContent = 'This request is taking longer than expected. Reload the page to try again.';
+                        return;
+                    }
+                    sessionStorage.setItem(key, String(retries + 1));
+                    setTimeout(function () { location.reload(); }, 5000);
+                }());
+            </script>
             {% else %}
             <h2>Dashboard unavailable</h2>
             <p>Choose a completed session whose timing data has been published.</p>
@@ -908,6 +919,9 @@
         {% endif %}
         {% endif %}
     </main>
+    {% if not error or not error.startswith('WARMUP:') %}
+    <script>sessionStorage.removeItem('f1-warmup:' + location.pathname + location.search);</script>
+    {% endif %}
 
     <footer class="footer">F1 Race Dashboard · Data: <a href="https://github.com/theOehrly/Fast-F1" target="_blank" rel="noreferrer">FastF1</a> · Built with Flask &amp; Python</footer>
 

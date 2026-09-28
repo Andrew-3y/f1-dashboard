@@ -105,9 +105,20 @@
         <div class="error-box">
             <h2>Loading weekend results</h2>
             <p>Official classifications are being checked session by session.</p>
-            <div class="error-detail">{{ error }}</div>
+            <div class="error-detail" id="warmup-status">{{ error }}</div>
         </div>
-        <script>setTimeout(function () { location.reload(); }, 3000);</script>
+        <script>
+            (function () {
+                const key = 'f1-warmup:' + location.pathname + location.search;
+                const retries = Number(sessionStorage.getItem(key) || 0);
+                if (retries >= 12) {
+                    document.getElementById('warmup-status').textContent = 'This request is taking longer than expected. Reload the page to try again.';
+                    return;
+                }
+                sessionStorage.setItem(key, String(retries + 1));
+                setTimeout(function () { location.reload(); }, 5000);
+            }());
+        </script>
         {% elif error %}
         <div class="error-box">
             <h2>Weekend Results unavailable</h2>
@@ -150,6 +161,9 @@
         </section>
     {% endif %}
     </main>
+    {% if not loading %}
+    <script>sessionStorage.removeItem('f1-warmup:' + location.pathname + location.search);</script>
+    {% endif %}
 
     <footer class="footer">Session positions are sourced from FastF1’s official timing and classification data. Select a position to open that session.</footer>
     <script>

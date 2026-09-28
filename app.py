@@ -272,17 +272,20 @@ _WEEKEND_CACHE_VERSION = 3
 
 
 def _write_analysis_cache_snapshot(cache_file, snapshot):
-    """Persist a secondary-page warmup state for another request worker.
+    """Persist only completed secondary-page data for another request worker.
 
-    The in-progress state matters as much as the finished result here.  A
-    loading page refresh can be handled by a different Gunicorn process; if
-    that process cannot see the existing warmup, it starts another identical
-    FastF1 download every few seconds.
+    A Render restart ends daemon threads. Persisting their ``in_progress``
+    marker made a fresh process believe that a worker still existed, which
+    could leave a page in a loading state indefinitely. Completed data is
+    useful across request workers; unfinished work is intentionally local.
     """
+    if snapshot.get("in_progress") or snapshot.get("data") is None:
+        return
     payload = {
         key: snapshot.get(key)
         for key in ("key", "data", "error", "in_progress", "updated_at", "attempt_id")
     }
+    payload["in_progress"] = False
     temporary_path = f"{cache_file}.{os.getpid()}.{threading.get_ident()}.tmp"
     try:
         with open(temporary_path, "wb") as handle:
@@ -316,16 +319,14 @@ def _read_analysis_cache_snapshot(cache_file):
         return None
 
     required = {"key", "data", "error", "updated_at"}
-    if not isinstance(snapshot, dict) or not required.issubset(snapshot) or not snapshot["key"]:
+    if (
+        not isinstance(snapshot, dict)
+        or not required.issubset(snapshot)
+        or not snapshot["key"]
+        or snapshot.get("data") is None
+    ):
         return None
-    snapshot["in_progress"] = (
-        bool(snapshot.get("in_progress", False))
-        and snapshot["data"] is None
-        and not snapshot["error"]
-    )
-    if _warmup_is_stale(snapshot):
-        logger.warning("Discarding stale analysis warmup marker for %s", snapshot["key"])
-        snapshot["in_progress"] = False
+    snapshot["in_progress"] = False
     return snapshot
 
 def _read_warm_cache():
@@ -407,15 +408,13 @@ def _read_available_warm_cache():
     return _read_warm_cache_snapshot() or warm_state
 
 
-def _start_warmup(year, round_num, session_type):
+def _start_warmup(year, round_num, session_type, *, replace_active=True):
     """Warm up a requested completed session in a background thread."""
     with _warm_lock:
         requested_key = (year, round_num, session_type)
-        # One warmup owns this shared cache at a time. Starting a second,
-        # different warmup used to replace the first key mid-load and could
-        # leave the dashboard retrying forever after a service restart.
         if _warm_cache["in_progress"] and not _warmup_is_stale(_warm_cache):
-            return
+            if _warm_cache["key"] == requested_key or not replace_active:
+                return
         attempt_id = time.time_ns()
         _warm_cache["key"] = requested_key
         _warm_cache["data"] = None
@@ -454,6 +453,7 @@ def _start_warmup(year, round_num, session_type):
                         "analysis": analysis,
                         "session_category": session_category,
                         "error": data.get("error"),
+                        "in_progress": False,
                         "updated_at": time.time(),
                     }
                 )
@@ -465,6 +465,7 @@ def _start_warmup(year, round_num, session_type):
             with _warm_lock:
                 if _warm_cache["attempt_id"] == attempt_id:
                     _warm_cache["error"] = str(exc)
+                    _warm_cache["in_progress"] = False
         finally:
             with _warm_lock:
                 if _warm_cache["attempt_id"] == attempt_id:
@@ -495,7 +496,9 @@ def _start_latest_warmup():
             info = get_latest_session_info()
             if not info:
                 raise RuntimeError("No completed Grand Prix is available to preload.")
-            _start_warmup(info["year"], info["round_number"], info["session_type"])
+            _start_warmup(
+                info["year"], info["round_number"], info["session_type"], replace_active=False
+            )
         except Exception:
             logger.exception("Startup latest-session resolution failed")
         finally:
@@ -541,8 +544,8 @@ def _start_season_warmup(year, window):
             "updated_at": time.time(),
             "attempt_id": attempt_id,
         })
-        started_snapshot = dict(_season_warm_cache)
-    _write_analysis_cache_snapshot(_season_warm_cache_file, started_snapshot)
+    # Unfinished jobs are deliberately not persisted: a service restart kills
+    # their worker thread, so a later request must be able to start afresh.
     logger.info("Starting season warmup for %s", requested_key)
 
     def _worker():
@@ -556,6 +559,7 @@ def _start_season_warmup(year, window):
                         "key": requested_key,
                         "data": data,
                         "error": None,
+                        "in_progress": False,
                         "updated_at": time.time(),
                     }
                 )
@@ -568,8 +572,7 @@ def _start_season_warmup(year, window):
                 if _season_warm_cache["key"] != requested_key or _season_warm_cache["attempt_id"] != attempt_id:
                     return
                 _season_warm_cache["error"] = str(exc)
-                failed_snapshot = dict(_season_warm_cache)
-            _write_analysis_cache_snapshot(_season_warm_cache_file, failed_snapshot)
+                _season_warm_cache["in_progress"] = False
         finally:
             with _season_warm_lock:
                 if _season_warm_cache["key"] == requested_key and _season_warm_cache["attempt_id"] == attempt_id:
@@ -632,8 +635,6 @@ def _start_circuit_warmup(year, round_num):
             "updated_at": time.time(),
             "attempt_id": attempt_id,
         })
-        started_snapshot = dict(_circuit_warm_cache)
-    _write_analysis_cache_snapshot(_circuit_warm_cache_file, started_snapshot)
     logger.info("Starting circuit warmup for %s", requested_key)
 
     def _worker():
@@ -647,6 +648,7 @@ def _start_circuit_warmup(year, round_num):
                         "key": requested_key,
                         "data": data,
                         "error": None,
+                        "in_progress": False,
                         "updated_at": time.time(),
                     }
                 )
@@ -659,8 +661,7 @@ def _start_circuit_warmup(year, round_num):
                 if _circuit_warm_cache["key"] != requested_key or _circuit_warm_cache["attempt_id"] != attempt_id:
                     return
                 _circuit_warm_cache["error"] = str(exc)
-                failed_snapshot = dict(_circuit_warm_cache)
-            _write_analysis_cache_snapshot(_circuit_warm_cache_file, failed_snapshot)
+                _circuit_warm_cache["in_progress"] = False
         finally:
             with _circuit_warm_lock:
                 if _circuit_warm_cache["key"] == requested_key and _circuit_warm_cache["attempt_id"] == attempt_id:
@@ -720,8 +721,6 @@ def _start_driver_warmup(year, driver, window):
             "updated_at": time.time(),
             "attempt_id": attempt_id,
         })
-        started_snapshot = dict(_driver_warm_cache)
-    _write_analysis_cache_snapshot(_driver_warm_cache_file, started_snapshot)
     logger.info("Starting driver warmup for %s", requested_key)
 
     def _worker():
@@ -735,6 +734,7 @@ def _start_driver_warmup(year, driver, window):
                         "key": requested_key,
                         "data": data,
                         "error": None,
+                        "in_progress": False,
                         "updated_at": time.time(),
                     }
                 )
@@ -747,8 +747,7 @@ def _start_driver_warmup(year, driver, window):
                 if _driver_warm_cache["key"] != requested_key or _driver_warm_cache["attempt_id"] != attempt_id:
                     return
                 _driver_warm_cache["error"] = str(exc)
-                failed_snapshot = dict(_driver_warm_cache)
-            _write_analysis_cache_snapshot(_driver_warm_cache_file, failed_snapshot)
+                _driver_warm_cache["in_progress"] = False
         finally:
             with _driver_warm_lock:
                 if _driver_warm_cache["key"] == requested_key and _driver_warm_cache["attempt_id"] == attempt_id:
@@ -962,8 +961,6 @@ def _start_weekend_warmup(year, round_num):
                 "attempt_id": attempt_id,
             }
         )
-        started_snapshot = dict(_weekend_warm_cache)
-    _write_analysis_cache_snapshot(_weekend_warm_cache_file, started_snapshot)
 
     def _worker():
         try:
@@ -971,7 +968,9 @@ def _start_weekend_warmup(year, round_num):
             with _weekend_warm_lock:
                 if _weekend_warm_cache["key"] != requested_key or _weekend_warm_cache["attempt_id"] != attempt_id:
                     return
-                _weekend_warm_cache.update({"data": data, "error": None, "updated_at": time.time()})
+                _weekend_warm_cache.update(
+                    {"data": data, "error": None, "in_progress": False, "updated_at": time.time()}
+                )
                 completed_snapshot = dict(_weekend_warm_cache)
             _write_analysis_cache_snapshot(_weekend_warm_cache_file, completed_snapshot)
             logger.info("Weekend Results warmup ready for %s", requested_key)
@@ -981,8 +980,7 @@ def _start_weekend_warmup(year, round_num):
                 if _weekend_warm_cache["key"] != requested_key or _weekend_warm_cache["attempt_id"] != attempt_id:
                     return
                 _weekend_warm_cache["error"] = str(exc)
-                failed_snapshot = dict(_weekend_warm_cache)
-            _write_analysis_cache_snapshot(_weekend_warm_cache_file, failed_snapshot)
+                _weekend_warm_cache["in_progress"] = False
         finally:
             with _weekend_warm_lock:
                 if _weekend_warm_cache["key"] == requested_key and _weekend_warm_cache["attempt_id"] == attempt_id:

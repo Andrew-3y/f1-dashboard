@@ -250,7 +250,7 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual(restored["data"], snapshot["data"])
         self.assertFalse(restored["in_progress"])
 
-    def test_in_progress_secondary_warm_cache_prevents_duplicate_builds(self):
+    def test_in_progress_secondary_warm_cache_is_not_persisted(self):
         snapshot = {
             "key": (2026, 3),
             "data": None,
@@ -263,11 +263,9 @@ class PostRaceDataTests(unittest.TestCase):
             _write_analysis_cache_snapshot(cache_path, snapshot)
             restored = _read_analysis_cache_snapshot(cache_path)
 
-        self.assertEqual(restored["key"], (2026, 3))
-        self.assertIsNone(restored["data"])
-        self.assertTrue(restored["in_progress"])
+        self.assertIsNone(restored)
 
-    def test_stale_secondary_warm_cache_allows_a_retry(self):
+    def test_legacy_in_progress_secondary_warm_cache_allows_a_retry(self):
         snapshot = {
             "key": (2026, 3),
             "data": None,
@@ -280,8 +278,54 @@ class PostRaceDataTests(unittest.TestCase):
             _write_analysis_cache_snapshot(cache_path, snapshot)
             restored = _read_analysis_cache_snapshot(cache_path)
 
-        self.assertEqual(restored["key"], (2026, 3))
-        self.assertFalse(restored["in_progress"])
+        self.assertIsNone(restored)
+
+    def test_explicit_dashboard_request_replaces_an_unrelated_warmup(self):
+        class CapturingThread:
+            def __init__(self, *, target, daemon):
+                self.target = target
+
+            def start(self):
+                targets.append(self.target)
+
+        targets = []
+        cache = {
+            "key": (2026, 14, "Race"),
+            "data": None,
+            "analysis": None,
+            "session_category": "race",
+            "error": None,
+            "in_progress": True,
+            "updated_at": time.time(),
+            "attempt_id": 1,
+        }
+        with patch.object(dashboard_app, "_warm_cache", cache), patch(
+            "app.threading.Thread", CapturingThread
+        ):
+            dashboard_app._start_warmup(2026, 15, "Race")
+
+        self.assertEqual(cache["key"], (2026, 15, "Race"))
+        self.assertTrue(cache["in_progress"])
+        self.assertEqual(len(targets), 1)
+
+    def test_prewarm_does_not_replace_an_active_dashboard_request(self):
+        cache = {
+            "key": (2026, 15, "Race"),
+            "data": None,
+            "analysis": None,
+            "session_category": "race",
+            "error": None,
+            "in_progress": True,
+            "updated_at": time.time(),
+            "attempt_id": 1,
+        }
+        with patch.object(dashboard_app, "_warm_cache", cache), patch(
+            "app.threading.Thread"
+        ) as thread:
+            dashboard_app._start_warmup(2026, 16, "Race", replace_active=False)
+
+        thread.assert_not_called()
+        self.assertEqual(cache["key"], (2026, 15, "Race"))
 
     def test_startup_prewarm_resolves_the_latest_completed_session(self):
         with patch("app._start_latest_warmup") as start_latest_warmup:

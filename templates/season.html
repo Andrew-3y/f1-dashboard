@@ -286,10 +286,19 @@
         {% if loading %}
         <div class="error-box" style="border-color:rgba(51,102,255,0.3);background:rgba(51,102,255,0.12);color:#dbe6ff;">
             Season form is warming up for {{ season_meta.year }}. Render cold starts and multi-round result loading can take a bit on the first request.
-            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+            <div id="warmup-status" style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
         </div>
         <script>
-            setTimeout(function(){ location.reload(); }, 3000);
+            (function () {
+                const key = 'f1-warmup:' + location.pathname + location.search;
+                const retries = Number(sessionStorage.getItem(key) || 0);
+                if (retries >= 12) {
+                    document.getElementById('warmup-status').textContent = 'This request is taking longer than expected. Reload the page to try again.';
+                    return;
+                }
+                sessionStorage.setItem(key, String(retries + 1));
+                setTimeout(function () { location.reload(); }, 5000);
+            }());
         </script>
         {% elif error %}
         <div class="error-box">
@@ -470,6 +479,9 @@
             </div>
         </div>
     </div>
+    {% if not loading %}
+    <script>sessionStorage.removeItem('f1-warmup:' + location.pathname + location.search);</script>
+    {% endif %}
 
     <script>
         function loadSeason() {

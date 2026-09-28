@@ -183,9 +183,20 @@
         {% if loading %}
         <div class="error-box" style="border-color:rgba(0,188,212,0.3);background:rgba(0,188,212,0.12);color:#d8fbff;">
             Race history is loading for {{ circuit_meta.event_name or ('Round ' ~ circuit_meta.round_number) }}.
-            <div style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
+            <div id="warmup-status" style="margin-top:0.5rem;font-family:Consolas,monospace;font-size:0.76rem;">{{ error }}</div>
         </div>
-        <script>setTimeout(function(){ location.reload(); }, 3000);</script>
+        <script>
+            (function () {
+                const key = 'f1-warmup:' + location.pathname + location.search;
+                const retries = Number(sessionStorage.getItem(key) || 0);
+                if (retries >= 12) {
+                    document.getElementById('warmup-status').textContent = 'This request is taking longer than expected. Reload the page to try again.';
+                    return;
+                }
+                sessionStorage.setItem(key, String(retries + 1));
+                setTimeout(function () { location.reload(); }, 5000);
+            }());
+        </script>
         {% elif error %}
         <div class="error-box">
             Race history could not be loaded for round {{ circuit_meta.round_number }} in {{ circuit_meta.year }}.
@@ -223,6 +234,9 @@
             </div>
         </section>
     </main>
+    {% if not loading %}
+    <script>sessionStorage.removeItem('f1-warmup:' + location.pathname + location.search);</script>
+    {% endif %}
 
     <script>
         function loadCircuit() {
