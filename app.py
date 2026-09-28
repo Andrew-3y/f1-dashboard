@@ -38,7 +38,6 @@ from data_handler import (
     get_dashboard_data,
     get_event_schedule,
     get_latest_session_info,
-    is_session_cached,
     normalize_session_type,
 )
 from season_form import build_season_form, empty_season_form, get_cached_season_form
@@ -479,6 +478,35 @@ def _render_warmup(session_type=None):
     return _render_dashboard(
         session_category=_session_category(session_type),
         error="WARMUP: Loading completed session data. This can take ~30s on a cold start. The page will refresh automatically.",
+    )
+
+
+def _render_loaded_dashboard(data, year, round_num, session_type, *, load_time=0):
+    """Render one verified session after it has been loaded in this request."""
+    if data.get("error"):
+        return _render_dashboard(
+            session_category=_session_category(session_type), error=data["error"]
+        )
+
+    session_category = _session_category(data["session_info"].get("session_type"))
+    analysis = (
+        _run_race_analysis(
+            data.get("leaderboard"),
+            session=data.get("session"),
+            laps=data.get("laps"),
+            year=year,
+            round_num=round_num,
+        )
+        if session_category == "race"
+        else {"session_summary": _build_session_summary(data.get("leaderboard"))}
+    )
+    return _render_dashboard(
+        session_info=data["session_info"],
+        session_category=session_category,
+        validation=data.get("validation"),
+        leaderboard=data["leaderboard"],
+        load_time=load_time,
+        **analysis,
     )
 
 
@@ -1929,66 +1957,39 @@ def index():
     if year and round_num:
         session_type = normalize_session_type(session_type) or "Race"
 
+    auto_request = not (year and round_num and session_type)
+    if auto_request:
+        try:
+            latest = get_latest_session_info()
+            year = latest.get("year")
+            round_num = latest.get("round_number")
+            session_type = latest.get("session_type")
+        except Exception as exc:
+            logger.exception("Latest-session lookup failed")
+            return _render_dashboard(error=f"Unable to identify the latest completed session: {exc}")
+        if not (year and round_num and session_type):
+            return _render_dashboard(error="No completed session is currently available.")
+
     requested_key = (year, round_num, session_type)
     warm_state = _read_available_warm_cache()
+    if warm_state["key"] == requested_key and warm_state["data"] and warm_state["analysis"]:
+        return _render_loaded_dashboard(warm_state["data"], year, round_num, session_type)
 
-    auto_request = not (year and round_num and session_type)
-    if (auto_request or warm_state["key"] == requested_key) and warm_state["data"] and warm_state["analysis"]:
-        if warm_state["error"]:
-            return _render_dashboard(
-                session_category=warm_state["session_category"],
-                error=warm_state["error"],
-            )
-        return _render_dashboard(
-            error=None,
-            session_info=warm_state["data"]["session_info"],
-            session_category=warm_state["session_category"],
-            validation=warm_state["data"].get("validation"),
-            leaderboard=warm_state["data"]["leaderboard"],
-            load_time=0,
-            **warm_state["analysis"],
-        )
-
-    # A session already in FastF1's in-memory cache can be rendered directly.
-    # Previously it still went through the background warmup screen and its
-    # fixed retry delay even though no network fetch was needed.
-    if year and round_num and session_type and is_session_cached(year, round_num, session_type):
+    # Load directly for a user request. A daemon warmup can be terminated by a
+    # free-tier restart; this request remains attached to the data load and
+    # returns either verified content or a concrete error.
+    start_time = time.time()
+    try:
         data = get_dashboard_data(year, round_num, session_type)
-        if data.get("error"):
-            return _render_dashboard(session_category=_session_category(session_type), error=data["error"])
-        session_category = _session_category(data["session_info"].get("session_type"))
-        analysis = (
-            _run_race_analysis(
-                data.get("leaderboard"),
-                session=data.get("session"),
-                laps=data.get("laps"),
-                year=year,
-                round_num=round_num,
-            )
-            if session_category == "race"
-            else {"session_summary": _build_session_summary(data.get("leaderboard"))}
-        )
+    except Exception as exc:
+        logger.exception("Dashboard data load failed for %s", requested_key)
         return _render_dashboard(
-            session_info=data["session_info"],
-            session_category=session_category,
-            validation=data.get("validation"),
-            leaderboard=data["leaderboard"],
-            load_time=0,
-            **analysis,
+            session_category=_session_category(session_type),
+            error=f"Unable to load this completed session: {exc}",
         )
-
-    # Cold-start warmup path for both auto-detected and explicit requests.
-    if warm_state["in_progress"] and warm_state["key"] == requested_key:
-        return _render_warmup(session_type)
-
-    if auto_request:
-        _start_latest_warmup()
-        return _render_warmup(session_type)
-
-    # Explicit session requests now warm in the background first so a slow
-    # FastF1 load cannot dump users onto a raw 500 page on Render.
-    _start_warmup(year, round_num, session_type)
-    return _render_warmup(session_type)
+    return _render_loaded_dashboard(
+        data, year, round_num, session_type, load_time=round(time.time() - start_time, 2)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2266,8 +2267,9 @@ def _prewarm_latest_completed_race():
     _start_latest_warmup()
 
 
-if os.environ.get("PREWARM_LATEST_SESSION", "").strip().lower() == "true":
-    _prewarm_latest_completed_race()
+# Startup warmups compete with the first real request on Render's free tier
+# and are vulnerable to being interrupted when the instance restarts. User
+# requests load their selected data directly instead.
 
 
 # ---------------------------------------------------------------------------

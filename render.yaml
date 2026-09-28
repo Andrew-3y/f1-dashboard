@@ -31,5 +31,3 @@ services:
         value: "3.11.0"
       - key: FASTF1_CACHE
         value: /tmp/fastf1_cache
-      - key: PREWARM_LATEST_SESSION
-        value: "true"
