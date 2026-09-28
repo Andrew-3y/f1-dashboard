@@ -11,6 +11,7 @@ from app import (
     app as flask_app,
     _build_close_finishes,
     _build_race_finish,
+    _build_retirement_details,
     _build_race_start,
     _build_race_progression,
     _build_race_control_events,
@@ -132,7 +133,7 @@ class PostRaceDataTests(unittest.TestCase):
 
     def test_weekend_page_renders_a_position_matrix_from_warmed_data(self):
         warm_state = {
-            "key": (2, 2025, 1),
+            "key": (3, 2025, 1),
             "data": {
                 "meta": {"year": 2025, "round_number": 1, "event_name": "Australian Grand Prix"},
                 "sessions": [{"name": "Practice 1", "short_name": "FP1", "rows": []}],
@@ -154,6 +155,23 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Session-by-Session Classification", html)
         self.assertIn(">P1<", html)
+
+    def test_weekend_page_starts_requested_weekend_when_another_is_warming(self):
+        other_weekend = {
+            "key": (3, 2024, 9),
+            "data": None,
+            "error": None,
+            "in_progress": True,
+            "updated_at": None,
+        }
+        with patch("app._read_available_weekend_warm_cache", return_value=other_weekend), patch(
+            "app._start_weekend_warmup"
+        ) as start_warmup:
+            response = flask_app.test_client().get("/weekend?year=2021&round=15")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Loading weekend results", response.get_data(as_text=True))
+        start_warmup.assert_called_once_with(2021, 15)
 
     def test_completed_dashboard_warm_cache_is_available_across_workers(self):
         snapshot = {
@@ -445,6 +463,27 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual(race_finish["final_lap"], 70)
         self.assertEqual(race_finish["gainers"], [{"driver": "AAA", "team": "Alpha", "reference_position": 8, "final_position": 4, "change": 4}])
         self.assertEqual(race_finish["losers"], [{"driver": "BBB", "team": "Beta", "reference_position": 2, "final_position": 6, "change": -4}])
+
+    def test_retirement_details_keep_official_status_and_latest_non_generated_lap(self):
+        laps = pd.DataFrame(
+            {
+                "Driver": ["AAA", "AAA", "BBB", "BBB"],
+                "LapNumber": [11, 12, 20, 21],
+                "FastF1Generated": [False, True, False, False],
+            }
+        )
+        leaderboard = [
+            {"driver": "AAA", "team": "Alpha", "status": "Engine"},
+            {"driver": "BBB", "team": "Beta", "status": "Collision"},
+            {"driver": "CCC", "team": "Gamma", "status": "Finished"},
+        ]
+
+        details = _build_retirement_details(leaderboard, laps)
+
+        self.assertEqual(details, [
+            {"driver": "AAA", "team": "Alpha", "status": "Engine", "last_recorded_lap": 11},
+            {"driver": "BBB", "team": "Beta", "status": "Collision", "last_recorded_lap": 21},
+        ])
 
     def test_close_finishes_exclude_non_numeric_classification_gaps(self):
         rows = [

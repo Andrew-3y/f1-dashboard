@@ -170,6 +170,12 @@
         .race-control-lap { color: var(--text-primary); font-size: 0.72rem; font-weight: 800; white-space: nowrap; }
         .race-control-label { color: var(--text-secondary); font-size: 0.78rem; font-weight: 700; min-width: 0; }
         .race-control-note { color: var(--text-muted); font-size: 0.72rem; padding: 0 1rem 1rem; }
+        .retirement-grid { display: grid; gap: 0.65rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); padding: 1rem; }
+        .retirement-item { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-left: 3px solid var(--accent-orange); border-radius: 8px; display: grid; gap: 0.2rem; padding: 0.75rem 0.8rem; }
+        .retirement-driver { color: var(--text-primary); font-size: 0.86rem; font-weight: 800; }
+        .retirement-team { color: var(--text-muted); font-size: 0.72rem; }
+        .retirement-status { color: var(--accent-orange); font-size: 0.76rem; font-weight: 700; margin-top: 0.25rem; }
+        .retirement-lap { color: var(--text-secondary); font-size: 0.72rem; }
         .strategy-table { min-width: 720px; }
         .stint-sequence { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 340px; }
         .stint-pill {
@@ -470,7 +476,7 @@
                 <div class="story-item">
                     <div class="story-label">Retirements</div>
                     <div class="story-value" style="color:var(--accent-orange);">{{ race_story.retirements|length }}</div>
-                    <div class="story-detail">{% if race_story.retirements %}{% for item in race_story.retirements %}{{ item.driver }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}None recorded{% endif %}</div>
+                    <div class="story-detail">{% if race_story.retirements %}Details below{% else %}None recorded{% endif %}</div>
                 </div>
             </div>
         </section>
@@ -486,6 +492,21 @@
                 {% endfor %}
             </div>
             <div class="race-control-note">Lap references use the race leader’s latest completed lap when the official timing event was recorded.</div>
+        </section>
+        {% endif %}
+        {% if retirement_details %}
+        <section class="card" style="margin-top:0.8rem;" aria-label="Recorded retirement details">
+            <div class="card-header"><h2>Retirement Details</h2><span class="badge">Official result</span></div>
+            <div class="retirement-grid">
+                {% for item in retirement_details %}
+                <div class="retirement-item">
+                    <div class="retirement-driver">{{ item.driver }}</div>
+                    <div class="retirement-team">{{ item.team }}</div>
+                    <div class="retirement-status">{{ item.status }}</div>
+                    <div class="retirement-lap">{% if item.last_recorded_lap is not none %}Last recorded lap: L{{ item.last_recorded_lap }}{% else %}No recorded race lap{% endif %}</div>
+                </div>
+                {% endfor %}
+            </div>
         </section>
         {% endif %}
 

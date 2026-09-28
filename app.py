@@ -215,7 +215,7 @@ _latest_warmup_in_progress = False
 _warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-warm-cache.pkl")
 # Increment when the renderable dashboard analysis changes shape. Persisted
 # snapshots omit raw FastF1 data, so they cannot rebuild newly added sections.
-_DASHBOARD_WARM_CACHE_VERSION = 7
+_DASHBOARD_WARM_CACHE_VERSION = 8
 
 _season_warm_cache = {
     "key": None,
@@ -256,7 +256,7 @@ _weekend_warm_cache = {
 }
 _weekend_warm_lock = threading.Lock()
 _weekend_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-weekend-warm-cache.pkl")
-_WEEKEND_CACHE_VERSION = 2
+_WEEKEND_CACHE_VERSION = 3
 
 
 def _write_analysis_cache_snapshot(cache_file, snapshot):
@@ -869,7 +869,7 @@ def _start_weekend_warmup(year, round_num):
     """Build a completed event's session matrix in the background."""
     requested_key = (_WEEKEND_CACHE_VERSION, year, round_num)
     with _weekend_warm_lock:
-        if _weekend_warm_cache["in_progress"]:
+        if _weekend_warm_cache["in_progress"] and _weekend_warm_cache["key"] == requested_key:
             return
         _weekend_warm_cache.update(
             {"key": requested_key, "data": None, "error": None, "in_progress": True, "updated_at": None}
@@ -881,6 +881,8 @@ def _start_weekend_warmup(year, round_num):
         try:
             data = _build_weekend_results(year, round_num)
             with _weekend_warm_lock:
+                if _weekend_warm_cache["key"] != requested_key:
+                    return
                 _weekend_warm_cache.update({"data": data, "error": None, "updated_at": time.time()})
                 completed_snapshot = dict(_weekend_warm_cache)
             _write_analysis_cache_snapshot(_weekend_warm_cache_file, completed_snapshot)
@@ -888,12 +890,15 @@ def _start_weekend_warmup(year, round_num):
         except Exception as exc:
             logger.exception("Weekend Results warmup failed for %s", requested_key)
             with _weekend_warm_lock:
+                if _weekend_warm_cache["key"] != requested_key:
+                    return
                 _weekend_warm_cache["error"] = str(exc)
                 failed_snapshot = dict(_weekend_warm_cache)
             _write_analysis_cache_snapshot(_weekend_warm_cache_file, failed_snapshot)
         finally:
             with _weekend_warm_lock:
-                _weekend_warm_cache["in_progress"] = False
+                if _weekend_warm_cache["key"] == requested_key:
+                    _weekend_warm_cache["in_progress"] = False
 
     threading.Thread(target=_worker, daemon=True).start()
 
@@ -922,6 +927,7 @@ def _run_race_analysis(leaderboard=None, session=None, laps=None):
     return {
         "race_summary": _build_post_race_summary(leaderboard),
         "race_story": _build_race_story(leaderboard, session=session, laps=laps),
+        "retirement_details": _build_retirement_details(leaderboard, laps=laps),
         "race_start": _build_race_start(leaderboard, laps=laps),
         "race_finish": _build_race_finish(leaderboard, laps=laps),
         "strategy_rows": strategy_rows,
@@ -1033,6 +1039,41 @@ def _build_race_story(leaderboard, session=None, laps=None):
             story["virtual_safety_cars"] = int((status_codes == "6").sum())
 
     return story
+
+
+def _build_retirement_details(leaderboard, laps=None):
+    """Return retired drivers with their official status and latest recorded lap."""
+    last_recorded_laps = {}
+    if laps is not None and not getattr(laps, "empty", True) and {"Driver", "LapNumber"}.issubset(laps.columns):
+        retirement_laps = laps.dropna(subset=["Driver", "LapNumber"]).copy()
+        if "FastF1Generated" in retirement_laps.columns:
+            retirement_laps = retirement_laps[~retirement_laps["FastF1Generated"].eq(True)]
+        retirement_laps["LapNumber"] = pd.to_numeric(retirement_laps["LapNumber"], errors="coerce")
+        retirement_laps = retirement_laps.dropna(subset=["LapNumber"])
+        if not retirement_laps.empty:
+            last_recorded_laps = retirement_laps.groupby("Driver", sort=False)["LapNumber"].max().to_dict()
+
+    details = []
+    for row in leaderboard or []:
+        if not _is_retirement(row.get("status")):
+            continue
+        last_lap = pd.to_numeric(last_recorded_laps.get(row.get("driver")), errors="coerce")
+        details.append(
+            {
+                "driver": row.get("driver", "-"),
+                "team": row.get("team", "Unknown"),
+                "status": row.get("status", "Retired"),
+                "last_recorded_lap": None if pd.isna(last_lap) else int(last_lap),
+            }
+        )
+    return sorted(
+        details,
+        key=lambda item: (
+            item["last_recorded_lap"] is None,
+            item["last_recorded_lap"] if item["last_recorded_lap"] is not None else float("inf"),
+            item["driver"],
+        ),
+    )
 
 
 def _build_race_control_events(track_status, laps=None, limit=12):
@@ -1562,6 +1603,7 @@ def _empty_race():
     return {
         "race_summary": {},
         "race_story": {},
+        "retirement_details": [],
         "race_start": {"gainers": [], "losers": []},
         "race_finish": {"reference_lap": None, "final_lap": None, "gainers": [], "losers": []},
         "strategy_rows": [],
@@ -1752,7 +1794,7 @@ def weekend_view():
     if warm_state["key"] == requested_key and warm_state["error"]:
         return _render_weekend_page(year=year, round_num=round_num, error=warm_state["error"], status_code=500)
 
-    if not warm_state["in_progress"]:
+    if not warm_state["in_progress"] or warm_state["key"] != requested_key:
         _start_weekend_warmup(year, round_num)
 
     return _render_weekend_page(
