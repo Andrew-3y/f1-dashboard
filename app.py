@@ -506,9 +506,11 @@ def _start_season_warmup(year, window):
         try:
             data = build_season_form(year, window=window)
             with _season_warm_lock:
+                if _season_warm_cache["key"] != requested_key:
+                    return
                 _season_warm_cache.update(
                     {
-                        "key": (year, window),
+                        "key": requested_key,
                         "data": data,
                         "error": None,
                         "updated_at": time.time(),
@@ -520,12 +522,15 @@ def _start_season_warmup(year, window):
         except Exception as exc:
             logger.exception("Season warmup failed for %s", (year, window))
             with _season_warm_lock:
+                if _season_warm_cache["key"] != requested_key:
+                    return
                 _season_warm_cache["error"] = str(exc)
                 failed_snapshot = dict(_season_warm_cache)
             _write_analysis_cache_snapshot(_season_warm_cache_file, failed_snapshot)
         finally:
             with _season_warm_lock:
-                _season_warm_cache["in_progress"] = False
+                if _season_warm_cache["key"] == requested_key:
+                    _season_warm_cache["in_progress"] = False
 
     threading.Thread(target=_worker, daemon=True).start()
 
@@ -584,9 +589,11 @@ def _start_circuit_warmup(year, round_num):
         try:
             data = build_circuit_intelligence(year, round_num)
             with _circuit_warm_lock:
+                if _circuit_warm_cache["key"] != requested_key:
+                    return
                 _circuit_warm_cache.update(
                     {
-                        "key": (year, round_num),
+                        "key": requested_key,
                         "data": data,
                         "error": None,
                         "updated_at": time.time(),
@@ -598,12 +605,15 @@ def _start_circuit_warmup(year, round_num):
         except Exception as exc:
             logger.exception("Circuit warmup failed for %s", (year, round_num))
             with _circuit_warm_lock:
+                if _circuit_warm_cache["key"] != requested_key:
+                    return
                 _circuit_warm_cache["error"] = str(exc)
                 failed_snapshot = dict(_circuit_warm_cache)
             _write_analysis_cache_snapshot(_circuit_warm_cache_file, failed_snapshot)
         finally:
             with _circuit_warm_lock:
-                _circuit_warm_cache["in_progress"] = False
+                if _circuit_warm_cache["key"] == requested_key:
+                    _circuit_warm_cache["in_progress"] = False
 
     threading.Thread(target=_worker, daemon=True).start()
 
@@ -659,9 +669,11 @@ def _start_driver_warmup(year, driver, window):
         try:
             data = build_driver_intelligence(year, driver=driver, window=window)
             with _driver_warm_lock:
+                if _driver_warm_cache["key"] != requested_key:
+                    return
                 _driver_warm_cache.update(
                     {
-                        "key": (year, driver or "", window),
+                        "key": requested_key,
                         "data": data,
                         "error": None,
                         "updated_at": time.time(),
@@ -673,12 +685,15 @@ def _start_driver_warmup(year, driver, window):
         except Exception as exc:
             logger.exception("Driver warmup failed for %s", (year, driver or "", window))
             with _driver_warm_lock:
+                if _driver_warm_cache["key"] != requested_key:
+                    return
                 _driver_warm_cache["error"] = str(exc)
                 failed_snapshot = dict(_driver_warm_cache)
             _write_analysis_cache_snapshot(_driver_warm_cache_file, failed_snapshot)
         finally:
             with _driver_warm_lock:
-                _driver_warm_cache["in_progress"] = False
+                if _driver_warm_cache["key"] == requested_key:
+                    _driver_warm_cache["in_progress"] = False
 
     threading.Thread(target=_worker, daemon=True).start()
 

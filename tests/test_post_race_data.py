@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 import pandas as pd
+import app as dashboard_app
 
 from app import (
     app as flask_app,
@@ -172,6 +173,33 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Loading weekend results", response.get_data(as_text=True))
         start_warmup.assert_called_once_with(2021, 15)
+
+    def test_stale_secondary_warmups_do_not_overwrite_newer_requests(self):
+        class CapturingThread:
+            def __init__(self, *, target, daemon):
+                self.target = target
+
+            def start(self):
+                targets.append(self.target)
+
+        cases = [
+            ("_season_warm_cache", dashboard_app._start_season_warmup, "app.build_season_form", (2025, 3), (2024, 5)),
+            ("_circuit_warm_cache", dashboard_app._start_circuit_warmup, "app.build_circuit_intelligence", (2025, 3), (2024, 4)),
+            ("_driver_warm_cache", dashboard_app._start_driver_warmup, "app.build_driver_intelligence", (2025, "NOR", 3), (2024, "VER", 5)),
+        ]
+        for cache_name, start_warmup, build_function, request_args, newer_key in cases:
+            targets = []
+            cache = {"key": None, "data": None, "error": None, "in_progress": False, "updated_at": None}
+            with patch.object(dashboard_app, cache_name, cache), patch(
+                "app._write_analysis_cache_snapshot"
+            ), patch("app.threading.Thread", CapturingThread), patch(build_function, return_value={"old": "data"}):
+                start_warmup(*request_args)
+                cache.update({"key": newer_key, "data": None, "error": None, "in_progress": True})
+                targets.pop()()
+
+            self.assertEqual(cache["key"], newer_key)
+            self.assertIsNone(cache["data"])
+            self.assertTrue(cache["in_progress"])
 
     def test_completed_dashboard_warm_cache_is_available_across_workers(self):
         snapshot = {
