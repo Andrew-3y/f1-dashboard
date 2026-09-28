@@ -642,7 +642,7 @@
                     <div class="retirement-driver">{{ item.driver }}</div>
                     <div class="retirement-team">{{ item.team }}</div>
                     <div class="retirement-status">{{ item.status }}</div>
-                    <div class="retirement-lap">{% if item.last_recorded_lap is not none %}Last recorded lap: L{{ item.last_recorded_lap }}{% else %}No recorded race lap{% endif %}</div>
+                    <div class="retirement-lap">{% if item.last_recorded_lap is not none %}Last recorded lap: {{ item.last_recorded_lap }}{% else %}No recorded race lap{% endif %}</div>
                 </div>
                 {% endfor %}
             </div>
