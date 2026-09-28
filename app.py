@@ -812,7 +812,7 @@ _WEEKEND_SESSION_SHORT_NAMES = {
     "Practice 1": "FP1",
     "Practice 2": "FP2",
     "Practice 3": "FP3",
-    "Qualifying": "Q",
+    "Qualifying": "Qualifying",
     "Sprint Qualifying": "SQ",
     "Sprint": "Sprint",
     "Race": "Race",
@@ -859,16 +859,23 @@ def _build_weekend_results(year, round_num):
     completed = []
     withheld = []
 
-    # This view only displays official positions, so do not download full lap
-    # data for every session. The compact FastF1 classifications are both the
-    # source of truth here and substantially quicker on a fresh instance.
+    # Race-style sessions have official classification rows, so their compact
+    # FastF1 results are sufficient. Practice has no equivalent final
+    # classification: its factual order is the fastest valid lap, which needs
+    # the session timing data.
     # Session loads are independent; run a small number in parallel so a
     # first request does not wait for every upstream result in series.
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     with ThreadPoolExecutor(max_workers=min(3, len(scheduled_sessions)), thread_name_prefix="weekend-results") as executor:
         futures = {
-            executor.submit(get_dashboard_data, year, round_num, session_name, include_laps=False): session_name
+            executor.submit(
+                get_dashboard_data,
+                year,
+                round_num,
+                session_name,
+                include_laps=session_name.startswith("Practice"),
+            ): session_name
             for session_name in scheduled_sessions
         }
         results_by_session = {}

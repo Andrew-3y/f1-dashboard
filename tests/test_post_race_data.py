@@ -66,7 +66,7 @@ class PostRaceDataTests(unittest.TestCase):
         )
 
         def completed_session(year, round_num, session_name, **kwargs):
-            self.assertFalse(kwargs.get("include_laps", True))
+            self.assertEqual(kwargs.get("include_laps"), session_name.startswith("Practice"))
             position = {"Practice 1": 3, "Practice 2": 2, "Practice 3": 1, "Qualifying": 2, "Race": 1}[session_name]
             return {
                 "error": None,
@@ -102,7 +102,7 @@ class PostRaceDataTests(unittest.TestCase):
         )
 
         def session_data(year, round_num, session_name, **kwargs):
-            self.assertFalse(kwargs.get("include_laps", True))
+            self.assertEqual(kwargs.get("include_laps"), session_name.startswith("Practice"))
             if session_name == "Sprint":
                 return {"error": "Session data failed integrity checks: incomplete timing feed"}
             return {
