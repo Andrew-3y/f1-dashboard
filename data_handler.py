@@ -355,7 +355,10 @@ def load_session(year, round_number, session_type, include_laps=True):
         session.load(
             laps=include_laps,
             telemetry=False,   # skip heavy telemetry to stay within memory
-            weather=False,
+            # Weather is a compact official feed used only by the post-race
+            # dashboard. Keep it out of every other session type so the
+            # broader archive remains quick to load.
+            weather=session_type == "Race",
             messages=False,
         )
         logger.info("FastF1 session load finished: %s", cache_key)

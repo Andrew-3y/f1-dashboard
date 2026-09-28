@@ -215,7 +215,7 @@ _latest_warmup_in_progress = False
 _warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-warm-cache.pkl")
 # Increment when the renderable dashboard analysis changes shape. Persisted
 # snapshots omit raw FastF1 data, so they cannot rebuild newly added sections.
-_DASHBOARD_WARM_CACHE_VERSION = 10
+_DASHBOARD_WARM_CACHE_VERSION = 11
 
 _championship_impact_cache = {}
 _championship_impact_lock = threading.Lock()
@@ -948,6 +948,7 @@ def _run_race_analysis(leaderboard=None, session=None, laps=None, year=None, rou
         "race_summary": _build_post_race_summary(leaderboard),
         "race_story": _build_race_story(leaderboard, session=session, laps=laps),
         "championship_impact": _build_championship_impact(year, round_num),
+        "race_conditions": _build_race_conditions(session, laps=laps),
         "retirement_details": _build_retirement_details(leaderboard, laps=laps),
         "race_start": _build_race_start(leaderboard, laps=laps),
         "race_finish": _build_race_finish(leaderboard, laps=laps),
@@ -1088,6 +1089,74 @@ def _build_championship_impact(year, round_num):
     with _championship_impact_lock:
         _championship_impact_cache[cache_key] = impact
     return impact
+
+
+def _weather_number(value):
+    """Return a recorded weather reading as a finite number, or ``None``."""
+    value = pd.to_numeric(value, errors="coerce")
+    return None if pd.isna(value) else round(float(value), 1)
+
+
+def _weather_rainfall(value):
+    """Normalize FastF1's recorded rainfall flag without guessing from text."""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"true", "1"}
+
+
+def _build_race_conditions(session, laps=None):
+    """Return start, finish, and rain-period readings from FastF1 weather data."""
+    weather = getattr(session, "weather_data", None) if session is not None else None
+    if weather is None or getattr(weather, "empty", True):
+        return {}
+
+    readings = weather.copy()
+    if "Time" in readings.columns:
+        readings["Time"] = pd.to_timedelta(readings["Time"], errors="coerce")
+        readings = readings.sort_values("Time", na_position="last")
+    readings = readings.reset_index(drop=True)
+    if readings.empty:
+        return {}
+
+    fields = {
+        "air_temp": "AirTemp",
+        "track_temp": "TrackTemp",
+        "humidity": "Humidity",
+        "wind_speed": "WindSpeed",
+    }
+
+    def _snapshot(row):
+        return {key: _weather_number(row.get(column)) for key, column in fields.items()}
+
+    rain_periods = []
+    active_period = None
+    for _, row in readings.iterrows():
+        raining = _weather_rainfall(row.get("Rainfall"))
+        event_time = row.get("Time")
+        if raining and active_period is None:
+            active_period = {"start_time": event_time, "end_time": event_time, "samples": 1}
+        elif raining:
+            active_period["end_time"] = event_time
+            active_period["samples"] += 1
+        elif active_period is not None:
+            rain_periods.append(active_period)
+            active_period = None
+    if active_period is not None:
+        rain_periods.append(active_period)
+
+    def _lap_reference(event_time):
+        completed_lap = _latest_completed_lap(laps, event_time)
+        return f"After L{completed_lap}" if completed_lap is not None else "Before L1"
+
+    for period in rain_periods:
+        period["start_reference"] = _lap_reference(period.pop("start_time"))
+        period["end_reference"] = _lap_reference(period.pop("end_time"))
+
+    return {
+        "start": _snapshot(readings.iloc[0]),
+        "finish": _snapshot(readings.iloc[-1]),
+        "rain_periods": rain_periods,
+    }
 
 
 def _session_category(session_type):
@@ -1756,6 +1825,7 @@ def _empty_race():
         "race_summary": {},
         "race_story": {},
         "championship_impact": {},
+        "race_conditions": {},
         "retirement_details": [],
         "race_start": {"gainers": [], "losers": []},
         "race_finish": {"reference_lap": None, "final_lap": None, "gainers": [], "losers": []},

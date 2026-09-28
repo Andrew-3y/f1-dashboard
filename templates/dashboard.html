@@ -184,6 +184,15 @@
         .standings-fall { color: var(--accent-orange); font-weight: 800; }
         .standings-steady { color: var(--text-muted); }
         .championship-note { color: var(--text-muted); font-size: 0.72rem; padding: 0 1rem 1rem; }
+        .conditions-grid { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); padding: 1rem; }
+        .condition-panel { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.8rem; }
+        .condition-panel h3 { color: var(--text-primary); font-size: 0.88rem; margin-bottom: 0.55rem; }
+        .condition-readings { display: grid; gap: 0.45rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .condition-reading { color: var(--text-secondary); font-size: 0.74rem; }
+        .condition-reading strong { color: var(--text-primary); display: block; font-size: 0.86rem; }
+        .rain-periods { display: grid; gap: 0.5rem; padding: 0 1rem 1rem; }
+        .rain-period { align-items: center; background: rgba(0,188,212,0.08); border: 1px solid rgba(0,188,212,0.28); border-radius: 8px; color: var(--text-secondary); display: flex; font-size: 0.78rem; font-weight: 700; gap: 0.55rem; padding: 0.6rem 0.75rem; }
+        .rain-period strong { color: var(--accent-cyan); }
         .strategy-table { min-width: 720px; }
         .stint-sequence { display: flex; flex-wrap: wrap; gap: 0.35rem; min-width: 340px; }
         .stint-pill {
@@ -561,6 +570,42 @@
                 </article>
             </div>
             <div class="championship-note">Weekend points are the difference between published standings before and after this event, including Sprint points where awarded.</div>
+        </section>
+        {% endif %}
+        {% if race_conditions %}
+        <div class="section-title" style="margin-top:1.5rem;">Race Conditions</div>
+        <section class="card" aria-label="Recorded race weather conditions">
+            <div class="card-header"><h2>Weather Readings</h2><span class="badge">Official timing</span></div>
+            <div class="conditions-grid">
+                <article class="condition-panel">
+                    <h3>Start</h3>
+                    <div class="condition-readings">
+                        <div class="condition-reading"><strong>{% if race_conditions.start.air_temp is not none %}{{ race_conditions.start.air_temp }}°C{% else %}—{% endif %}</strong>Air</div>
+                        <div class="condition-reading"><strong>{% if race_conditions.start.track_temp is not none %}{{ race_conditions.start.track_temp }}°C{% else %}—{% endif %}</strong>Track</div>
+                        <div class="condition-reading"><strong>{% if race_conditions.start.humidity is not none %}{{ race_conditions.start.humidity }}%{% else %}—{% endif %}</strong>Humidity</div>
+                        <div class="condition-reading"><strong>{% if race_conditions.start.wind_speed is not none %}{{ race_conditions.start.wind_speed }} m/s{% else %}—{% endif %}</strong>Wind</div>
+                    </div>
+                </article>
+                <article class="condition-panel">
+                    <h3>Finish</h3>
+                    <div class="condition-readings">
+                        <div class="condition-reading"><strong>{% if race_conditions.finish.air_temp is not none %}{{ race_conditions.finish.air_temp }}°C{% else %}—{% endif %}</strong>Air</div>
+                        <div class="condition-reading"><strong>{% if race_conditions.finish.track_temp is not none %}{{ race_conditions.finish.track_temp }}°C{% else %}—{% endif %}</strong>Track</div>
+                        <div class="condition-reading"><strong>{% if race_conditions.finish.humidity is not none %}{{ race_conditions.finish.humidity }}%{% else %}—{% endif %}</strong>Humidity</div>
+                        <div class="condition-reading"><strong>{% if race_conditions.finish.wind_speed is not none %}{{ race_conditions.finish.wind_speed }} m/s{% else %}—{% endif %}</strong>Wind</div>
+                    </div>
+                </article>
+            </div>
+            {% if race_conditions.rain_periods %}
+            <div class="rain-periods">
+                {% for period in race_conditions.rain_periods %}
+                <div class="rain-period"><strong>Rain recorded</strong><span>{{ period.start_reference }}{% if period.end_reference != period.start_reference %} → {{ period.end_reference }}{% endif %}</span></div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="championship-note">No rainfall was recorded in the available race weather feed.</div>
+            {% endif %}
+            <div class="championship-note">Start and finish use the earliest and latest recorded weather readings. Rain references use the race leader’s latest completed lap at each recorded reading.</div>
         </section>
         {% endif %}
         {% if race_story.race_control_events %}

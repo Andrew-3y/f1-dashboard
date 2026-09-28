@@ -12,6 +12,7 @@ from app import (
     app as flask_app,
     _build_close_finishes,
     _build_championship_impact_from_standings,
+    _build_race_conditions,
     _build_race_finish,
     _build_retirement_details,
     _build_race_start,
@@ -543,6 +544,36 @@ class PostRaceDataTests(unittest.TestCase):
         })
         self.assertEqual(impact["constructor_leader"]["name"], "Beta")
         self.assertEqual(impact["constructor_biggest_rise"]["weekend_points"], 35.0)
+
+    def test_race_conditions_use_recorded_readings_and_leader_lap_references(self):
+        session = type(
+            "Session",
+            (),
+            {
+                "weather_data": pd.DataFrame(
+                    {
+                        "Time": [pd.Timedelta(seconds=5), pd.Timedelta(seconds=60), pd.Timedelta(seconds=110), pd.Timedelta(seconds=170)],
+                        "AirTemp": [20.0, 20.5, 19.8, 18.7],
+                        "TrackTemp": [30.0, 29.5, 27.0, 24.0],
+                        "Humidity": [40.0, 42.0, 51.0, 60.0],
+                        "WindSpeed": [1.0, 1.2, 2.0, 2.4],
+                        "Rainfall": [False, True, True, False],
+                    }
+                )
+            },
+        )()
+        laps = pd.DataFrame(
+            {
+                "Time": [pd.Timedelta(seconds=50), pd.Timedelta(seconds=100), pd.Timedelta(seconds=160)],
+                "LapNumber": [1, 2, 3],
+            }
+        )
+
+        conditions = _build_race_conditions(session, laps)
+
+        self.assertEqual(conditions["start"], {"air_temp": 20.0, "track_temp": 30.0, "humidity": 40.0, "wind_speed": 1.0})
+        self.assertEqual(conditions["finish"]["track_temp"], 24.0)
+        self.assertEqual(conditions["rain_periods"], [{"samples": 2, "start_reference": "After L1", "end_reference": "After L2"}])
 
     def test_close_finishes_exclude_non_numeric_classification_gaps(self):
         rows = [
