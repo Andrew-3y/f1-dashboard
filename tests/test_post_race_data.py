@@ -797,6 +797,32 @@ class PostRaceDataTests(unittest.TestCase):
         finally:
             data_handler._session_cache.clear()
 
+    def test_sprint_qualifying_falls_back_to_fastf1_sprint_shootout_alias(self):
+        fake_session = type(
+            "Session",
+            (),
+            {
+                "laps": pd.DataFrame({"LapTime": [pd.Timedelta(seconds=80)]}),
+                "load": lambda self, **kwargs: None,
+            },
+        )()
+        calls = []
+
+        def get_session(year, round_number, identifier):
+            calls.append((year, round_number, identifier))
+            if identifier == "SQ":
+                raise ValueError("Sprint Qualifying is unavailable under this FastF1 alias")
+            return fake_session
+
+        data_handler._session_cache.clear()
+        try:
+            with patch("data_handler.fastf1.get_session", side_effect=get_session):
+                load_session(2023, 11, "Sprint Qualifying")
+
+            self.assertEqual(calls, [(2023, 11, "SQ"), (2023, 11, "SS")])
+        finally:
+            data_handler._session_cache.clear()
+
     def test_result_only_session_load_skips_lap_timing_download(self):
         fake_session = type(
             "Session",

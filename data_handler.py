@@ -364,7 +364,15 @@ def load_session(year, round_number, session_type, include_laps=True):
         }
         identifier = session_map.get(session_type, session_type)
 
-        session = fastf1.get_session(year, round_number, identifier)
+        try:
+            session = fastf1.get_session(year, round_number, identifier)
+        except ValueError:
+            # FastF1 called this session "Sprint Shootout" in 2023 and
+            # "Sprint Qualifying" from 2024 onward. The dashboard uses one
+            # reader-facing name, so resolve both official FastF1 aliases.
+            if session_type != "Sprint Qualifying":
+                raise
+            session = fastf1.get_session(year, round_number, "SS")
         session.load(
             laps=include_laps,
             telemetry=False,   # skip heavy telemetry to stay within memory
