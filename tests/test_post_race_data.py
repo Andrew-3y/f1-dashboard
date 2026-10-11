@@ -144,7 +144,7 @@ class PostRaceDataTests(unittest.TestCase):
             "key": (3, 2025, 1),
             "data": {
                 "meta": {"year": 2025, "round_number": 1, "event_name": "Australian Grand Prix"},
-                "sessions": [{"name": "Practice 1", "short_name": "FP1", "rows": []}],
+                "sessions": [{"name": "Practice 1", "short_name": "FP1", "url": "/?year=2025&round=1&session_type=Practice%201", "rows": []}],
                 "withheld_sessions": [],
                 "rows": [{
                     "driver": "AAA",
@@ -162,6 +162,7 @@ class PostRaceDataTests(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn("Session-by-Session Classification", html)
+        self.assertIn('href="/?year=2025&amp;round=1&amp;session_type=Practice%201"', html)
         self.assertIn(">P1<", html)
 
     def test_weekend_page_starts_requested_weekend_when_another_is_warming(self):

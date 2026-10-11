@@ -46,6 +46,8 @@
         .driver { font-weight:700; }
         .team, .muted { color:var(--text-secondary); }
         .session-head { min-width:88px; text-align:center; }
+        .session-link { color:inherit; display:block; text-decoration:none; }
+        .session-link:hover { color:var(--text-primary); text-decoration:underline; }
         .session-practice { border-bottom:2px solid var(--accent-blue); }
         .session-qualifying { border-bottom:2px solid var(--accent-yellow); }
         .session-race { border-bottom:2px solid var(--accent-red); }
@@ -140,7 +142,7 @@
             <div class="card-body">
                 {% if weekend_data.rows %}
                 <table>
-                    <thead><tr><th>Driver</th><th>Team</th>{% for session in weekend_data.sessions %}<th class="session-head session-{{ session.category }}" title="{{ session.name }}">{{ session.short_name }}</th>{% endfor %}</tr></thead>
+                    <thead><tr><th>Driver</th><th>Team</th>{% for session in weekend_data.sessions %}<th class="session-head session-{{ session.category }}" title="Open {{ session.name }} dashboard"><a class="session-link" href="{{ session.url }}">{{ session.short_name }}</a></th>{% endfor %}</tr></thead>
                     <tbody id="weekendRows">
                     {% for row in weekend_data.rows %}
                     <tr data-driver="{{ row.driver|lower }}" data-team="{{ row.team|lower }}">

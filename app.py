@@ -899,6 +899,7 @@ def _build_weekend_results(year, round_num):
                 "name": session_name,
                 "short_name": _WEEKEND_SESSION_SHORT_NAMES[session_name],
                 "category": _session_category(session_name),
+                "url": f"/?year={year}&round={round_num}&session_type={session_name.replace(' ', '%20')}",
                 "rows": result.get("leaderboard") or [],
             }
         )
