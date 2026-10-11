@@ -267,7 +267,9 @@ _weekend_warm_cache = {
 }
 _weekend_warm_lock = threading.Lock()
 _weekend_warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-weekend-warm-cache.pkl")
-_WEEKEND_CACHE_VERSION = 3
+# Bump when the Weekend Results loader changes so a prior completed snapshot
+# cannot keep displaying an outdated classification decision.
+_WEEKEND_CACHE_VERSION = 4
 
 
 def _write_analysis_cache_snapshot(cache_file, snapshot):

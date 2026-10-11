@@ -141,7 +141,7 @@ class PostRaceDataTests(unittest.TestCase):
 
     def test_weekend_page_renders_a_position_matrix_from_warmed_data(self):
         warm_state = {
-            "key": (3, 2025, 1),
+            "key": (dashboard_app._WEEKEND_CACHE_VERSION, 2025, 1),
             "data": {
                 "meta": {"year": 2025, "round_number": 1, "event_name": "Australian Grand Prix"},
                 "sessions": [{"name": "Practice 1", "short_name": "FP1", "url": "/?year=2025&round=1&session_type=Practice%201", "rows": []}],
@@ -167,7 +167,7 @@ class PostRaceDataTests(unittest.TestCase):
 
     def test_weekend_page_starts_requested_weekend_when_another_is_warming(self):
         other_weekend = {
-            "key": (3, 2024, 9),
+            "key": (dashboard_app._WEEKEND_CACHE_VERSION, 2024, 9),
             "data": None,
             "error": None,
             "in_progress": True,
