@@ -23,6 +23,7 @@ import logging
 import os
 import tempfile
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import fastf1
@@ -171,13 +172,56 @@ def format_gap(seconds):
 # ---------------------------------------------------------------------------
 # Detect the latest completed Grand Prix
 # ---------------------------------------------------------------------------
+_published_race_cache = {}
+_published_race_cache_lock = threading.Lock()
+_PUBLISHED_RACE_CACHE_TTL_SECONDS = 15 * 60
+_MAX_CONSECUTIVE_UNPUBLISHED_RACES = 3
+
+
+def _race_has_published_results(year, round_number):
+    """Return whether FastF1 has a usable official classification for a race.
+
+    A scheduled finish time only tells us when a race *should* be over.  It
+    does not guarantee that FastF1's upstream timing source has published the
+    classification yet.  Auto-selection must check the latter before sending
+    a visitor to a race page.
+    """
+    cache_key = (int(year), int(round_number))
+    now = time.monotonic()
+    with _published_race_cache_lock:
+        cached = _published_race_cache.get(cache_key)
+        if cached and now - cached["checked_at"] < _PUBLISHED_RACE_CACHE_TTL_SECONDS:
+            return cached["available"]
+
+    available = False
+    try:
+        session, _ = load_session(year, round_number, "Race", include_laps=False)
+        results = getattr(session, "results", None)
+        if isinstance(results, pd.DataFrame) and not results.empty and "Position" in results:
+            positions = pd.to_numeric(results["Position"], errors="coerce")
+            # One classified row is not a published race result. Requiring two
+            # positions also excludes incomplete placeholder responses.
+            available = int(positions.notna().sum()) >= 2
+    except Exception as exc:
+        logger.info(
+            "Race results are not published by FastF1 for %s round %s: %s",
+            year,
+            round_number,
+            exc,
+        )
+
+    with _published_race_cache_lock:
+        _published_race_cache[cache_key] = {"available": available, "checked_at": now}
+    return available
+
+
 def get_latest_session_info():
     """
-    Return the most recent Grand Prix that is safely past its finish window.
+    Return the most recent Grand Prix with published FastF1 results.
 
     The dashboard is intentionally post-race only. A four-hour buffer after
-    the scheduled race start avoids exposing an active race or a result that
-    is still being finalized by the upstream data providers.
+    the scheduled race start avoids exposing an active race, and a FastF1
+    result check prevents a scheduled-but-unpublished session being selected.
 
     Returns
     -------
@@ -207,7 +251,11 @@ def get_latest_session_info():
             logger.warning("Could not load %d schedule: %s", attempt_year, exc)
             continue
 
-        # Walk events newest-first
+        # Walk events newest-first. If an upstream provider does not have any
+        # current-season results yet, stop after a few consecutive unpublished
+        # events and promptly fall back to the previous season instead of
+        # making visitors wait through an entire placeholder calendar.
+        unpublished_in_a_row = 0
         for _, event in schedule.iloc[::-1].iterrows():
             race_start = None
             for idx in range(1, 6):
@@ -231,9 +279,20 @@ def get_latest_session_info():
                 break
 
             if race_start is not None and race_start + pd.Timedelta(hours=4) <= pd.Timestamp(now):
+                round_number = int(event["RoundNumber"])
+                if not _race_has_published_results(attempt_year, round_number):
+                    unpublished_in_a_row += 1
+                    if unpublished_in_a_row >= _MAX_CONSECUTIVE_UNPUBLISHED_RACES:
+                        logger.info(
+                            "No FastF1 classifications found for the latest %s scheduled races in %s",
+                            unpublished_in_a_row,
+                            attempt_year,
+                        )
+                        break
+                    continue
                 return {
                     "year": attempt_year,
-                    "round_number": int(event["RoundNumber"]),
+                    "round_number": round_number,
                     "event_name": event["EventName"],
                     "session_type": "Race",
                 }

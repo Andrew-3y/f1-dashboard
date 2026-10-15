@@ -38,6 +38,7 @@ from app import (
 )
 from data_handler import (
     _build_quali_leaderboard,
+    get_latest_session_info,
     _session_is_safely_complete,
     build_result_only_leaderboard,
     build_leaderboard,
@@ -53,6 +54,56 @@ from season_form import _driver_form_rows, _team_form_rows, empty_season_form
 
 
 class PostRaceDataTests(unittest.TestCase):
+    def test_latest_session_skips_scheduled_races_without_published_fastf1_results(self):
+        schedule = pd.DataFrame(
+            [
+                {
+                    "RoundNumber": 1,
+                    "EventName": "Published Grand Prix",
+                    "Session1": "Race",
+                    "Session1DateUtc": pd.Timestamp("2026-08-01", tz="UTC"),
+                },
+                {
+                    "RoundNumber": 2,
+                    "EventName": "Unavailable Grand Prix",
+                    "Session1": "Race",
+                    "Session1DateUtc": pd.Timestamp("2026-09-01", tz="UTC"),
+                },
+            ]
+        )
+        previous_season = pd.DataFrame()
+
+        with patch("data_handler.get_event_schedule", side_effect=[schedule, previous_season]), patch(
+            "data_handler._race_has_published_results", side_effect=lambda year, round_number: round_number == 1
+        ):
+            with patch("data_handler.datetime.datetime") as mocked_datetime:
+                mocked_datetime.now.return_value = pd.Timestamp("2026-10-01", tz="UTC").to_pydatetime()
+                result = get_latest_session_info()
+
+        self.assertEqual(result["year"], 2026)
+        self.assertEqual(result["round_number"], 1)
+        self.assertEqual(result["event_name"], "Published Grand Prix")
+
+    def test_published_race_check_requires_multiple_classified_results(self):
+        published_session = type(
+            "Session",
+            (),
+            {"results": pd.DataFrame({"Position": [1, 2]})},
+        )()
+        placeholder_session = type(
+            "Session",
+            (),
+            {"results": pd.DataFrame({"Position": [1, None]})},
+        )()
+        data_handler._published_race_cache.clear()
+        try:
+            with patch("data_handler.load_session", return_value=(published_session, pd.DataFrame())):
+                self.assertTrue(data_handler._race_has_published_results(2025, 1))
+            with patch("data_handler.load_session", return_value=(placeholder_session, pd.DataFrame())):
+                self.assertFalse(data_handler._race_has_published_results(2025, 2))
+        finally:
+            data_handler._published_race_cache.clear()
+
     def test_weekend_session_matrix_uses_only_scheduled_validated_sessions(self):
         schedule = pd.DataFrame(
             [{
