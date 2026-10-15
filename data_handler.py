@@ -179,12 +179,12 @@ _MAX_CONSECUTIVE_UNPUBLISHED_RACES = 3
 
 
 def _race_has_published_results(year, round_number):
-    """Return whether FastF1 has a usable official classification for a race.
+    """Return whether FastF1 has the data needed for a race dashboard.
 
     A scheduled finish time only tells us when a race *should* be over.  It
     does not guarantee that FastF1's upstream timing source has published the
-    classification yet.  Auto-selection must check the latter before sending
-    a visitor to a race page.
+    classification and lap timing yet. Auto-selection must check both before
+    sending a visitor to a race page.
     """
     cache_key = (int(year), int(round_number))
     now = time.monotonic()
@@ -195,16 +195,30 @@ def _race_has_published_results(year, round_number):
 
     available = False
     try:
-        session, _ = load_session(year, round_number, "Race", include_laps=False)
+        session, laps = load_session(year, round_number, "Race", include_laps=True)
         results = getattr(session, "results", None)
-        if isinstance(results, pd.DataFrame) and not results.empty and "Position" in results:
+        required_lap_columns = {"Driver", "LapNumber", "LapTime"}
+        if (
+            isinstance(results, pd.DataFrame)
+            and not results.empty
+            and "Position" in results
+            and isinstance(laps, pd.DataFrame)
+            and required_lap_columns.issubset(laps.columns)
+        ):
             positions = pd.to_numeric(results["Position"], errors="coerce")
-            # One classified row is not a published race result. Requiring two
-            # positions also excludes incomplete placeholder responses.
-            available = int(positions.notna().sum()) >= 2
+            recorded_laps = laps
+            if "FastF1Generated" in recorded_laps.columns:
+                recorded_laps = recorded_laps[recorded_laps["FastF1Generated"] != True]
+            timed_drivers = recorded_laps.loc[
+                pd.to_timedelta(recorded_laps["LapTime"], errors="coerce").notna(), "Driver"
+            ].dropna().nunique()
+            # One classified row or one timed driver is not a published race
+            # dataset. Requiring both prevents result-only fallback data from
+            # being shown on a dashboard that depends on timing information.
+            available = int(positions.notna().sum()) >= 2 and timed_drivers >= 2
     except Exception as exc:
         logger.info(
-            "Race results are not published by FastF1 for %s round %s: %s",
+            "Race dashboard data are not published by FastF1 for %s round %s: %s",
             year,
             round_number,
             exc,

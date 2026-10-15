@@ -84,7 +84,7 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertEqual(result["round_number"], 1)
         self.assertEqual(result["event_name"], "Published Grand Prix")
 
-    def test_published_race_check_requires_multiple_classified_results(self):
+    def test_published_race_check_requires_classification_and_recorded_laps(self):
         published_session = type(
             "Session",
             (),
@@ -95,12 +95,22 @@ class PostRaceDataTests(unittest.TestCase):
             (),
             {"results": pd.DataFrame({"Position": [1, None]})},
         )()
+        recorded_laps = pd.DataFrame(
+            {
+                "Driver": ["AAA", "BBB"],
+                "LapNumber": [1, 1],
+                "LapTime": [pd.Timedelta(seconds=80), pd.Timedelta(seconds=81)],
+                "FastF1Generated": [False, False],
+            }
+        )
         data_handler._published_race_cache.clear()
         try:
-            with patch("data_handler.load_session", return_value=(published_session, pd.DataFrame())):
+            with patch("data_handler.load_session", return_value=(published_session, recorded_laps)):
                 self.assertTrue(data_handler._race_has_published_results(2025, 1))
-            with patch("data_handler.load_session", return_value=(placeholder_session, pd.DataFrame())):
+            with patch("data_handler.load_session", return_value=(placeholder_session, recorded_laps)):
                 self.assertFalse(data_handler._race_has_published_results(2025, 2))
+            with patch("data_handler.load_session", return_value=(published_session, pd.DataFrame())):
+                self.assertFalse(data_handler._race_has_published_results(2025, 3))
         finally:
             data_handler._published_race_cache.clear()
 
