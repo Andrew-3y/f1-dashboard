@@ -232,6 +232,28 @@
         .pit-stop-driver { align-items: center; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-secondary); display: inline-flex; font-size: 0.7rem; font-weight: 700; gap: 0.25rem; padding: 0.22rem 0.35rem; }
         .pit-stop-compound { align-items: center; border-radius: 999px; display: inline-flex; font-size: 0.58rem; font-weight: 800; height: 1rem; justify-content: center; width: 1rem; }
         .pit-stop-note { color: var(--text-muted); font-size: 0.72rem; padding: 0 1rem 1rem; }
+        .replay-controls { align-items: center; display: grid; gap: 0.75rem; grid-template-columns: auto minmax(0, 1fr) auto auto; padding: 1rem; }
+        .replay-step { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-radius: 7px; color: var(--text-primary); cursor: pointer; font: inherit; font-size: 0.76rem; font-weight: 800; min-height: 2rem; padding: 0.35rem 0.65rem; }
+        .replay-step:hover:not(:disabled) { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+        .replay-step:disabled { color: var(--text-muted); cursor: not-allowed; }
+        .replay-slider { accent-color: var(--accent-cyan); min-width: 0; width: 100%; }
+        .replay-lap { color: var(--text-primary); font-size: 0.82rem; font-weight: 800; text-align: right; white-space: nowrap; }
+        .replay-content { display: grid; gap: 0.8rem; grid-template-columns: minmax(0, 1fr) minmax(220px, .55fr); padding: 0 1rem 1rem; }
+        .replay-order, .replay-events { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-radius: 8px; min-width: 0; }
+        .replay-subheading { color: var(--text-secondary); font-size: 0.7rem; font-weight: 800; letter-spacing: .07em; padding: .7rem .8rem; text-transform: uppercase; }
+        .replay-order-row { align-items: center; border-top: 1px solid var(--border-color); display: grid; gap: .55rem; grid-template-columns: 2rem minmax(0, 1fr) auto; padding: .55rem .75rem; }
+        .replay-position { color: var(--text-secondary); font-size: .78rem; font-weight: 800; text-align: center; }
+        .replay-driver { color: var(--text-primary); font-size: .8rem; font-weight: 800; }
+        .replay-team { color: var(--text-muted); font-size: .68rem; margin-top: .08rem; }
+        .replay-tyre { align-items: center; border-radius: 999px; display: inline-flex; font-size: .62rem; font-weight: 800; height: 1.25rem; justify-content: center; width: 1.25rem; }
+        .replay-event-list { display: grid; gap: .45rem; padding: 0 .7rem .7rem; }
+        .replay-event { border: 1px solid var(--border-color); border-left: 3px solid var(--accent-blue); border-radius: 6px; color: var(--text-secondary); font-size: .74rem; font-weight: 700; padding: .5rem .6rem; }
+        .replay-event.safety-car { border-left-color: var(--accent-yellow); }
+        .replay-event.vsc, .replay-event.rain { border-left-color: var(--accent-cyan); }
+        .replay-event.red-flag { border-left-color: var(--accent-red); }
+        .replay-event.pit-stop { border-left-color: var(--accent-orange); }
+        .replay-empty { color: var(--text-muted); font-size: .74rem; padding: 0 .8rem .8rem; }
+        .replay-note { color: var(--text-muted); font-size: .72rem; padding: 0 1rem 1rem; }
         .race-start-grid { display: grid; gap: 0.8rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .race-start-column { background: rgba(255,255,255,0.025); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
         .race-start-heading { color: var(--text-secondary); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.07em; padding: 0.7rem 0.8rem; text-transform: uppercase; }
@@ -403,6 +425,10 @@
             .story-item:last-child { border-bottom: none; }
             .race-start-grid { grid-template-columns: 1fr; }
             .battle-grid { grid-template-columns: 1fr; }
+            .replay-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .replay-slider { grid-column: 1 / -1; grid-row: 1; }
+            .replay-lap { text-align: left; }
+            .replay-content { grid-template-columns: 1fr; }
             .progression-choices { max-height: 11rem; overflow-y: auto; padding-right: 0.2rem; }
         }
     </style>
@@ -773,6 +799,30 @@
         </section>
         {% endif %}
 
+        {% if race_replay.snapshots %}
+        <div class="section-title">Race Replay</div>
+        <section class="card" aria-label="Interactive replay using recorded race data">
+            <div class="card-header"><h2>Recorded Race State</h2><span class="badge">Official timing</span></div>
+            <div class="replay-controls">
+                <button class="replay-step" id="replayPrevious" type="button">Previous</button>
+                <input class="replay-slider" id="replaySlider" type="range" min="0" max="{{ race_replay.snapshots|length - 1 }}" value="0" step="1" aria-label="Select a completed race lap">
+                <div class="replay-lap" id="replayLap">Lap —</div>
+                <button class="replay-step" id="replayNext" type="button">Next</button>
+            </div>
+            <div class="replay-content">
+                <div class="replay-order">
+                    <div class="replay-subheading">Recorded order</div>
+                    <div id="replayOrder"></div>
+                </div>
+                <aside class="replay-events">
+                    <div class="replay-subheading">Recorded at this lap</div>
+                    <div id="replayEvents"></div>
+                </aside>
+            </div>
+            <p class="replay-note">Positions and tyre labels are shown only when recorded for the selected completed lap. Drivers without a verified position at that lap are not shown.</p>
+        </section>
+        {% endif %}
+
         <div class="section-title">Race Progression</div>
         <section class="card">
             <div class="card-header"><h2>Position by Lap</h2><span class="badge">Official timing</span></div>
@@ -932,6 +982,66 @@
             const sessionType = document.getElementById('sessionType').value;
             if (!year || !round) return;
             window.location.href = `/?year=${encodeURIComponent(year)}&round=${encodeURIComponent(round)}&session_type=${encodeURIComponent(sessionType)}`;
+        }
+
+        const raceReplay = {{ race_replay|default({'snapshots': []}, true)|tojson }};
+        const replaySlider = document.getElementById('replaySlider');
+        const replayPrevious = document.getElementById('replayPrevious');
+        const replayNext = document.getElementById('replayNext');
+        const replayLap = document.getElementById('replayLap');
+        const replayOrder = document.getElementById('replayOrder');
+        const replayEvents = document.getElementById('replayEvents');
+
+        if (replaySlider && raceReplay.snapshots.length) {
+            function replayElement(tagName, className, text = '') {
+                const element = document.createElement(tagName);
+                element.className = className;
+                if (text) element.textContent = text;
+                return element;
+            }
+
+            function renderReplay() {
+                const index = Number(replaySlider.value);
+                const snapshot = raceReplay.snapshots[index];
+                replayLap.textContent = `After Lap ${snapshot.lap}${snapshot.rain_recorded ? ' · Rain recorded' : ''}`;
+                replayPrevious.disabled = index === 0;
+                replayNext.disabled = index === raceReplay.snapshots.length - 1;
+                replayOrder.replaceChildren();
+                replayEvents.replaceChildren();
+
+                snapshot.rows.forEach((row) => {
+                    const line = replayElement('div', 'replay-order-row');
+                    line.append(replayElement('span', 'replay-position', `P${row.position}`));
+                    const driver = replayElement('div', '');
+                    driver.append(
+                        replayElement('div', 'replay-driver', row.driver),
+                        replayElement('div', 'replay-team', row.team),
+                    );
+                    const tyre = replayElement('span', `replay-tyre compound-${row.compound_code.toLowerCase()}`, row.compound_code);
+                    tyre.title = row.compound;
+                    line.append(driver, tyre);
+                    replayOrder.appendChild(line);
+                });
+
+                if (snapshot.events.length) {
+                    const events = replayElement('div', 'replay-event-list');
+                    snapshot.events.forEach((event) => events.appendChild(replayElement('div', `replay-event ${event.kind}`, event.label)));
+                    replayEvents.appendChild(events);
+                } else {
+                    replayEvents.appendChild(replayElement('div', 'replay-empty', 'No recorded pit stop or race-control event at this lap.'));
+                }
+            }
+
+            replaySlider.addEventListener('input', renderReplay);
+            replayPrevious.addEventListener('click', () => {
+                replaySlider.value = Math.max(Number(replaySlider.min), Number(replaySlider.value) - 1);
+                renderReplay();
+            });
+            replayNext.addEventListener('click', () => {
+                replaySlider.value = Math.min(Number(replaySlider.max), Number(replaySlider.value) + 1);
+                renderReplay();
+            });
+            renderReplay();
         }
 
         const raceProgression = {{ race_progression|tojson }};

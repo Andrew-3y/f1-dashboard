@@ -219,7 +219,7 @@ _warm_cache_file = os.path.join(tempfile.gettempdir(), "f1-dashboard-warm-cache.
 _WARMUP_STALE_AFTER_SECONDS = 90
 # Increment when the renderable dashboard analysis changes shape. Persisted
 # snapshots omit raw FastF1 data, so they cannot rebuild newly added sections.
-_DASHBOARD_WARM_CACHE_VERSION = 12
+_DASHBOARD_WARM_CACHE_VERSION = 13
 
 _championship_impact_cache = {}
 _championship_impact_lock = threading.Lock()
@@ -1048,17 +1048,27 @@ def _render_weekend_page(weekend_data=None, *, year=None, round_num=None, error=
 def _run_race_analysis(leaderboard=None, session=None, laps=None, year=None, round_num=None):
     """Build factual headline statistics from the final classification."""
     strategy_rows = _build_strategy_rows(leaderboard, laps=laps)
+    race_story = _build_race_story(leaderboard, session=session, laps=laps)
+    race_conditions = _build_race_conditions(session, laps=laps)
+    pit_stops = _build_pit_stop_timeline(leaderboard, laps=laps)
     return {
         "race_summary": _build_post_race_summary(leaderboard),
-        "race_story": _build_race_story(leaderboard, session=session, laps=laps),
+        "race_story": race_story,
         "championship_impact": _build_championship_impact(year, round_num),
-        "race_conditions": _build_race_conditions(session, laps=laps),
+        "race_conditions": race_conditions,
         "retirement_details": _build_retirement_details(leaderboard, laps=laps),
         "race_start": _build_race_start(leaderboard, laps=laps),
         "race_finish": _build_race_finish(leaderboard, laps=laps),
         "strategy_rows": strategy_rows,
-        "pit_stop_windows": _group_pit_stops(_build_pit_stop_timeline(leaderboard, laps=laps)),
+        "pit_stop_windows": _group_pit_stops(pit_stops),
         "race_progression": _build_race_progression(leaderboard, laps=laps),
+        "race_replay": _build_race_replay(
+            leaderboard,
+            laps=laps,
+            race_control_events=race_story.get("race_control_events"),
+            pit_stops=pit_stops,
+            rain_periods=race_conditions.get("rain_periods"),
+        ),
         "close_finishes": _build_close_finishes(leaderboard),
         "teammate_battles": _build_teammate_battles(leaderboard),
     }
@@ -1495,6 +1505,100 @@ def _compound_display(compound):
         "WET": ("W", "Wet"),
     }
     return labels.get(normalized, ("—", "Unknown"))
+
+
+def _build_race_replay(leaderboard, laps=None, *, race_control_events=None, pit_stops=None, rain_periods=None):
+    """Build recorded, end-of-lap race states for the interactive replay.
+
+    A replay frame never fills in missing timing: a driver appears only when
+    FastF1 recorded a position for that completed lap. Tyre labels likewise
+    come from the compound on that driver's recorded lap, not an inferred
+    strategy stint.
+    """
+    empty_replay = {"snapshots": []}
+    if laps is None or getattr(laps, "empty", True):
+        return empty_replay
+    required_columns = {"Driver", "LapNumber", "Position"}
+    if not required_columns.issubset(laps.columns):
+        return empty_replay
+
+    recorded = laps.dropna(subset=["Driver", "LapNumber", "Position"]).copy()
+    if "FastF1Generated" in recorded.columns:
+        recorded = recorded[~recorded["FastF1Generated"].eq(True)]
+    recorded["LapNumber"] = pd.to_numeric(recorded["LapNumber"], errors="coerce")
+    recorded["Position"] = pd.to_numeric(recorded["Position"], errors="coerce")
+    recorded = recorded.dropna(subset=["LapNumber", "Position"])
+    recorded = recorded[(recorded["LapNumber"] >= 1) & (recorded["Position"] >= 1)]
+    if recorded.empty:
+        return empty_replay
+
+    # Keep the last non-generated timing row when FastF1 records more than
+    # one row for a driver and lap.
+    sort_columns = ["Driver", "LapNumber"]
+    if "Time" in recorded.columns:
+        recorded["_replay_time"] = pd.to_timedelta(recorded["Time"], errors="coerce")
+        sort_columns.append("_replay_time")
+    recorded = (
+        recorded.sort_values(sort_columns, na_position="last")
+        .drop_duplicates(["Driver", "LapNumber"], keep="last")
+    )
+
+    team_by_driver = {
+        str(row.get("driver")): row.get("team", "Unknown")
+        for row in leaderboard or []
+        if row.get("driver")
+    }
+    events_by_lap = {}
+
+    def add_event(lap, label, kind):
+        if lap is None or lap < 1:
+            return
+        events_by_lap.setdefault(lap, []).append({"label": label, "kind": kind})
+
+    def reference_lap(value):
+        digits = "".join(character for character in str(value or "") if character.isdigit())
+        return int(digits) if digits else None
+
+    for event in race_control_events or []:
+        add_event(reference_lap(event.get("lap_reference")), event.get("label", "Race control event"), event.get("kind", "race-control"))
+    for stop in pit_stops or []:
+        code = stop.get("compound_code")
+        compound = f" · {code}" if code and code != "—" else ""
+        add_event(reference_lap(stop.get("lap_reference")), f"{stop.get('driver', 'Driver')} pit stop{compound}", "pit-stop")
+    for period in rain_periods or []:
+        add_event(period.get("first_observed_lap"), "Rain recorded", "rain")
+
+    snapshots = []
+    for lap_number, lap_rows in recorded.groupby("LapNumber", sort=True):
+        lap = int(lap_number)
+        rows = []
+        for row in lap_rows.itertuples():
+            compound_code, compound_name = _compound_display(getattr(row, "Compound", None))
+            driver = str(row.Driver)
+            rows.append(
+                {
+                    "position": int(row.Position),
+                    "driver": driver,
+                    "team": team_by_driver.get(driver, "Unknown"),
+                    "compound_code": compound_code,
+                    "compound": compound_name,
+                }
+            )
+        rows.sort(key=lambda item: (item["position"], item["driver"]))
+        raining = any(
+            period.get("first_observed_lap", lap + 1) <= lap <= period.get("last_observed_lap", 0)
+            for period in rain_periods or []
+        )
+        snapshots.append(
+            {
+                "lap": lap,
+                "rows": rows,
+                "events": events_by_lap.get(lap, []),
+                "rain_recorded": raining,
+            }
+        )
+
+    return {"snapshots": snapshots}
 
 
 def _build_strategy_rows(leaderboard, laps=None):
@@ -1938,6 +2042,7 @@ def _empty_race():
         "strategy_rows": [],
         "pit_stop_windows": [],
         "race_progression": {"total_laps": 0, "max_position": 1, "drivers": []},
+        "race_replay": {"snapshots": []},
         "close_finishes": [],
         "teammate_battles": [],
     }

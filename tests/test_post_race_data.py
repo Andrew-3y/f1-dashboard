@@ -18,6 +18,7 @@ from app import (
     _build_retirement_details,
     _build_race_start,
     _build_race_progression,
+    _build_race_replay,
     _build_race_control_events,
     _build_race_story,
     _build_pit_stop_timeline,
@@ -517,6 +518,44 @@ class PostRaceDataTests(unittest.TestCase):
         progression = _build_race_progression([{"position": 1, "driver": "AAA", "team": "Team"}], laps)
         self.assertEqual(progression["drivers"][0]["points"], [{"lap": 1, "position": 2}, {"lap": 2, "position": 1}])
 
+    def test_race_replay_uses_only_recorded_lap_state_and_events(self):
+        laps = pd.DataFrame(
+            {
+                "Driver": ["AAA", "BBB", "AAA", "BBB", "AAA"],
+                "LapNumber": [1, 1, 2, 2, 2],
+                "Position": [2, 1, 1, 2, 9],
+                "Compound": ["MEDIUM", "SOFT", "HARD", "SOFT", "WET"],
+                "Time": [pd.Timedelta(seconds=value) for value in [80, 81, 160, 162, 170]],
+                "FastF1Generated": [False, False, False, False, True],
+            }
+        )
+        replay = _build_race_replay(
+            [
+                {"driver": "AAA", "team": "Alpha"},
+                {"driver": "BBB", "team": "Beta"},
+            ],
+            laps,
+            race_control_events=[{"lap_reference": "L2", "label": "Safety Car deployed", "kind": "safety-car"}],
+            pit_stops=[{"lap_reference": "L2", "driver": "AAA", "compound_code": "H"}],
+            rain_periods=[{"first_observed_lap": 2, "last_observed_lap": 2}],
+        )
+
+        self.assertEqual([snapshot["lap"] for snapshot in replay["snapshots"]], [1, 2])
+        self.assertEqual(replay["snapshots"][0]["rows"], [
+            {"position": 1, "driver": "BBB", "team": "Beta", "compound_code": "S", "compound": "Soft"},
+            {"position": 2, "driver": "AAA", "team": "Alpha", "compound_code": "M", "compound": "Medium"},
+        ])
+        self.assertEqual(replay["snapshots"][1]["rows"], [
+            {"position": 1, "driver": "AAA", "team": "Alpha", "compound_code": "H", "compound": "Hard"},
+            {"position": 2, "driver": "BBB", "team": "Beta", "compound_code": "S", "compound": "Soft"},
+        ])
+        self.assertTrue(replay["snapshots"][1]["rain_recorded"])
+        self.assertEqual(replay["snapshots"][1]["events"], [
+            {"label": "Safety Car deployed", "kind": "safety-car"},
+            {"label": "AAA pit stop · H", "kind": "pit-stop"},
+            {"label": "Rain recorded", "kind": "rain"},
+        ])
+
     def test_race_start_uses_recorded_lap_one_positions_and_excludes_pit_lane_starters(self):
         laps = pd.DataFrame(
             {
@@ -952,6 +991,31 @@ class PostRaceDataTests(unittest.TestCase):
         self.assertIn("Official Classification", html)
         self.assertIn("Best Session Lap", html)
         self.assertNotIn("Race Strategy", html)
+
+    def test_dashboard_template_renders_the_recorded_race_replay(self):
+        context = dashboard_app._base_dashboard_context()
+        context.update(
+            {
+                "session_info": {"year": 2025, "round_number": 1, "event_name": "Test Grand Prix", "session_type": "Race"},
+                "session_category": "race",
+                "race_summary": {"winner": "AAA", "podium": "AAA", "fastest_lap_driver": "AAA", "fastest_lap_time": "1:20.000", "biggest_gainer": "AAA", "biggest_gain": 0},
+                "race_story": {"lead_changes": 0, "leaders": ["AAA"], "safety_cars": 0, "virtual_safety_cars": 0, "retirements": [], "race_control_events": []},
+                "race_replay": {
+                    "snapshots": [{
+                        "lap": 1,
+                        "rows": [{"position": 1, "driver": "AAA", "team": "Alpha", "compound_code": "M", "compound": "Medium"}],
+                        "events": [],
+                        "rain_recorded": False,
+                    }]
+                },
+            }
+        )
+        with flask_app.test_request_context("/"):
+            html = flask_app.jinja_env.get_template("dashboard.html").render(**context)
+
+        self.assertIn("Race Replay", html)
+        self.assertIn('id="replaySlider"', html)
+        self.assertIn("Recorded Race State", html)
 
     def test_qualifying_keeps_officially_classified_driver_with_no_time(self):
         session = type(
