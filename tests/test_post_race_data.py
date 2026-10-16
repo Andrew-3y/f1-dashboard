@@ -111,6 +111,13 @@ class PostRaceDataTests(unittest.TestCase):
                 self.assertFalse(data_handler._race_has_published_results(2025, 2))
             with patch("data_handler.load_session", return_value=(published_session, pd.DataFrame())):
                 self.assertFalse(data_handler._race_has_published_results(2025, 3))
+            large_classification = type(
+                "Session",
+                (),
+                {"results": pd.DataFrame({"Position": list(range(1, 21))})},
+            )()
+            with patch("data_handler.load_session", return_value=(large_classification, recorded_laps)):
+                self.assertFalse(data_handler._race_has_published_results(2025, 4))
         finally:
             data_handler._published_race_cache.clear()
 
@@ -200,6 +207,7 @@ class PostRaceDataTests(unittest.TestCase):
 
         self.assertEqual(event_name, "Sprint Grand Prix")
         self.assertEqual(sessions, ["Practice 1", "Sprint Qualifying", "Sprint", "Qualifying", "Race"])
+        self.assertEqual(dashboard_app._WEEKEND_SESSION_SHORT_NAMES["Sprint Qualifying"], "Sprint Qualifying")
 
     def test_weekend_page_renders_a_position_matrix_from_warmed_data(self):
         warm_state = {

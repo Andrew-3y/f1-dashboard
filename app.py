@@ -815,7 +815,7 @@ _WEEKEND_SESSION_SHORT_NAMES = {
     "Practice 2": "FP2",
     "Practice 3": "FP3",
     "Qualifying": "Qualifying",
-    "Sprint Qualifying": "SQ",
+    "Sprint Qualifying": "Sprint Qualifying",
     "Sprint": "Sprint",
     "Race": "Race",
 }

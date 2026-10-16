@@ -212,10 +212,13 @@ def _race_has_published_results(year, round_number):
             timed_drivers = recorded_laps.loc[
                 pd.to_timedelta(recorded_laps["LapTime"], errors="coerce").notna(), "Driver"
             ].dropna().nunique()
-            # One classified row or one timed driver is not a published race
-            # dataset. Requiring both prevents result-only fallback data from
-            # being shown on a dashboard that depends on timing information.
-            available = int(positions.notna().sum()) >= 2 and timed_drivers >= 2
+            classified_drivers = int(positions.notna().sum())
+            minimum_timed_drivers = max(2, (classified_drivers * 3 + 3) // 4)
+            # A classification on its own, or a handful of laps alongside a
+            # classification, is not enough for the race analysis. Require
+            # timing for at least 75% of the classified field so FastF1's
+            # result-only fallback cannot be presented as a complete race.
+            available = classified_drivers >= 2 and timed_drivers >= minimum_timed_drivers
     except Exception as exc:
         logger.info(
             "Race dashboard data are not published by FastF1 for %s round %s: %s",
